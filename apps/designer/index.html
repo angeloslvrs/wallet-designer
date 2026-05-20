@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>wallet-pass-designer</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>wallet-pass-designer</h1>
+      <span id="profile-badge">…</span>
+    </header>
+    <main>
+      <section id="form-pane"></section>
+      <section id="preview-pane">
+        <nav id="tabs">
+          <button data-tab="front" class="active">Front</button>
+          <button data-tab="back">Back</button>
+          <button data-tab="detail">iOS 26 Detail</button>
+        </nav>
+        <div id="preview-stage"></div>
+        <button id="build-btn">Build .pkpass</button>
+        <div id="build-status"></div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
