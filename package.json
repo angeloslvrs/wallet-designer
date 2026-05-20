@@ -1,0 +1,23 @@
+{
+  "name": "wallet-pass-designer",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "gen-dev-cert": "bash scripts/gen-dev-cert.sh",
+    "gen-assets": "node scripts/gen-assets.js",
+    "init": "npm run gen-dev-cert && npm run gen-assets",
+    "build:pass": "node scripts/build-pass.js",
+    "cert:inspect": "node scripts/cert-inspect.js",
+    "check": "node -e \"import('./packages/pass-builder/validate.js').then(m => m.validateAllFixtures())\"",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "concurrently": "^8.2.0",
+    "sharp": "^0.33.0"
+  },
+  "engines": { "node": ">=20" }
+}
