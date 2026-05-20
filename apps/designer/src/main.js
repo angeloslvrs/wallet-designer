@@ -1,4 +1,4 @@
-import { subscribe } from "./state.js";
+import { subscribe, resetState } from "./state.js";
 import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
@@ -17,5 +17,9 @@ showProfile();
 renderForm(document.getElementById("form-pane"));
 mountTabs(document.getElementById("tabs"));
 wireBuildButton(document.getElementById("build-btn"), document.getElementById("build-status"));
+document.getElementById("reset-btn").addEventListener("click", () => {
+  resetState();
+  renderForm(document.getElementById("form-pane"));
+});
 renderActiveTab();
 subscribe(() => renderActiveTab());

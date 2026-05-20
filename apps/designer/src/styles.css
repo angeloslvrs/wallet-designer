@@ -10,9 +10,12 @@ main { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px
 #tabs button { background: none; border: none; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 #tabs button.active { border-bottom-color: #1a2150; font-weight: 600; }
 #preview-stage { flex: 1; display: flex; align-items: center; justify-content: center; background: #f0f1f5; border-radius: 6px; min-height: 480px; }
-#build-btn { background: #1a2150; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+#actions { display: flex; gap: 8px; }
+#build-btn { flex: 1; background: #1a2150; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
 #build-btn:hover { background: #2a3170; }
 #build-btn:disabled { background: #888; cursor: not-allowed; }
+#reset-btn { background: transparent; color: #1a2150; border: 1px solid #1a2150; padding: 12px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+#reset-btn:hover { background: #f0f1f5; }
 #build-status { font-size: 12px; color: #555; min-height: 16px; }
 
 fieldset { border: 1px solid #e5e5e8; border-radius: 6px; margin-bottom: 12px; padding: 8px 12px; }

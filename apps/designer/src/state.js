@@ -14,10 +14,29 @@ const initial = {
   iOS26: { duration: 19800, securityScreening: "TSA PreCheck", wifi: [{ ssid: "GoGoInflight", password: "RP247" }] }
 };
 
-export const state = structuredClone(initial);
+const STORAGE_KEY = "wpd:form-state";
+
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+export const state = loadPersisted() ?? structuredClone(initial);
 const listeners = new Set();
 export const subscribe = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
-const notify = () => listeners.forEach(fn => fn(state));
+const notify = () => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+  listeners.forEach(fn => fn(state));
+};
+
+export function resetState() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  Object.assign(state, structuredClone(initial));
+  notify();
+}
 
 /** Set a deep path like "flight.departure.iata" to a value. */
 export function setPath(path, value) {
