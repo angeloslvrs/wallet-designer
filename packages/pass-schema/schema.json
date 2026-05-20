@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "wpd/form-state",
+  "type": "object",
+  "required": ["meta", "branding", "flight", "passenger", "barcode"],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["passTypeId", "teamId", "organizationName", "serialNumber", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "passTypeId": { "type": "string" },
+        "teamId": { "type": "string" },
+        "organizationName": { "type": "string" },
+        "serialNumber": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "required": ["logoText", "foregroundColor", "backgroundColor", "labelColor"],
+      "additionalProperties": false,
+      "properties": {
+        "logoText": { "type": "string" },
+        "foregroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
+        "backgroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
+        "labelColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" }
+      }
+    },
+    "flight": {
+      "type": "object",
+      "required": ["airlineCode", "flightNumber", "departure", "arrival"],
+      "additionalProperties": false,
+      "properties": {
+        "airlineCode": { "type": "string", "minLength": 2, "maxLength": 3 },
+        "flightNumber": { "type": "string" },
+        "departure": { "$ref": "#/definitions/endpoint" },
+        "arrival":   { "$ref": "#/definitions/endpoint" }
+      }
+    },
+    "passenger": {
+      "type": "object",
+      "required": ["name", "seats", "boardingGroup", "seqNumber"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "frequentFlyerNumber": { "type": "string" },
+        "seats": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["number", "cabin"],
+            "properties": {
+              "number": { "type": "string" },
+              "cabin": { "type": "string" },
+              "row": { "type": "string" },
+              "letter": { "type": "string" }
+            }
+          }
+        },
+        "boardingGroup": { "type": "string" },
+        "seqNumber": { "type": "string" }
+      }
+    },
+    "barcode": {
+      "type": "object",
+      "required": ["format", "message", "altText"],
+      "properties": {
+        "format": { "enum": ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
+        "message": { "type": "string" },
+        "altText": { "type": "string" }
+      }
+    },
+    "iOS26": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "duration": { "type": "number" },
+        "securityScreening": { "type": "string" },
+        "transitInfo": { "type": "string" },
+        "wifi": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ssid"],
+            "properties": {
+              "ssid": { "type": "string" },
+              "password": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "endpoint": {
+      "type": "object",
+      "required": ["iata", "name", "city"],
+      "properties": {
+        "iata": { "type": "string", "minLength": 3, "maxLength": 3 },
+        "name": { "type": "string" },
+        "city": { "type": "string" },
+        "terminal": { "type": "string" },
+        "gate": { "type": "string" },
+        "gateOpen": { "type": "string", "format": "date-time" },
+        "boarding": { "type": "string", "format": "date-time" },
+        "depart":   { "type": "string", "format": "date-time" },
+        "arrive":   { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
