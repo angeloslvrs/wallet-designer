@@ -94,6 +94,25 @@ npm run build:pass -- --in fixtures/fully-loaded.json
 
 AirDrop or email the resulting `out/fully-loaded.pkpass` to your iPhone. Tap to add to Wallet.
 
+## Live Activities / Passes Web Service (after cert-day)
+
+The same Pass Type ID Certificate you drop into `certs/prod/signerCert.pem` doubles as the **APNs client certificate** for pushing pass updates to registered devices. No separate APNs cert is needed.
+
+Once `CERT_PROFILE=prod`:
+
+1. The dev-mode APNs stub (which logs "would push to <token>") switches automatically to a real HTTP/2 connection to `api.push.apple.com:443`, authenticating with `signerCert.pem` + `signerKey.pem`.
+2. The pass's `webServiceURL` must be a publicly-reachable HTTPS URL — iPhones reject `http://localhost`. Options:
+   - Cloudflare Tunnel or ngrok for testing (`https://abcd1234.ngrok.io/api/wallet`)
+   - A real server with TLS
+3. Update each fixture's `meta.webServiceURL` to the public URL before issuing the pass.
+4. `meta.authenticationToken` must be ≥16 chars and unique per pass — leave it unset and the server will generate one per pass on issuance.
+
+After that the live cycle is:
+- User adds the pass to Wallet → iPhone calls `POST /v1/devices/.../registrations/.../...` with its push token
+- You hit "Change gate" / "Mark delayed" / "Boarding now" in the designer SPA → server updates pass state + sends APNs push
+- iPhone wakes up, hits `GET /v1/devices/.../registrations/...` then `GET /v1/passes/...` to fetch the new pass.json
+- Wallet refreshes the visible pass + the Live Activity on the lock screen
+
 ## Gotchas
 
 - **CSR must be generated on the same Mac the private key will live on.** If you move the `.p12` to a different machine, that's fine, but the original key pair was created in that Mac's Keychain.

@@ -14,7 +14,9 @@
         "teamId": { "type": "string" },
         "organizationName": { "type": "string" },
         "serialNumber": { "type": "string" },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "webServiceURL": { "type": "string" },
+        "authenticationToken": { "type": "string", "minLength": 16 }
       }
     },
     "branding": {
@@ -89,6 +91,46 @@
               "password": { "type": "string" }
             }
           }
+        },
+        "additionalInfoFields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "label", "value"],
+            "properties": {
+              "key": { "type": "string" },
+              "label": { "type": "string" },
+              "value": { "type": "string" }
+            }
+          }
+        },
+        "relevantDates": {
+          "type": "array",
+          "items": { "type": "string", "format": "date-time" }
+        },
+        "eventGuide": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bagPolicyURL": { "type": "string" },
+            "orderFoodURL": { "type": "string" },
+            "transferURL": { "type": "string" },
+            "parkingInformationURL": { "type": "string" },
+            "directionsInformationURL": { "type": "string" },
+            "transitInformationURL": { "type": "string" }
+          }
+        },
+        "upcomingPassInformation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["identifier", "name", "date"],
+            "properties": {
+              "identifier": { "type": "string" },
+              "name": { "type": "string" },
+              "date": { "type": "string", "format": "date-time" }
+            }
+          }
         }
       }
     }
@@ -106,7 +148,10 @@
         "gateOpen": { "type": "string", "format": "date-time" },
         "boarding": { "type": "string", "format": "date-time" },
         "depart":   { "type": "string", "format": "date-time" },
-        "arrive":   { "type": "string", "format": "date-time" }
+        "arrive":   { "type": "string", "format": "date-time" },
+        "timeZone": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" }
       }
     }
   }

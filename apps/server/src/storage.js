@@ -1,0 +1,127 @@
+// Tiny JSON-file-backed store for issued passes + device registrations.
+// Production would use SQLite/Postgres; this is enough for a prototype.
+
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname } from "node:path";
+import { randomBytes } from "node:crypto";
+
+const PATH = "state/passes.json";
+const EMPTY = { passes: {}, registrations: {}, log: [] };
+
+let cache = null;
+let writing = Promise.resolve();
+
+async function load() {
+  if (cache) return cache;
+  if (existsSync(PATH)) {
+    try { cache = JSON.parse(await readFile(PATH, "utf8")); }
+    catch { cache = structuredClone(EMPTY); }
+  } else {
+    cache = structuredClone(EMPTY);
+  }
+  return cache;
+}
+
+async function persist() {
+  writing = writing.then(async () => {
+    await mkdir(dirname(PATH), { recursive: true });
+    const tmp = `${PATH}.tmp`;
+    await writeFile(tmp, JSON.stringify(cache, null, 2));
+    await rename(tmp, PATH);
+  });
+  return writing;
+}
+
+export async function savePass(state) {
+  const db = await load();
+  const serial = state.meta.serialNumber;
+  const token = state.meta.authenticationToken ?? randomBytes(16).toString("hex");
+  db.passes[serial] = {
+    passTypeIdentifier: state.meta.passTypeId,
+    authenticationToken: token,
+    state: { ...state, meta: { ...state.meta, authenticationToken: token } },
+    lastModified: new Date().toUTCString()
+  };
+  await persist();
+  return db.passes[serial];
+}
+
+export async function getPass(passTypeId, serial) {
+  const db = await load();
+  const rec = db.passes[serial];
+  if (!rec || rec.passTypeIdentifier !== passTypeId) return null;
+  return rec;
+}
+
+export async function updatePassState(serial, mutator) {
+  const db = await load();
+  const rec = db.passes[serial];
+  if (!rec) return null;
+  rec.state = mutator(rec.state);
+  rec.lastModified = new Date().toUTCString();
+  await persist();
+  return rec;
+}
+
+export async function registerDevice({ deviceLibraryIdentifier, passTypeIdentifier, serialNumber, pushToken }) {
+  const db = await load();
+  db.registrations[deviceLibraryIdentifier] ??= {};
+  db.registrations[deviceLibraryIdentifier][serialNumber] = {
+    pushToken,
+    passTypeIdentifier,
+    registeredAt: new Date().toISOString()
+  };
+  await persist();
+}
+
+export async function unregisterDevice({ deviceLibraryIdentifier, serialNumber }) {
+  const db = await load();
+  if (db.registrations[deviceLibraryIdentifier]) {
+    delete db.registrations[deviceLibraryIdentifier][serialNumber];
+    if (Object.keys(db.registrations[deviceLibraryIdentifier]).length === 0) {
+      delete db.registrations[deviceLibraryIdentifier];
+    }
+    await persist();
+  }
+}
+
+export async function listUpdatedSerials({ deviceLibraryIdentifier, passTypeIdentifier, sinceTag }) {
+  const db = await load();
+  const subs = db.registrations[deviceLibraryIdentifier] ?? {};
+  const sinceMs = sinceTag ? Date.parse(sinceTag) : 0;
+  /** @type {string[]} */
+  const serials = [];
+  let maxModified = 0;
+  for (const [serial, sub] of Object.entries(subs)) {
+    if (sub.passTypeIdentifier !== passTypeIdentifier) continue;
+    const rec = db.passes[serial];
+    if (!rec) continue;
+    const mt = Date.parse(rec.lastModified);
+    if (mt > sinceMs) { serials.push(serial); }
+    if (mt > maxModified) maxModified = mt;
+  }
+  return { serials, lastModified: maxModified ? new Date(maxModified).toUTCString() : null };
+}
+
+export async function devicesFor(passTypeId, serial) {
+  const db = await load();
+  /** @type {Array<{deviceLibraryIdentifier:string, pushToken:string}>} */
+  const out = [];
+  for (const [device, subs] of Object.entries(db.registrations)) {
+    const sub = subs[serial];
+    if (sub && sub.passTypeIdentifier === passTypeId) out.push({ deviceLibraryIdentifier: device, pushToken: sub.pushToken });
+  }
+  return out;
+}
+
+export async function logFromDevice(entries) {
+  const db = await load();
+  db.log.push({ at: new Date().toISOString(), entries });
+  if (db.log.length > 1000) db.log = db.log.slice(-1000);
+  await persist();
+}
+
+export async function snapshot() {
+  return structuredClone(await load());
+}

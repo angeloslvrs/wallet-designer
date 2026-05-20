@@ -1,11 +1,22 @@
 /**
- * Pure: FormState → Apple pass.json (incl. iOS 26 `semantics` block).
+ * Pure: FormState → Apple pass.json with full iOS 26 opt-in.
+ *
+ * Emits:
+ *  - preferredStyleSchemes: ["semanticBoardingPass"]
+ *  - semantics block (correct Apple field names)
+ *  - boardingPass.additionalInfoFields
+ *  - relevantDates[] (paired date+relevantDate for iOS 18+26 compat)
+ *  - event-guide URLs (bagPolicyURL, orderFoodURL, transferURL, …)
+ *  - upcomingPassInformation[] (lock-screen pre-boarding content)
+ *  - webServiceURL + authenticationToken (passes web service / Live Activities)
+ *
  * @param {import("@wpd/pass-schema").FormState} s
  */
 export function formStateToPassJson(s) {
   const { meta, branding, flight, passenger, barcode } = s;
   const dep = flight.departure;
   const arr = flight.arrival;
+  const ios = s.iOS26 ?? {};
 
   /** @type any */
   const pass = {
@@ -19,6 +30,7 @@ export function formStateToPassJson(s) {
     foregroundColor: branding.foregroundColor,
     backgroundColor: branding.backgroundColor,
     labelColor: branding.labelColor,
+    preferredStyleSchemes: ["semanticBoardingPass"],
     barcodes: [{
       format: barcode.format,
       message: barcode.message,
@@ -49,7 +61,8 @@ export function formStateToPassJson(s) {
         { key: "ff", label: "FREQUENT FLYER", value: passenger.frequentFlyerNumber ?? "—" },
         { key: "terminal-dep", label: "DEPARTURE TERMINAL", value: dep.terminal ?? "—" },
         { key: "terminal-arr", label: "ARRIVAL TERMINAL", value: arr.terminal ?? "—" }
-      ]
+      ],
+      ...(ios.additionalInfoFields?.length && { additionalInfoFields: ios.additionalInfoFields })
     },
     semantics: {
       airlineCode: flight.airlineCode,
@@ -65,27 +78,51 @@ export function formStateToPassJson(s) {
       ...(dep.gate && { departureGate: dep.gate }),
       ...(arr.terminal && { destinationTerminal: arr.terminal }),
       ...(arr.gate && { destinationGate: arr.gate }),
+      ...(dep.timeZone && { departureLocationTimeZone: dep.timeZone }),
+      ...(arr.timeZone && { destinationLocationTimeZone: arr.timeZone }),
+      ...(hasGeo(dep) && { departureLocation: { latitude: dep.latitude, longitude: dep.longitude } }),
+      ...(hasGeo(arr) && { destinationLocation: { latitude: arr.latitude, longitude: arr.longitude } }),
       ...(dep.depart && { originalDepartureDate: dep.depart, currentDepartureDate: dep.depart }),
       ...(arr.arrive && { originalArrivalDate: arr.arrive, currentArrivalDate: arr.arrive }),
       ...(dep.boarding && { originalBoardingDate: dep.boarding, currentBoardingDate: dep.boarding }),
       passengerName: { givenName: firstName(passenger.name), familyName: lastName(passenger.name) },
       boardingGroup: passenger.boardingGroup,
+      boardingSequenceNumber: passenger.seqNumber,
       seats: passenger.seats.map(x => ({
         seatNumber: x.number,
         seatType: x.cabin,
         ...(x.row && { seatRow: x.row }),
         ...(x.letter && { seatSection: x.letter })
       })),
-      ...(s.iOS26?.duration && { duration: s.iOS26.duration }),
-      ...(s.iOS26?.securityScreening && { securityScreening: s.iOS26.securityScreening }),
-      ...(s.iOS26?.transitInfo && { transitProvider: s.iOS26.transitInfo }),
-      ...(s.iOS26?.wifi?.length && { wifiAccess: s.iOS26.wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) })) })
-    }
+      ...(ios.duration && { duration: ios.duration }),
+      ...(ios.securityScreening && { securityScreening: ios.securityScreening }),
+      ...(ios.transitInfo && { transitProvider: ios.transitInfo }),
+      ...(ios.wifi?.length && { wifiAccess: ios.wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) })) })
+    },
+    ...(ios.relevantDates?.length && {
+      relevantDates: ios.relevantDates.map(d => ({ date: d, relevantDate: d }))
+    }),
+    ...(ios.eventGuide && stripUndef(ios.eventGuide)),
+    ...(ios.upcomingPassInformation?.length && {
+      upcomingPassInformation: ios.upcomingPassInformation.map(e => ({
+        identifier: e.identifier,
+        name: e.name,
+        type: "event",
+        dateInformation: { date: e.date }
+      }))
+    }),
+    ...(meta.webServiceURL && { webServiceURL: meta.webServiceURL }),
+    ...(meta.authenticationToken && { authenticationToken: meta.authenticationToken })
   };
 
   return pass;
 }
 
+function hasGeo(p) { return typeof p.latitude === "number" && typeof p.longitude === "number"; }
+function stripUndef(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== "") out[k] = v;
+  return out;
+}
 function firstName(full) { return (full ?? "").trim().split(/\s+/).slice(0, -1).join(" ") || full; }
 function lastName(full)  { return (full ?? "").trim().split(/\s+/).slice(-1)[0] ?? ""; }
-

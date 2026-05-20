@@ -1,6 +1,6 @@
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { schema } from "@wpd/pass-schema";
@@ -17,7 +17,7 @@ export function validate(state) {
 export async function validateAllFixtures() {
   const here = dirname(fileURLToPath(import.meta.url));
   const fixturesDir = join(here, "..", "..", "fixtures");
-  const names = ["minimal.json", "fully-loaded.json", "multi-seat.json"];
+  const names = (await readdir(fixturesDir)).filter(f => f.endsWith(".json")).sort();
   let bad = 0;
   for (const n of names) {
     const raw = JSON.parse(await readFile(join(fixturesDir, n), "utf8"));

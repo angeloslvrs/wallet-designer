@@ -1,13 +1,16 @@
 import { Router } from "express";
 import { buildPkpass } from "@wpd/pass-builder";
 import { env } from "../env.js";
+import { savePass } from "../storage.js";
 
 export const buildRouter = Router();
 
 buildRouter.post("/build", async (req, res) => {
   try {
+    const rec = await savePass(req.body);
+    const stateWithToken = { ...req.body, meta: { ...req.body.meta, authenticationToken: rec.authenticationToken } };
     const buf = await buildPkpass({
-      state: req.body,
+      state: stateWithToken,
       certDir: env.certDir,
       passphrase: env.passphrase
     });

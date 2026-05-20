@@ -1,13 +1,51 @@
 {
-  "meta": { "passTypeId": "pass.dev.local", "teamId": "DEV0000000", "organizationName": "Cebu Pacific Air", "serialNumber": "5J5056-001", "description": "Cebu Pacific boarding pass" },
+  "meta": {
+    "passTypeId": "pass.dev.local",
+    "teamId": "DEV0000000",
+    "organizationName": "Cebu Pacific Air",
+    "serialNumber": "5J5056-001",
+    "description": "Cebu Pacific boarding pass",
+    "webServiceURL": "http://localhost:4317/api/wallet",
+    "authenticationToken": "5J5056-token-0123456789abcdef"
+  },
   "branding": { "logoText": "Cebu Pacific", "foregroundColor": "rgb(30,30,30)", "backgroundColor": "rgb(255,210,0)", "labelColor": "rgb(0,108,184)" },
   "flight": {
     "airlineCode": "5J",
     "flightNumber": "5056",
-    "departure": { "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila", "terminal": "3", "gate": "132", "boarding": "2026-06-15T05:30:00+08:00", "depart": "2026-06-15T06:00:00+08:00" },
-    "arrival":   { "iata": "CEB", "name": "Mactan-Cebu International", "city": "Cebu", "terminal": "2", "arrive": "2026-06-15T07:30:00+08:00" }
+    "departure": {
+      "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila",
+      "terminal": "3", "gate": "132",
+      "boarding": "2026-06-15T05:30:00+08:00", "depart": "2026-06-15T06:00:00+08:00",
+      "timeZone": "Asia/Manila", "latitude": 14.5086, "longitude": 121.0194
+    },
+    "arrival": {
+      "iata": "CEB", "name": "Mactan-Cebu International", "city": "Cebu",
+      "terminal": "2",
+      "arrive": "2026-06-15T07:30:00+08:00",
+      "timeZone": "Asia/Manila", "latitude": 10.3075, "longitude": 123.9788
+    }
   },
   "passenger": { "name": "ANGELO SOLIVERES", "seats": [{ "number": "12F", "cabin": "economy", "row": "12", "letter": "F" }], "boardingGroup": "2", "seqNumber": "0017" },
   "barcode": { "format": "PKBarcodeFormatPDF417", "message": "5J5056MNLCEB12F0017", "altText": "5J5056 12F" },
-  "iOS26": { "duration": 5400, "securityScreening": "OTS", "transitInfo": "Skybridge to Gate 132", "wifi": [{ "ssid": "CebPac-WiFi", "password": "5J5056" }] }
+  "iOS26": {
+    "duration": 5400,
+    "securityScreening": "OTS",
+    "transitInfo": "Skybridge to Gate 132",
+    "wifi": [{ "ssid": "CebPac-WiFi", "password": "5J5056" }],
+    "additionalInfoFields": [
+      { "key": "fare-class", "label": "FARE", "value": "GoLite" },
+      { "key": "baggage", "label": "BAGGAGE", "value": "Hand-carry only" }
+    ],
+    "relevantDates": ["2026-06-15T05:00:00+08:00"],
+    "eventGuide": {
+      "bagPolicyURL": "https://www.cebupacificair.com/baggage",
+      "orderFoodURL": "https://www.cebupacificair.com/cebsmiles",
+      "parkingInformationURL": "https://www.miaa.gov.ph/parking",
+      "transitInformationURL": "https://www.naia.aero/transit"
+    },
+    "upcomingPassInformation": [
+      { "identifier": "checkin-open", "name": "Web check-in opens", "date": "2026-06-14T06:00:00+08:00" },
+      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-15T05:30:00+08:00" }
+    ]
+  }
 }
