@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node scripts/dev.js",
     "gen-dev-cert": "bash scripts/gen-dev-cert.sh",
@@ -15,9 +18,14 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "vitest": "^1.6.0",
     "concurrently": "^8.2.0",
-    "sharp": "^0.33.0"
+    "sharp": "^0.33.0",
+    "vitest": "^1.6.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2"
+  }
 }

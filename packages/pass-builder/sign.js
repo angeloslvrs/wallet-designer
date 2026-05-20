@@ -17,9 +17,12 @@ export async function signPkpass({ certDir, passphrase, passJson, assets }) {
     readFile(join(certDir, "wwdr.pem"))
   ]);
 
+  const certs = { signerCert, signerKey, wwdr };
+  if (passphrase) certs.signerKeyPassphrase = passphrase;
+
   const pass = new PKPass(
     { "pass.json": Buffer.from(JSON.stringify(passJson)), ...assets },
-    { signerCert, signerKey, wwdr, signerKeyPassphrase: passphrase ?? "" }
+    certs
   );
 
   return pass.getAsBuffer();
