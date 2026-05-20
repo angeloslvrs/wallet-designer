@@ -1,5 +1,5 @@
 /**
- * Pure: FormState → Apple pass.json (incl. iOS 26 semanticTags).
+ * Pure: FormState → Apple pass.json (incl. iOS 26 `semantics` block).
  * @param {import("@wpd/pass-schema").FormState} s
  */
 export function formStateToPassJson(s) {
@@ -51,14 +51,14 @@ export function formStateToPassJson(s) {
         { key: "terminal-arr", label: "ARRIVAL TERMINAL", value: arr.terminal ?? "—" }
       ]
     },
-    semanticTags: {
+    semantics: {
       airlineCode: flight.airlineCode,
       flightCode: `${flight.airlineCode}${flight.flightNumber}`,
       flightNumber: Number(flight.flightNumber),
-      departureAirportIATACode: dep.iata,
+      departureAirportCode: dep.iata,
       departureAirportName: dep.name,
       departureLocationDescription: dep.city,
-      destinationAirportIATACode: arr.iata,
+      destinationAirportCode: arr.iata,
       destinationAirportName: arr.name,
       destinationLocationDescription: arr.city,
       ...(dep.terminal && { departureTerminal: dep.terminal }),
@@ -68,7 +68,7 @@ export function formStateToPassJson(s) {
       ...(dep.depart && { originalDepartureDate: dep.depart, currentDepartureDate: dep.depart }),
       ...(arr.arrive && { originalArrivalDate: arr.arrive, currentArrivalDate: arr.arrive }),
       ...(dep.boarding && { originalBoardingDate: dep.boarding, currentBoardingDate: dep.boarding }),
-      passengerName: { fullName: passenger.name },
+      passengerName: { givenName: firstName(passenger.name), familyName: lastName(passenger.name) },
       boardingGroup: passenger.boardingGroup,
       seats: passenger.seats.map(x => ({
         seatNumber: x.number,
@@ -78,10 +78,14 @@ export function formStateToPassJson(s) {
       })),
       ...(s.iOS26?.duration && { duration: s.iOS26.duration }),
       ...(s.iOS26?.securityScreening && { securityScreening: s.iOS26.securityScreening }),
-      ...(s.iOS26?.transitInfo && { transitInformation: s.iOS26.transitInfo }),
+      ...(s.iOS26?.transitInfo && { transitProvider: s.iOS26.transitInfo }),
       ...(s.iOS26?.wifi?.length && { wifiAccess: s.iOS26.wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) })) })
     }
   };
 
   return pass;
 }
+
+function firstName(full) { return (full ?? "").trim().split(/\s+/).slice(0, -1).join(" ") || full; }
+function lastName(full)  { return (full ?? "").trim().split(/\s+/).slice(-1)[0] ?? ""; }
+

@@ -38,22 +38,23 @@ describe("formStateToPassJson", () => {
     expect(labels).toContain("arrive");
   });
 
-  it("emits iOS 26 semanticTags", () => {
+  it("emits iOS 26 semantics block", () => {
     const p = formStateToPassJson(baseState);
-    expect(p.semanticTags.airlineCode).toBe("RP");
-    expect(p.semanticTags.flightNumber).toBe(247);
-    expect(p.semanticTags.departureAirportIATACode).toBe("SFO");
-    expect(p.semanticTags.destinationAirportIATACode).toBe("JFK");
-    expect(p.semanticTags.passengerName.fullName).toBe("ANGELO SOLIVERES");
-    expect(p.semanticTags.seats).toHaveLength(1);
-    expect(p.semanticTags.seats[0].seatNumber).toBe("14A");
-    expect(p.semanticTags.boardingGroup).toBe("3");
-    expect(p.semanticTags.wifiAccess[0].ssid).toBe("GoGoInflight");
+    expect(p.semantics.airlineCode).toBe("RP");
+    expect(p.semantics.flightNumber).toBe(247);
+    expect(p.semantics.departureAirportCode).toBe("SFO");
+    expect(p.semantics.destinationAirportCode).toBe("JFK");
+    expect(p.semantics.passengerName.familyName).toBe("SOLIVERES");
+    expect(p.semantics.passengerName.givenName).toBe("ANGELO");
+    expect(p.semantics.seats).toHaveLength(1);
+    expect(p.semantics.seats[0].seatNumber).toBe("14A");
+    expect(p.semantics.boardingGroup).toBe("3");
+    expect(p.semantics.wifiAccess[0].ssid).toBe("GoGoInflight");
   });
 
   it("uses ISO-8601 dates verbatim from state", () => {
     const p = formStateToPassJson(baseState);
-    expect(p.semanticTags.originalDepartureDate).toBe("2026-06-01T08:15:00-07:00");
-    expect(p.semanticTags.originalArrivalDate).toBe("2026-06-01T16:45:00-04:00");
+    expect(p.semantics.originalDepartureDate).toBe("2026-06-01T08:15:00-07:00");
+    expect(p.semantics.originalArrivalDate).toBe("2026-06-01T16:45:00-04:00");
   });
 });
