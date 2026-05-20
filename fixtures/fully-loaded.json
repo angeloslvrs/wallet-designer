@@ -1,0 +1,13 @@
+{
+  "meta": { "passTypeId": "pass.dev.local", "teamId": "DEV0000000", "organizationName": "Rocket Partners Airlines", "serialNumber": "RP-FULL-001", "description": "Boarding pass" },
+  "branding": { "logoText": "Rocket Partners", "foregroundColor": "rgb(255,255,255)", "backgroundColor": "rgb(20,30,80)", "labelColor": "rgb(180,200,255)" },
+  "flight": {
+    "airlineCode": "RP",
+    "flightNumber": "247",
+    "departure": { "iata": "SFO", "name": "San Francisco Intl", "city": "San Francisco", "terminal": "2", "gate": "B12", "gateOpen": "2026-06-01T07:00:00-07:00", "boarding": "2026-06-01T07:30:00-07:00", "depart": "2026-06-01T08:15:00-07:00" },
+    "arrival":   { "iata": "JFK", "name": "John F. Kennedy Intl", "city": "New York", "terminal": "4", "gate": "B7", "arrive": "2026-06-01T16:45:00-04:00" }
+  },
+  "passenger": { "name": "ANGELO SOLIVERES", "frequentFlyerNumber": "RP-GOLD-1234567", "seats": [{ "number": "14A", "cabin": "economy", "row": "14", "letter": "A" }], "boardingGroup": "3", "seqNumber": "0042" },
+  "barcode": { "format": "PKBarcodeFormatQR", "message": "RP247-SFOJFK-14A-0042", "altText": "RP247 14A" },
+  "iOS26": { "duration": 19800, "securityScreening": "TSA PreCheck", "transitInfo": "Train Concourse B → Gate B12", "wifi": [{ "ssid": "GoGoInflight", "password": "RP247" }] }
+}
