@@ -34,7 +34,15 @@ const notify = () => {
 
 export function resetState() {
   try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  for (const k of Object.keys(state)) delete state[k];
   Object.assign(state, structuredClone(initial));
+  notify();
+}
+
+/** Replace the whole state object (used when loading a fixture). */
+export function replaceState(next) {
+  for (const k of Object.keys(state)) delete state[k];
+  Object.assign(state, structuredClone(next));
   notify();
 }
 

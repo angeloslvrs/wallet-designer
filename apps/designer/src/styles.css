@@ -10,7 +10,8 @@ main { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px
 #tabs button { background: none; border: none; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
 #tabs button.active { border-bottom-color: #1a2150; font-weight: 600; }
 #preview-stage { flex: 1; display: flex; align-items: center; justify-content: center; background: #f0f1f5; border-radius: 6px; min-height: 480px; }
-#actions { display: flex; gap: 8px; }
+#actions { display: flex; gap: 8px; align-items: stretch; }
+#fixture-picker { padding: 0 12px; border: 1px solid #ccc; border-radius: 6px; background: white; font: inherit; cursor: pointer; }
 #build-btn { flex: 1; background: #1a2150; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
 #build-btn:hover { background: #2a3170; }
 #build-btn:disabled { background: #888; cursor: not-allowed; }

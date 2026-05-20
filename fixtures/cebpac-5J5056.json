@@ -1,0 +1,13 @@
+{
+  "meta": { "passTypeId": "pass.dev.local", "teamId": "DEV0000000", "organizationName": "Cebu Pacific Air", "serialNumber": "5J5056-001", "description": "Cebu Pacific boarding pass" },
+  "branding": { "logoText": "Cebu Pacific", "foregroundColor": "rgb(30,30,30)", "backgroundColor": "rgb(255,210,0)", "labelColor": "rgb(0,108,184)" },
+  "flight": {
+    "airlineCode": "5J",
+    "flightNumber": "5056",
+    "departure": { "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila", "terminal": "3", "gate": "132", "boarding": "2026-06-15T05:30:00+08:00", "depart": "2026-06-15T06:00:00+08:00" },
+    "arrival":   { "iata": "CEB", "name": "Mactan-Cebu International", "city": "Cebu", "terminal": "2", "arrive": "2026-06-15T07:30:00+08:00" }
+  },
+  "passenger": { "name": "ANGELO SOLIVERES", "seats": [{ "number": "12F", "cabin": "economy", "row": "12", "letter": "F" }], "boardingGroup": "2", "seqNumber": "0017" },
+  "barcode": { "format": "PKBarcodeFormatPDF417", "message": "5J5056MNLCEB12F0017", "altText": "5J5056 12F" },
+  "iOS26": { "duration": 5400, "securityScreening": "OTS", "transitInfo": "Skybridge to Gate 132", "wifi": [{ "ssid": "CebPac-WiFi", "password": "5J5056" }] }
+}
