@@ -15,3 +15,5 @@ certs/prod/*
 out/
 
 .DS_Store
+
+assets/
