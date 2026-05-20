@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+
+# certs — never commit signing material
+certs/dev/*
+certs/prod/*
+!certs/dev/.gitkeep
+!certs/prod/.gitkeep
+
+# build artifacts
+*.pkpass
+out/
+
+.DS_Store
