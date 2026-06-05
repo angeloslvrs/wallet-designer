@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -11,6 +12,7 @@ import { adminRouter } from "./routes/admin.js";
 
 const app = express();
 app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
+app.use(compression());              // gzip responses (the 1.4MB bundle → ~270KB) so the proxy can deliver it
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 // Lightweight request log for the pass/wallet flow so push + device fetches are observable.
