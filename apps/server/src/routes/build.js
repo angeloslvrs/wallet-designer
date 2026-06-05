@@ -8,9 +8,10 @@ export const buildRouter = Router();
 buildRouter.post("/build", async (req, res) => {
   try {
     const rec = await savePass(req.body);
-    const stateWithToken = { ...req.body, meta: { ...req.body.meta, authenticationToken: rec.authenticationToken } };
+    // rec.state already carries the auth token + injected webServiceURL, so the
+    // downloaded pass matches what the passes-web-service will serve on update.
     const buf = await buildPkpass({
-      state: stateWithToken,
+      state: rec.state,
       certDir: env.certDir,
       passphrase: env.passphrase
     });

@@ -37,10 +37,18 @@ export async function savePass(state) {
   const db = await load();
   const serial = state.meta.serialNumber;
   const token = state.meta.authenticationToken ?? randomBytes(16).toString("hex");
+  // Inject the passes-web-service URL from the environment so every issued pass
+  // can register for push updates without the caller having to set it.
+  const webServiceURL = state.meta.webServiceURL ?? process.env.WEB_SERVICE_URL;
+  const meta = {
+    ...state.meta,
+    authenticationToken: token,
+    ...(webServiceURL ? { webServiceURL } : {})
+  };
   db.passes[serial] = {
     passTypeIdentifier: state.meta.passTypeId,
     authenticationToken: token,
-    state: { ...state, meta: { ...state.meta, authenticationToken: token } },
+    state: { ...state, meta },
     lastModified: new Date().toUTCString()
   };
   await persist();
