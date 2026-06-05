@@ -108,7 +108,8 @@ export function mountTrip(root) {
     syncPaxFromInputs();
     const status = $("#trip-status");
     status.textContent = "Issuing…";
-    let lastGroup = null, ok = 0;
+    let lastGroup = null;
+    const issued = [];
     for (let i = 0; i < pax.length; i++) {
       if (!pax[i].name) continue;
       const r = await fetch("/api/passes", {
@@ -116,9 +117,13 @@ export function mountTrip(root) {
         body: JSON.stringify(buildPassState(pax[i], i))
       });
       const j = await r.json().catch(() => ({}));
-      if (r.ok) { ok++; lastGroup = j.groupId; } else { status.textContent = `✗ ${j.error ?? r.status}`; return; }
+      if (r.ok) { issued.push({ serial: j.serialNumber, name: pax[i].name }); lastGroup = j.groupId; }
+      else { status.textContent = `✗ ${j.error ?? r.status}`; return; }
     }
-    status.textContent = `✓ issued ${ok} pass(es) for trip ${lastGroup}`;
+    const links = issued.map(p =>
+      `<a href="/api/passes/${encodeURIComponent(p.serial)}/pkpass" download>${esc(p.name)} (${esc(p.serial)})</a>`
+    ).join("<br>");
+    status.innerHTML = `✓ issued ${issued.length} pass(es) for trip <b>${esc(lastGroup)}</b>.<br>Download &amp; AirDrop to each phone:<br>${links}`;
     await refreshGroups(lastGroup);
   }
 

@@ -2,6 +2,8 @@
 // for a single pass or for a whole trip (group of passes on one flight).
 
 import { Router } from "express";
+import { buildPkpass } from "@wpd/pass-builder";
+import { env } from "../env.js";
 import { savePass, updatePassState, devicesFor, snapshot, passesInGroup } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 
@@ -84,6 +86,22 @@ adminRouter.post("/groups/:groupId/status", async (req, res) => {
   }
   const sent = results.reduce((n, r) => n + r.push.sent, 0);
   res.json({ ok: true, count: members.length, sent, results });
+});
+
+// GET /api/passes/:serial/pkpass  →  download the signed .pkpass for a stored pass
+adminRouter.get("/passes/:serial/pkpass", async (req, res) => {
+  const snap = await snapshot();
+  const rec = snap.passes[req.params.serial];
+  if (!rec) return res.status(404).json({ error: "not found" });
+  try {
+    const buf = await buildPkpass({ state: rec.state, certDir: env.certDir, passphrase: env.passphrase });
+    const name = req.params.serial.replace(/[^a-zA-Z0-9._-]/g, "_");
+    res.setHeader("Content-Type", "application/vnd.apple.pkpass");
+    res.setHeader("Content-Disposition", `attachment; filename="${name}.pkpass"`);
+    res.send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err.message, details: err.details });
+  }
 });
 
 // GET /api/passes/:serial
