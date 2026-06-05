@@ -3,7 +3,7 @@ import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
-import { mountLiveControls } from "./live.js";
+import { mountTrip } from "./trip.js";
 
 async function showProfile() {
   try {
@@ -58,6 +58,6 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   renderForm(document.getElementById("form-pane"));
 });
 populateFixturePicker();
-mountLiveControls(document.getElementById("live-controls"));
+mountTrip(document.getElementById("live-controls"));
 renderActiveTab();
 subscribe(() => renderActiveTab());

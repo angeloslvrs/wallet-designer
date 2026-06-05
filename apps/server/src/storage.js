@@ -52,11 +52,28 @@ export async function savePass(state) {
   db.passes[serial] = {
     passTypeIdentifier: state.meta.passTypeId,
     authenticationToken: token,
+    groupId: deriveGroupId(state),   // all passengers on the same flight share this
     state: { ...state, meta },
     lastModified: new Date().toUTCString()
   };
   await persist();
   return db.passes[serial];
+}
+
+/** A trip is one flight on one day; every passenger's pass shares this id. */
+export function deriveGroupId(state) {
+  if (state.meta?.groupId) return state.meta.groupId;
+  const f = state.flight ?? {};
+  const date = (f.departure?.depart ?? "").slice(0, 10) || "nodate";
+  return `${f.airlineCode ?? "?"}${f.flightNumber ?? "?"}@${date}`;
+}
+
+/** All issued passes belonging to a trip/group. */
+export async function passesInGroup(groupId) {
+  const db = await load();
+  return Object.entries(db.passes)
+    .filter(([, rec]) => rec.groupId === groupId)
+    .map(([serial, rec]) => ({ serial, rec }));
 }
 
 export async function getPass(passTypeId, serial) {
