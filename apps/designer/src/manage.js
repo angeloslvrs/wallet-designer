@@ -12,23 +12,23 @@ export function mountManage(root, showDesigner) {
     if (el) el.textContent = msg;
   };
 
+  const shell = (inner) => `<div class="mg-wrap"><div class="mg-head"><h2>Manage issued passes</h2>${inner.count != null ? `<span class="mg-count">${inner.count} pass(es)</span>` : ""}</div>${inner.body}</div>`;
+
   async function load() {
-    root.innerHTML = "<h2>Manage issued passes</h2><p class='hint'>Loading…</p>";
+    root.innerHTML = shell({ body: `<p class="mg-empty">Loading…</p>` });
     let list;
     try { list = await fetch("/api/passes").then(r => r.json()); }
-    catch { root.innerHTML = "<h2>Manage issued passes</h2><p class='hint'>API offline.</p>"; return; }
+    catch { root.innerHTML = shell({ body: `<p class="mg-empty">API offline.</p>` }); return; }
 
     if (!Array.isArray(list) || !list.length) {
-      root.innerHTML = "<h2>Manage issued passes</h2><p class='hint'>Nothing issued yet — build/issue passes in the Designer.</p>";
+      root.innerHTML = shell({ body: `<p class="mg-empty">Nothing issued yet — build or issue passes in the Designer.</p>` });
       return;
     }
 
     const groups = {};
     for (const p of list) (groups[p.groupId] ??= []).push(p);
 
-    root.innerHTML = "<h2>Manage issued passes</h2>";
-    for (const [gid, members] of Object.entries(groups)) {
-      const sec = document.createElement("fieldset");
+    const cards = Object.entries(groups).map(([gid, members]) => {
       const rows = members.map(p => `
         <div class="mg-row">
           <div class="mg-info"><b>${esc(p.passenger || "—")}</b> · seat ${esc(p.seat || "—")} · <code>${esc(p.serial)}</code> · ${p.deviceCount} device(s)</div>
@@ -41,18 +41,23 @@ export function mountManage(root, showDesigner) {
           </div>
           <div class="mg-status" data-status="${esc(p.serial)}"></div>
         </div>`).join("");
-      sec.innerHTML = `
-        <legend>${esc(gid)} — ${members.length} pass(es)</legend>
-        <div class="mg-grp-acts">
-          <button data-act="grp-gate" data-grp="${esc(gid)}">Change gate (whole trip)</button>
-          <button data-act="grp-delay" data-grp="${esc(gid)}">Mark delayed (whole trip)</button>
-          <button data-act="grp-clear" data-grp="${esc(gid)}">Clear delay (whole trip)</button>
-          <button data-act="grp-del" data-grp="${esc(gid)}" class="danger">Delete trip</button>
-          <span class="mg-grp-status" data-grp-status="${esc(gid)}"></span>
-        </div>
-        ${rows}`;
-      root.appendChild(sec);
-    }
+      return `
+        <div class="mg-card">
+          <div class="mg-card-head">
+            <div class="mg-trip"><span class="mg-trip-id">${esc(gid)}</span><span class="mg-badge">${members.length} pass(es)</span></div>
+            <div class="mg-grp-acts">
+              <button data-act="grp-gate" data-grp="${esc(gid)}">Gate · all</button>
+              <button data-act="grp-delay" data-grp="${esc(gid)}">Delay · all</button>
+              <button data-act="grp-clear" data-grp="${esc(gid)}">Clear · all</button>
+              <button data-act="grp-del" data-grp="${esc(gid)}" class="danger">Delete trip</button>
+              <span class="mg-grp-status" data-grp-status="${esc(gid)}"></span>
+            </div>
+          </div>
+          <div class="mg-list">${rows}</div>
+        </div>`;
+    }).join("");
+
+    root.innerHTML = shell({ count: list.length, body: cards });
   }
 
   async function pushOne(serial, body) {
