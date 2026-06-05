@@ -1,4 +1,3 @@
-// build: 2026-06-06 cache-bust (force new asset hash after the proxy-truncation fix)
 import { state, subscribe, resetState, replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
@@ -80,6 +79,7 @@ async function maybeLoadFromUrl() {
   try { await loadFixture(f); } catch (err) { console.warn(err.message); }
 }
 
+document.documentElement.dataset.build = "20260606a"; // changes bundle hash → busts stale caches
 showProfile();
 await maybeLoadFromUrl();
 renderForm(document.getElementById("form-pane"));
