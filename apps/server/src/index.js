@@ -31,10 +31,22 @@ app.use("/api/wallet", walletRouter);
 const DIST = join(process.cwd(), "apps/designer/dist");
 const INDEX = join(DIST, "index.html");
 if (existsSync(INDEX)) {
-  app.use(express.static(DIST));
+  app.use(express.static(DIST, {
+    setHeaders(res, filePath) {
+      // index.html must never be cached, or a deploy's new asset hashes are missed.
+      // Hashed assets are content-addressed, so they can be cached forever.
+      if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-cache");
+      else if (filePath.includes("/assets/")) res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
+  }));
   app.use((req, res, next) => {
-    if (req.method === "GET" && !req.path.startsWith("/api")) return res.sendFile(INDEX);
-    next();
+    if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+    // Only fall back to the SPA for navigation requests. Asset/extension paths
+    // must 404 honestly — otherwise a stale cached index.html requesting an old
+    // bundle hash gets HTML back, runs it as JS, and the app silently dies.
+    if (req.path.startsWith("/assets/") || /\.[a-z0-9]+$/i.test(req.path)) return next();
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(INDEX);
   });
   console.log(`Serving designer SPA from ${DIST}`);
 }
