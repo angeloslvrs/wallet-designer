@@ -1,3 +1,4 @@
+// build: 2026-06-06 cache-bust (force new asset hash after the proxy-truncation fix)
 import { state, subscribe, resetState, replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
