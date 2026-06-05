@@ -46,11 +46,15 @@ export async function savePass(state) {
   const webServiceURL = state.meta.webServiceURL ?? process.env.WEB_SERVICE_URL;
   const meta = {
     ...state.meta,
+    // Force the identifiers to match the signing cert, so EVERY pass installs on
+    // a device (a mismatched passTypeId/teamId is silently rejected by iOS).
+    ...(process.env.PASS_TYPE_ID ? { passTypeId: process.env.PASS_TYPE_ID } : {}),
+    ...(process.env.TEAM_ID ? { teamId: process.env.TEAM_ID } : {}),
     authenticationToken: token,
     ...(webServiceURL ? { webServiceURL } : {})
   };
   db.passes[serial] = {
-    passTypeIdentifier: state.meta.passTypeId,
+    passTypeIdentifier: meta.passTypeId,
     authenticationToken: token,
     groupId: deriveGroupId(state),   // all passengers on the same flight share this
     state: { ...state, meta },

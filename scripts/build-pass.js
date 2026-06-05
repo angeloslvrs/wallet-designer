@@ -29,6 +29,10 @@ if (values.now) {
   console.log(`↻ shifted schedule: departs ${state.flight.departure.depart} (now + ${leadMinutes}m)`);
 }
 
+// Force identifiers to match the signing cert so the pass installs on a device.
+state.meta.passTypeId = process.env.PASS_TYPE_ID ?? state.meta.passTypeId;
+state.meta.teamId = process.env.TEAM_ID ?? state.meta.teamId;
+
 const buf = await buildPkpass({
   state,
   certDir,

@@ -1,4 +1,15 @@
 import { setPath, getPath } from "./state.js";
+import { scanBarcode } from "./scan.js";
+
+const rgbToHex = (s) => {
+  const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
+  if (!m) return "#000000";
+  return "#" + [1, 2, 3].map(i => Number(m[i]).toString(16).padStart(2, "0")).join("");
+};
+const hexToRgb = (h) => {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h || "");
+  return m ? `rgb(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)})` : "rgb(0,0,0)";
+};
 
 const sections = [
   ["Meta", [
@@ -10,9 +21,9 @@ const sections = [
   ]],
   ["Branding", [
     { path: "branding.logoText", label: "Logo Text", type: "text" },
-    { path: "branding.foregroundColor", label: "Foreground (rgb)", type: "text" },
-    { path: "branding.backgroundColor", label: "Background (rgb)", type: "text" },
-    { path: "branding.labelColor", label: "Label (rgb)", type: "text" }
+    { path: "branding.foregroundColor", label: "Foreground", type: "color" },
+    { path: "branding.backgroundColor", label: "Background", type: "color" },
+    { path: "branding.labelColor", label: "Label", type: "color" }
   ]],
   ["Assets", [
     { path: "branding.logoDataUrl", label: "Logo image (PNG/SVG)", type: "file" }
@@ -49,6 +60,7 @@ const sections = [
   ["Barcode", [
     { path: "barcode.format", label: "Format", type: "select", options: ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
     { path: "barcode.message", label: "Message", type: "text" },
+    { type: "scan", forPath: "barcode.message", label: "Scan barcode (camera / photo) → fills Message" },
     { path: "barcode.altText", label: "Alt Text", type: "text" }
   ]],
   ["iOS 26 Semantic", [
@@ -93,6 +105,45 @@ export function renderForm(root) {
         continue;
       }
 
+      if (f.type === "color") {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;gap:6px;align-items:center";
+        const picker = document.createElement("input");
+        picker.type = "color";
+        picker.style.cssText = "width:42px;height:32px;padding:0;border:1px solid #ccc;border-radius:4px;flex:none";
+        const text = document.createElement("input");
+        text.type = "text";
+        text.dataset.path = f.path;
+        text.value = getPath(f.path) ?? "";
+        picker.value = rgbToHex(text.value);
+        picker.addEventListener("input", () => { const rgb = hexToRgb(picker.value); text.value = rgb; setPath(f.path, rgb); });
+        text.addEventListener("input", () => { setPath(f.path, text.value); picker.value = rgbToHex(text.value); });
+        wrap.appendChild(picker);
+        wrap.appendChild(text);
+        fs.appendChild(wrap);
+        continue;
+      }
+
+      if (f.type === "scan") {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "📷 Scan barcode";
+        btn.style.cssText = "background:#1a2150;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer";
+        btn.addEventListener("click", async () => {
+          btn.disabled = true; btn.textContent = "Scanning…";
+          try {
+            const text = await scanBarcode();
+            if (text) {
+              setPath(f.forPath, text);
+              const inp = root.querySelector(`[data-path="${f.forPath}"]`);
+              if (inp) inp.value = text;
+            }
+          } finally { btn.disabled = false; btn.textContent = "📷 Scan barcode"; }
+        });
+        fs.appendChild(btn);
+        continue;
+      }
+
       let input;
       if (f.type === "select") {
         input = document.createElement("select");
@@ -106,6 +157,7 @@ export function renderForm(root) {
         input.type = f.type;
       }
       input.value = getPath(f.path) ?? "";
+      input.dataset.path = f.path;
       input.addEventListener("input", e => {
         const v = f.type === "number" ? Number(e.target.value) : e.target.value;
         setPath(f.path, v);

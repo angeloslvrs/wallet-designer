@@ -1,7 +1,7 @@
 // Tiny pub-sub form state. Single source of truth for previews + build.
 
 const initial = {
-  meta: { passTypeId: "pass.dev.local", teamId: "DEV0000000", organizationName: "Rocket Partners Airlines", serialNumber: "RP-001", description: "Boarding pass" },
+  meta: { passTypeId: "pass.com.angelo.airline.boardingpass", teamId: "WB7K79MCZG", organizationName: "Rocket Partners Airlines", serialNumber: "RP-001", description: "Boarding pass" },
   branding: { logoText: "Rocket Partners", foregroundColor: "rgb(255,255,255)", backgroundColor: "rgb(20,30,80)", labelColor: "rgb(180,200,255)" },
   flight: {
     airlineCode: "RP",
