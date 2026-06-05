@@ -28,4 +28,8 @@ describe("formatFieldValue", () => {
   it("formats a percent number when numberStyle is percent", () => {
     expect(formatFieldValue({ value: 0.5, numberStyle: "PKNumberStylePercent" })).toBe("50%");
   });
+
+  it("formats 0.75 as 75% for PKNumberStylePercent (decimal 0–1 range)", () => {
+    expect(formatFieldValue({ value: 0.75, numberStyle: "PKNumberStylePercent" })).toMatch(/75\s*%/);
+  });
 });

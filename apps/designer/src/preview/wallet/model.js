@@ -1,5 +1,8 @@
 import { formatFieldValue } from "./format.js";
 
+// Neutral fallback when the pass omits backgroundColor.
+const DEFAULT_BG = "rgb(0,0,0)";
+
 const mapFields = (arr) => (arr ?? []).map(f => ({
   key: f.key,
   label: f.label ?? "",
@@ -17,7 +20,7 @@ export function toPassView(pass) {
   return {
     logoText: pass.logoText ?? "",
     colors: {
-      bg: pass.backgroundColor ?? "rgb(0,0,0)",
+      bg: pass.backgroundColor ?? DEFAULT_BG,
       fg: pass.foregroundColor ?? "rgb(255,255,255)",
       label: pass.labelColor ?? pass.foregroundColor ?? "rgb(255,255,255)"
     },

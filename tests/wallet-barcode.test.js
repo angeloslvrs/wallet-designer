@@ -1,3 +1,5 @@
+// Note: renderBarcode (DOM/canvas) is intentionally not unit-tested here and is verified
+// by eye per the plan. Only the pure passKitToBwipType format map is covered below.
 import { describe, it, expect } from "vitest";
 import { passKitToBwipType } from "../apps/designer/src/preview/wallet/barcode.js";
 

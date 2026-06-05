@@ -31,7 +31,11 @@ export function formatDate(value, dateStyle = "PKDateStyleNone", timeStyle = "PK
   return new Intl.DateTimeFormat(undefined, opts).format(d);
 }
 
-/** @returns {string} */
+/**
+ * @returns {string}
+ * Note: PKNumberStylePercent expects a decimal in the 0–1 range (matching Intl + PassKit),
+ * e.g. 0.5 → "50%".
+ */
 export function formatNumber(value, numberStyle) {
   const n = Number(value);
   if (Number.isNaN(n)) return String(value);

@@ -21,6 +21,7 @@ export function renderBack(root, view, logoDataUrl) {
     const img = document.createElement("img");
     img.src = logoDataUrl; img.alt = "logo";
     img.style.width = "100%"; img.style.height = "100%"; img.style.objectFit = "contain";
+    img.onerror = () => { badge.innerHTML = ""; badge.textContent = (view.logoText || "?").slice(0, 2).toUpperCase(); };
     badge.appendChild(img);
   } else {
     badge.textContent = (view.logoText || "?").slice(0, 2).toUpperCase();

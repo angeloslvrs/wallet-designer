@@ -27,6 +27,8 @@ export function renderActiveTab() {
   const view = toPassView(pass);
   const logo = state.branding?.logoDataUrl ?? null;
   const t = getActiveTab();
+  // front/back receive the formatted view-model; detail receives the raw pass because
+  // it renders iOS 26 semantics/upcomingPassInformation that are absent from the view-model.
   if (t === "front") renderFront(root, view, logo);
   else if (t === "back") renderBack(root, view, logo);
   else renderDetail(root, pass);
