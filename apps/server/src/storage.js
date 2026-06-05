@@ -36,7 +36,11 @@ async function persist() {
 export async function savePass(state) {
   const db = await load();
   const serial = state.meta.serialNumber;
-  const token = state.meta.authenticationToken ?? randomBytes(16).toString("hex");
+  // Keep the auth token STABLE for a serial. Rotating it on re-issue would 401
+  // the copy already installed on a device (its embedded token would no longer
+  // match), so the device could never fetch updates.
+  const existing = db.passes[serial];
+  const token = state.meta.authenticationToken ?? existing?.authenticationToken ?? randomBytes(16).toString("hex");
   // Inject the passes-web-service URL from the environment so every issued pass
   // can register for push updates without the caller having to set it.
   const webServiceURL = state.meta.webServiceURL ?? process.env.WEB_SERVICE_URL;
