@@ -61,6 +61,7 @@ export async function pushUpdates({ passTypeId, devices }) {
     req.on("response", h => { status = h[":status"]; });
     req.on("data", c => body += c);
     req.on("end", () => {
+      console.log(`[apns] ${d.pushToken.slice(0, 12)}… topic=${passTypeId} -> ${status}${body ? " " + body : ""}`);
       if (status >= 200 && status < 300) resolve();
       else { failures.push({ token: d.pushToken, reason: `${status} ${body}` }); resolve(); }
     });

@@ -13,6 +13,13 @@ const app = express();
 app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+// Lightweight request log for the pass/wallet flow so push + device fetches are observable.
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/wallet") || req.path.startsWith("/api/passes")) {
+    res.on("finish", () => console.log(`[req] ${req.ip} ${req.method} ${req.originalUrl} -> ${res.statusCode}`));
+  }
+  next();
+});
 app.use(accessGuard);                // /api/wallet/* public; everything else LAN-only or Basic-Auth
 app.use("/api", buildRouter);
 app.use("/api", fixturesRouter);
