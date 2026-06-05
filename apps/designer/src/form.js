@@ -14,6 +14,9 @@ const sections = [
     { path: "branding.backgroundColor", label: "Background (rgb)", type: "text" },
     { path: "branding.labelColor", label: "Label (rgb)", type: "text" }
   ]],
+  ["Assets", [
+    { path: "branding.logoDataUrl", label: "Logo image (PNG/SVG)", type: "file" }
+  ]],
   ["Flight", [
     { path: "flight.airlineCode", label: "Airline Code (IATA)", type: "text" },
     { path: "flight.flightNumber", label: "Flight Number", type: "text" }
@@ -68,6 +71,28 @@ export function renderForm(root) {
       const lbl = document.createElement("label");
       lbl.textContent = f.label;
       fs.appendChild(lbl);
+
+      if (f.type === "file") {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.addEventListener("change", e => {
+          const file = e.target.files?.[0];
+          if (!file) { setPath(f.path, ""); return; }
+          const reader = new FileReader();
+          reader.onload = () => setPath(f.path, reader.result);
+          reader.readAsDataURL(file);
+        });
+        fs.appendChild(input);
+        if (getPath(f.path)) {
+          const note = document.createElement("div");
+          note.style.cssText = "font-size:11px;color:#888;margin-top:2px";
+          note.textContent = "✓ logo set (clear by choosing a new file)";
+          fs.appendChild(note);
+        }
+        continue;
+      }
+
       let input;
       if (f.type === "select") {
         input = document.createElement("select");

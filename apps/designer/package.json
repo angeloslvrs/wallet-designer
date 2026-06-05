@@ -6,6 +6,10 @@
     "dev": "vite",
     "build": "vite build"
   },
+  "dependencies": {
+    "@wpd/pass-builder": "*",
+    "bwip-js": "^4.5.1"
+  },
   "devDependencies": {
     "vite": "^5.0.0"
   }

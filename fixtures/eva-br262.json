@@ -1,0 +1,56 @@
+{
+  "meta": {
+    "passTypeId": "pass.com.angelo.airline.boardingpass",
+    "teamId": "WB7K79MCZG",
+    "organizationName": "EVA Air",
+    "serialNumber": "BR262-001",
+    "description": "EVA Air boarding pass"
+  },
+  "branding": { "logoText": "EVA Air", "foregroundColor": "rgb(255,255,255)", "backgroundColor": "rgb(0,104,71)", "labelColor": "rgb(244,168,32)" },
+  "flight": {
+    "airlineCode": "BR",
+    "flightNumber": "262",
+    "departure": {
+      "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila",
+      "terminal": "1", "gate": "5",
+      "gateOpen": "2026-06-20T13:00:00+08:00", "boarding": "2026-06-20T13:30:00+08:00", "depart": "2026-06-20T14:05:00+08:00",
+      "timeZone": "Asia/Manila", "latitude": 14.5086, "longitude": 121.0194
+    },
+    "arrival": {
+      "iata": "TPE", "name": "Taiwan Taoyuan International", "city": "Taipei",
+      "terminal": "2", "gate": "A6",
+      "arrive": "2026-06-20T16:25:00+08:00",
+      "timeZone": "Asia/Taipei", "latitude": 25.0797, "longitude": 121.2342
+    }
+  },
+  "passenger": {
+    "name": "ANGELO SOLIVERES",
+    "frequentFlyerNumber": "BR-INFINITY-7788990",
+    "seats": [{ "number": "38K", "cabin": "economy", "row": "38", "letter": "K" }],
+    "boardingGroup": "4",
+    "seqNumber": "0073"
+  },
+  "barcode": { "format": "PKBarcodeFormatPDF417", "message": "BR262MNLTPE38K0073", "altText": "BR262 38K" },
+  "iOS26": {
+    "duration": 8400,
+    "securityScreening": "Regular",
+    "transitInfo": "Skytrain to Gate 5 (NAIA T1)",
+    "wifi": [{ "ssid": "EVA-WiFi", "password": "BR262" }],
+    "additionalInfoFields": [
+      { "key": "fare-class", "label": "FARE", "value": "Economy Basic" },
+      { "key": "baggage", "label": "BAGGAGE", "value": "1 x 23kg checked" },
+      { "key": "meal", "label": "MEAL", "value": "Hot meal + beverage" }
+    ],
+    "relevantDates": ["2026-06-20T13:00:00+08:00"],
+    "eventGuide": {
+      "bagPolicyURL": "https://www.evaair.com/en-global/fly-prepare/baggage/",
+      "orderFoodURL": "https://www.evaair.com/en-global/fly-prepare/onboard-dining/",
+      "parkingInformationURL": "https://www.miaa.gov.ph/parking",
+      "transitInformationURL": "https://www.taoyuan-airport.com/english/transportation"
+    },
+    "upcomingPassInformation": [
+      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-19T14:05:00+08:00" },
+      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-20T13:30:00+08:00" }
+    ]
+  }
+}

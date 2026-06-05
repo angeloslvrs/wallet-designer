@@ -1,18 +1,37 @@
 import { state } from "../state.js";
-import { renderFront } from "./front.js";
-import { renderBack } from "./back.js";
-import { renderDetail } from "./detail.js";
+import { formStateToPassJson } from "@wpd/pass-builder/form-to-pass.js";
+import { toPassView } from "./wallet/model.js";
+import { renderFront } from "./wallet/card.js";
+import { renderBack } from "./wallet/back.js";
+import { renderDetail } from "./wallet/detail.js";
 import { getActiveTab, onTabChange } from "../tabs.js";
+import "./wallet/wallet.css";
 
 const stage = () => document.getElementById("preview-stage");
 
 export function renderActiveTab() {
   const root = stage();
-  const t = getActiveTab();
   root.innerHTML = "";
-  if (t === "front") renderFront(root, state);
-  else if (t === "back") renderBack(root, state);
-  else renderDetail(root, state);
+
+  let pass;
+  try {
+    pass = formStateToPassJson(state);
+  } catch (err) {
+    const e = document.createElement("div");
+    e.className = "wallet-error";
+    e.textContent = `Preview error: ${err.message}`;
+    root.appendChild(e);
+    return;
+  }
+
+  const view = toPassView(pass);
+  const logo = state.branding?.logoDataUrl ?? null;
+  const t = getActiveTab();
+  // front/back receive the formatted view-model; detail receives the raw pass because
+  // it renders iOS 26 semantics/upcomingPassInformation that are absent from the view-model.
+  if (t === "front") renderFront(root, view, logo);
+  else if (t === "back") renderBack(root, view, logo);
+  else renderDetail(root, pass);
 }
 
 onTabChange(renderActiveTab);
