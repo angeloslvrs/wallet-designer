@@ -3,14 +3,17 @@ import cors from "cors";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "./env.js";
+import { accessGuard } from "./middleware/guard.js";
 import { buildRouter } from "./routes/build.js";
 import { fixturesRouter } from "./routes/fixtures.js";
 import { walletRouter } from "./routes/wallet.js";
 import { adminRouter } from "./routes/admin.js";
 
 const app = express();
+app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+app.use(accessGuard);                // /api/wallet/* public; everything else LAN-only or Basic-Auth
 app.use("/api", buildRouter);
 app.use("/api", fixturesRouter);
 app.use("/api", adminRouter);
