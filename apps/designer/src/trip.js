@@ -121,9 +121,10 @@ export function mountTrip(root) {
       else { status.textContent = `✗ ${j.error ?? r.status}`; return; }
     }
     const links = issued.map(p =>
-      `<a href="/api/passes/${encodeURIComponent(p.serial)}/pkpass" download>${esc(p.name)} (${esc(p.serial)})</a>`
-    ).join("<br>");
-    status.innerHTML = `✓ issued ${issued.length} pass(es) for trip <b>${esc(lastGroup)}</b>.<br>Download &amp; AirDrop to each phone:<br>${links}`;
+      `<div class="mg-row"><span>${esc(p.name)} · <code>${esc(p.serial)}</code></span>` +
+      `<a class="btn wallet" href="/api/passes/${encodeURIComponent(p.serial)}/pkpass">Add to Wallet</a></div>`
+    ).join("");
+    status.innerHTML = `✓ issued ${issued.length} pass(es) for trip <b>${esc(lastGroup)}</b> — open each on its phone to add:${links}`;
     await refreshGroups(lastGroup);
   }
 

@@ -8,6 +8,10 @@
   <body>
     <header>
       <h1>wallet-pass-designer</h1>
+      <nav id="view-tabs">
+        <button data-view="designer" class="active">Designer</button>
+        <button data-view="manage">Manage</button>
+      </nav>
       <span id="profile-badge">…</span>
     </header>
     <main>
@@ -20,14 +24,16 @@
         </nav>
         <div id="preview-stage"></div>
         <div id="actions">
-          <select id="fixture-picker"><option value="">Load fixture…</option></select>
+          <select id="fixture-picker"><option value="">Load template…</option></select>
           <button id="build-btn">Build .pkpass</button>
+          <button id="save-tpl-btn" type="button">Save template</button>
           <button id="reset-btn" type="button">Reset</button>
         </div>
         <div id="build-status"></div>
         <div id="live-controls"></div>
       </section>
     </main>
+    <section id="manage-pane" hidden></section>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

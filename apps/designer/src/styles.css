@@ -32,6 +32,24 @@ main { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px
 #live-controls #trip-status, #live-controls #group-status { font-size: 12px; color: #555; min-height: 16px; margin-top: 4px; }
 #live-controls select { padding: 5px 6px; border: 1px solid #ccc; border-radius: 4px; }
 
+#view-tabs { display: flex; gap: 4px; margin-left: 16px; }
+#view-tabs button { background: rgba(255,255,255,0.12); color: #fff; border: none; padding: 5px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
+#view-tabs button.active { background: #fff; color: #1a2150; font-weight: 600; }
+
+#manage-pane { padding: 16px; max-width: 900px; margin: 0 auto; }
+#manage-pane h2 { margin: 4px 0 12px; }
+.mg-grp-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.mg-grp-acts .mg-grp-status { font-size: 12px; color: #555; }
+.mg-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid #eee; }
+.mg-row:first-of-type { border-top: none; }
+.mg-info { font-size: 13px; }
+.mg-acts { display: flex; gap: 6px; align-items: center; }
+.mg-status { font-size: 12px; color: #555; flex-basis: 100%; min-height: 14px; }
+#manage-pane button, .mg-acts button { background: #1a2150; color: #fff; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+#manage-pane button:hover { background: #2a3170; }
+button.danger, .mg-acts button.danger { background: #fff; color: #b00020; border: 1px solid #e3a; border-color: #e0a3b0; }
+.btn.wallet { display: inline-block; background: #000; color: #fff; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 600; }
+
 fieldset { border: 1px solid #e5e5e8; border-radius: 6px; margin-bottom: 12px; padding: 8px 12px; }
 fieldset > legend { font-weight: 600; padding: 0 4px; }
 label { display: block; margin: 8px 0 2px; font-size: 12px; color: #555; }

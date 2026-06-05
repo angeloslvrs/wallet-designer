@@ -1,9 +1,10 @@
-import { subscribe, resetState, replaceState } from "./state.js";
+import { state, subscribe, resetState, replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
 import { mountTrip } from "./trip.js";
+import { mountManage } from "./manage.js";
 
 async function showProfile() {
   try {
@@ -22,8 +23,9 @@ async function loadFixture(name) {
   renderForm(document.getElementById("form-pane"));
 }
 
-async function populateFixturePicker() {
+async function refreshFixturePicker() {
   const picker = document.getElementById("fixture-picker");
+  picker.length = 1; // keep the placeholder option, drop the rest
   try {
     const names = await fetch("/api/fixtures").then(r => r.json());
     for (const n of names) {
@@ -32,13 +34,42 @@ async function populateFixturePicker() {
       o.textContent = n;
       picker.appendChild(o);
     }
-  } catch {}
+  } catch { /* API offline */ }
+}
+
+function wireFixturePicker() {
+  const picker = document.getElementById("fixture-picker");
   picker.addEventListener("change", async e => {
     const name = e.target.value;
     if (!name) return;
     try { await loadFixture(name); } catch (err) { alert(err.message); }
     e.target.value = "";
   });
+}
+
+async function saveTemplate() {
+  const name = prompt("Save current design as template named:", state.meta.serialNumber || "my-template");
+  if (!name) return;
+  const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
+  });
+  if (r.ok) { await refreshFixturePicker(); document.getElementById("build-status").textContent = `✓ saved template "${name}"`; }
+  else { alert("Could not save template"); }
+}
+
+// Designer / Manage view toggle.
+function wireViewTabs() {
+  const tabs = document.getElementById("view-tabs");
+  const main = document.querySelector("main");
+  const managePane = document.getElementById("manage-pane");
+  const show = (view) => {
+    const designer = view === "designer";
+    main.hidden = !designer;
+    managePane.hidden = designer;
+    for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
+    if (!designer) mountManage(managePane, () => show("designer"));
+  };
+  tabs.addEventListener("click", e => { if (e.target.dataset?.view) show(e.target.dataset.view); });
 }
 
 async function maybeLoadFromUrl() {
@@ -57,7 +88,10 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   resetState();
   renderForm(document.getElementById("form-pane"));
 });
-populateFixturePicker();
+wireFixturePicker();
+refreshFixturePicker();
+document.getElementById("save-tpl-btn").addEventListener("click", saveTemplate);
+wireViewTabs();
 mountTrip(document.getElementById("live-controls"));
 renderActiveTab();
 subscribe(() => renderActiveTab());

@@ -4,7 +4,7 @@
 import { Router } from "express";
 import { buildPkpass } from "@wpd/pass-builder";
 import { env } from "../env.js";
-import { savePass, updatePassState, devicesFor, snapshot, passesInGroup } from "../storage.js";
+import { savePass, updatePassState, devicesFor, snapshot, passesInGroup, deletePass, deleteGroup } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 
 export const adminRouter = Router();
@@ -102,6 +102,20 @@ adminRouter.get("/passes/:serial/pkpass", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message, details: err.details });
   }
+});
+
+// DELETE /api/passes/:serial  →  remove one pass + its registrations
+adminRouter.delete("/passes/:serial", async (req, res) => {
+  const ok = await deletePass(req.params.serial);
+  if (!ok) return res.status(404).json({ error: "not found" });
+  res.json({ ok: true });
+});
+
+// DELETE /api/groups/:groupId  →  remove every pass in the trip
+adminRouter.delete("/groups/:groupId", async (req, res) => {
+  const count = await deleteGroup(req.params.groupId);
+  if (!count) return res.status(404).json({ error: "no passes in this group" });
+  res.json({ ok: true, count });
 });
 
 // GET /api/passes/:serial

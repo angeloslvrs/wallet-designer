@@ -88,11 +88,12 @@ export function formStateToPassJson(s) {
       passengerName: { givenName: firstName(passenger.name), familyName: lastName(passenger.name) },
       boardingGroup: passenger.boardingGroup,
       boardingSequenceNumber: passenger.seqNumber,
+      // Only seatNumber (the canonical full seat, e.g. "38K"). We deliberately
+      // omit seatRow/seatSection: a stale row that disagreed with the number was
+      // being rendered by iOS as a doubled seat (e.g. "3838").
       seats: passenger.seats.map(x => ({
         seatNumber: x.number,
-        seatType: x.cabin,
-        ...(x.row && { seatRow: x.row }),
-        ...(x.letter && { seatSection: x.letter })
+        seatType: x.cabin
       })),
       ...(ios.duration && { duration: ios.duration }),
       ...(ios.securityScreening && { securityScreening: ios.securityScreening }),

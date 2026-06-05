@@ -80,6 +80,26 @@ export async function passesInGroup(groupId) {
     .map(([serial, rec]) => ({ serial, rec }));
 }
 
+/** Delete an issued pass and any device registrations for it. */
+export async function deletePass(serial) {
+  const db = await load();
+  if (!db.passes[serial]) return false;
+  delete db.passes[serial];
+  for (const dev of Object.keys(db.registrations)) {
+    delete db.registrations[dev][serial];
+    if (Object.keys(db.registrations[dev]).length === 0) delete db.registrations[dev];
+  }
+  await persist();
+  return true;
+}
+
+/** Delete every pass in a trip/group. Returns how many were removed. */
+export async function deleteGroup(groupId) {
+  const members = await passesInGroup(groupId);
+  for (const { serial } of members) await deletePass(serial);
+  return members.length;
+}
+
 export async function getPass(passTypeId, serial) {
   const db = await load();
   const rec = db.passes[serial];
