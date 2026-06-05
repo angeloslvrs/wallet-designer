@@ -13,13 +13,13 @@
     "departure": {
       "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila",
       "terminal": "1", "gate": "5",
-      "gateOpen": "2026-06-20T04:45:00+08:00", "boarding": "2026-06-20T05:05:00+08:00", "depart": "2026-06-20T05:45:00+08:00",
+      "gateOpen": "2026-06-06T04:45:00+08:00", "boarding": "2026-06-06T05:05:00+08:00", "depart": "2026-06-06T05:45:00+08:00",
       "timeZone": "Asia/Manila", "latitude": 14.5086, "longitude": 121.0194
     },
     "arrival": {
       "iata": "TPE", "name": "Taiwan Taoyuan International", "city": "Taipei",
       "terminal": "2", "gate": "A6",
-      "arrive": "2026-06-20T08:05:00+08:00",
+      "arrive": "2026-06-06T08:05:00+08:00",
       "timeZone": "Asia/Taipei", "latitude": 25.0797, "longitude": 121.2342
     }
   },
@@ -42,7 +42,7 @@
       { "key": "meal", "label": "MEAL", "value": "Hot meal + beverage" },
       { "key": "aircraft", "label": "AIRCRAFT", "value": "Boeing 787-9" }
     ],
-    "relevantDates": ["2026-06-20T04:45:00+08:00"],
+    "relevantDates": ["2026-06-06T04:45:00+08:00"],
     "eventGuide": {
       "bagPolicyURL": "https://www.evaair.com/en-global/fly-prepare/baggage/",
       "orderFoodURL": "https://www.evaair.com/en-global/fly-prepare/onboard-dining/",
@@ -50,8 +50,8 @@
       "transitInformationURL": "https://www.taoyuan-airport.com/english/transportation"
     },
     "upcomingPassInformation": [
-      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-18T05:45:00+08:00" },
-      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-20T05:05:00+08:00" }
+      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-04T05:45:00+08:00" },
+      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-06T05:05:00+08:00" }
     ]
   }
 }

@@ -2,23 +2,32 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { buildPkpass } from "@wpd/pass-builder";
+import { shiftPassDates } from "@wpd/pass-builder/shift-dates.js";
 import "dotenv/config";
 
 const { values } = parseArgs({
   options: {
-    in:  { type: "string" },
-    out: { type: "string" }
+    in:   { type: "string" },
+    out:  { type: "string" },
+    now:  { type: "boolean" },          // re-anchor schedule so it's relevant right now (live-activity demos)
+    lead: { type: "string" }            // minutes from now until departure (default 60)
   }
 });
 
 if (!values.in) {
-  console.error("usage: npm run build:pass -- --in fixtures/<name>.json [--out out/<name>.pkpass]");
+  console.error("usage: npm run build:pass -- --in fixtures/<name>.json [--out out/<name>.pkpass] [--now [--lead 60]]");
   process.exit(1);
 }
 
 const profile = process.env.CERT_PROFILE ?? "dev";
 const certDir = `certs/${profile}`;
-const state = JSON.parse(await readFile(values.in, "utf8"));
+let state = JSON.parse(await readFile(values.in, "utf8"));
+
+if (values.now) {
+  const leadMinutes = Number(values.lead ?? 60);
+  state = shiftPassDates(state, { leadMinutes });
+  console.log(`↻ shifted schedule: departs ${state.flight.departure.depart} (now + ${leadMinutes}m)`);
+}
 
 const buf = await buildPkpass({
   state,
