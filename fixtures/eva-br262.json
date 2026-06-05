@@ -13,13 +13,13 @@
     "departure": {
       "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila",
       "terminal": "1", "gate": "5",
-      "gateOpen": "2026-06-20T13:00:00+08:00", "boarding": "2026-06-20T13:30:00+08:00", "depart": "2026-06-20T14:05:00+08:00",
+      "gateOpen": "2026-06-20T04:45:00+08:00", "boarding": "2026-06-20T05:05:00+08:00", "depart": "2026-06-20T05:45:00+08:00",
       "timeZone": "Asia/Manila", "latitude": 14.5086, "longitude": 121.0194
     },
     "arrival": {
       "iata": "TPE", "name": "Taiwan Taoyuan International", "city": "Taipei",
       "terminal": "2", "gate": "A6",
-      "arrive": "2026-06-20T16:25:00+08:00",
+      "arrive": "2026-06-20T08:05:00+08:00",
       "timeZone": "Asia/Taipei", "latitude": 25.0797, "longitude": 121.2342
     }
   },
@@ -34,14 +34,15 @@
   "iOS26": {
     "duration": 8400,
     "securityScreening": "Regular",
-    "transitInfo": "Skytrain to Gate 5 (NAIA T1)",
+    "transitInfo": "Proceed to Gate 5 — NAIA Terminal 1",
     "wifi": [{ "ssid": "EVA-WiFi", "password": "BR262" }],
     "additionalInfoFields": [
       { "key": "fare-class", "label": "FARE", "value": "Economy Basic" },
       { "key": "baggage", "label": "BAGGAGE", "value": "1 x 23kg checked" },
-      { "key": "meal", "label": "MEAL", "value": "Hot meal + beverage" }
+      { "key": "meal", "label": "MEAL", "value": "Hot meal + beverage" },
+      { "key": "aircraft", "label": "AIRCRAFT", "value": "Boeing 787-9" }
     ],
-    "relevantDates": ["2026-06-20T13:00:00+08:00"],
+    "relevantDates": ["2026-06-20T04:45:00+08:00"],
     "eventGuide": {
       "bagPolicyURL": "https://www.evaair.com/en-global/fly-prepare/baggage/",
       "orderFoodURL": "https://www.evaair.com/en-global/fly-prepare/onboard-dining/",
@@ -49,8 +50,8 @@
       "transitInformationURL": "https://www.taoyuan-airport.com/english/transportation"
     },
     "upcomingPassInformation": [
-      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-19T14:05:00+08:00" },
-      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-20T13:30:00+08:00" }
+      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-18T05:45:00+08:00" },
+      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-20T05:05:00+08:00" }
     ]
   }
 }
