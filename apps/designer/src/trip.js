@@ -1,9 +1,8 @@
 import { state } from "./state.js";
+import { esc } from "./esc.js";
 
 // Trip panel: build one pass per passenger on the shared flight, then push
 // status updates (gate / delay / boarding) to the whole group at once.
-
-const esc = (s) => String(s ?? "").replace(/"/g, "&quot;");
 
 function seedPassengers() {
   const p = state.passenger ?? {};

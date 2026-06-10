@@ -1,6 +1,6 @@
 import express from "express";
 import compression from "compression";
-import cors from "cors";
+import { rateLimit } from "express-rate-limit";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "./env.js";
@@ -13,7 +13,10 @@ import { adminRouter } from "./routes/admin.js";
 const app = express();
 app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
 app.use(compression());              // gzip responses (the 1.4MB bundle → ~270KB) so the proxy can deliver it
-app.use(cors());
+// No CORS by design: the SPA is served same-origin with the API, and Apple's
+// PassKit calls are server-to-server (no Origin header, CORS-exempt). A wildcard
+// would only let a random site a LAN/VPN browser visits read the control plane
+// (incl. pass auth tokens) — the opposite of the LAN-only intent.
 app.use(express.json({ limit: "1mb" }));
 // Lightweight request log for the pass/wallet flow so push + device fetches are observable.
 app.use((req, res, next) => {
@@ -26,7 +29,11 @@ app.use(accessGuard);                // /api/wallet/* public; everything else LA
 app.use("/api", buildRouter);
 app.use("/api", fixturesRouter);
 app.use("/api", adminRouter);
-app.use("/api/wallet", walletRouter);
+// Rate-limit the only public surface (Apple PassKit web service). Device traffic
+// is low-volume per IP, so this is generous for real clients while capping abuse
+// of the unauthenticated /v1/log + registration-list endpoints.
+const walletLimiter = rateLimit({ windowMs: 60_000, max: 120, standardHeaders: true, legacyHeaders: false });
+app.use("/api/wallet", walletLimiter, walletRouter);
 
 // Production: serve the built designer SPA from the same origin so one public
 // domain covers the UI, the /api routes, and the pass webServiceURL callbacks.

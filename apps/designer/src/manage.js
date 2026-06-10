@@ -1,7 +1,6 @@
 import { replaceState } from "./state.js";
 import { renderForm } from "./form.js";
-
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+import { esc } from "./esc.js";
 
 // Manage view: list every issued pass (grouped by trip) with Add-to-Wallet,
 // push (gate / delay), edit (load back into the designer), and delete — for

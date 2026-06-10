@@ -1,5 +1,6 @@
 import { state } from "./state.js";
 import bwipjs from "bwip-js";
+import { esc } from "./esc.js";
 
 // "Add to Wallet": issue (store) the pass, then show a QR to scan with the
 // iPhone plus a tappable link. Opening the .pkpass URL on iOS Safari triggers
@@ -38,7 +39,7 @@ export function wireBuildButton(btn, statusEl) {
       link.style.cssText = "display:inline-block;background:#000;color:#fff;padding:9px 16px;border-radius:8px;text-decoration:none;font-weight:700";
       const hint = document.createElement("div");
       hint.style.cssText = "font-size:12px;color:#666;margin-top:8px;line-height:1.4";
-      hint.innerHTML = `On your iPhone: <b>scan the QR</b> (or tap the button if you're on the phone) → Add to Wallet.<br>Serial <code>${serial}</code>`;
+      hint.innerHTML = `On your iPhone: <b>scan the QR</b> (or tap the button if you're on the phone) → Add to Wallet.<br>Serial <code>${esc(serial)}</code>`;
       right.appendChild(link);
       right.appendChild(hint);
 

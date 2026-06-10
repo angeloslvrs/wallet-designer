@@ -10,7 +10,7 @@
 // This keeps random internet visitors from minting or editing passes with the
 // real signing cert.
 
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeStrEqual } from "../util/timing-safe.js";
 
 const PUBLIC_PREFIX = "/api/wallet";
 
@@ -29,13 +29,6 @@ export function isPrivateIp(ip) {
   return false;
 }
 
-function safeEq(a, b) {
-  const ab = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
-}
-
 export function checkBasicAuth(req, user, pass) {
   const h = req.header("Authorization") ?? "";
   if (!h.startsWith("Basic ")) return false;
@@ -43,7 +36,7 @@ export function checkBasicAuth(req, user, pass) {
   try { decoded = Buffer.from(h.slice(6), "base64").toString("utf8"); } catch { return false; }
   const i = decoded.indexOf(":");
   if (i < 0) return false;
-  return safeEq(decoded.slice(0, i), user) && safeEq(decoded.slice(i + 1), pass);
+  return timingSafeStrEqual(decoded.slice(0, i), user) && timingSafeStrEqual(decoded.slice(i + 1), pass);
 }
 
 /** Express middleware. Mount after `app.set("trust proxy", 1)`. */

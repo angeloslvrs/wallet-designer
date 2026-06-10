@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { buildPkpass } from "@wpd/pass-builder";
 import { env } from "../env.js";
+import { timingSafeStrEqual } from "../util/timing-safe.js";
 import {
   getPass, registerDevice, unregisterDevice,
   listUpdatedSerials, logFromDevice
@@ -16,7 +17,7 @@ export const walletRouter = Router();
 function auth(req, res, pass) {
   const h = req.header("Authorization") ?? "";
   const want = `ApplePass ${pass.authenticationToken}`;
-  if (h !== want) { res.status(401).send(); return false; }
+  if (!timingSafeStrEqual(h, want)) { res.status(401).send(); return false; }
   return true;
 }
 

@@ -169,10 +169,13 @@ export async function devicesFor(passTypeId, serial) {
 }
 
 export async function logFromDevice(entries) {
+  // Diagnostic only: a bounded in-memory ring. Deliberately NOT persisted here —
+  // /v1/log is public + unauthenticated, and rewriting the whole state file on
+  // every call is a write-amplification DoS vector. Entries still ride along on
+  // the next real persist (savePass / registerDevice / …).
   const db = await load();
   db.log.push({ at: new Date().toISOString(), entries });
   if (db.log.length > 1000) db.log = db.log.slice(-1000);
-  await persist();
 }
 
 export async function snapshot() {
