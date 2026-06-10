@@ -28,6 +28,8 @@ npm run build:pass -- --in fixtures/fully-loaded.json
 
 When you have an Apple Developer account, follow [`docs/cert-day.md`](docs/cert-day.md).
 
+To host it live (LXC + Nginx Proxy Manager + pm2, redeploy steps, gotchas), see [`docs/deploy.md`](docs/deploy.md).
+
 ## Layout
 
 - `apps/designer` — Vite SPA, vanilla JS, two-pane (form + tabbed preview).
