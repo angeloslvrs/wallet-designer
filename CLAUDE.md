@@ -31,9 +31,16 @@ Node >= 20. Everything is ESM (`"type": "module"`) vanilla JavaScript — no Typ
 npm-workspaces monorepo (`apps/*`, `packages/*`):
 
 - **`packages/pass-schema`** — JSON Schema + JSDoc typedefs for `FormState`, the single source of truth for the pass data model shared by designer, server, and builder.
-- **`packages/pass-builder`** — the core pipeline: `form-to-pass.js` (`formStateToPassJson`), `manifest.js` (SHA1 manifest), `sign.js` (PKCS#7 detached signature via node-forge), zipped into `.pkpass` with archiver. `validate.js` checks FormState against the schema.
+- **`packages/pass-builder`** — the core pipeline: `form-to-pass.js` (`formStateToPassJson`), `template.js` (load a `.pkpasstemplate` bundle + merge per-pass data by field key), `template-zip.js` (sanitize uploaded template zips), `manifest.js` (SHA1 manifest), `sign.js` (PKCS#7 detached signature via node-forge), zipped into `.pkpass` with archiver. `validate.js` checks FormState against the schema.
 - **`apps/designer`** — Vite SPA, two-pane (form + tabbed preview). `src/preview/wallet/` renders the faithful Wallet-style preview. Calls the server's `/api/build`.
-- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a JSON-file store (`state/passes.json`) for issued passes + device registrations.
+- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `templates.js` (upload/list `.pkpasstemplate` bundles), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a JSON-file store (`state/passes.json`) for issued passes + device registrations. `pass-build.js` turns a stored record into a signed `.pkpass` (branches FormState vs template). `template-status.js` maps the status-update vocabulary onto template data.
+
+### Two build paths
+
+Stored passes come in two shapes, both rebuilt at fetch time by `apps/server/src/pass-build.js`:
+
+- **FormState** (`rec.state`) — the designer flow; `formStateToPassJson`.
+- **Template** (`rec.template` + `rec.data`) — issue with `POST /api/passes {template, serialNumber, data, groupId}` against a bundle in `templates/<id>.pkpasstemplate/`. `data` addresses template fields **by key**; reserved keys: `semantics` (deep-merge), `additionalInfoFields` (append/replace-by-key), `barcodeMessage`/`barcodeAltText`. Unknown keys fail at issue time (dry-run merge). `serialNumber`/`authenticationToken`/`webServiceURL`/`passTypeIdentifier`/`teamIdentifier` are always injected server-side, never trusted from a template. `templates/dev-sample.pkpasstemplate` is a hand-written stand-in (Pass Designer requires macOS 27 beta — see `templates/README.md` for the swap procedure); the ONLY code that assumes its key names is `apps/server/src/template-status.js`.
 
 ### Cert profiles
 
