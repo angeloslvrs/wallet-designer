@@ -9,6 +9,7 @@ import { buildRouter } from "./routes/build.js";
 import { fixturesRouter } from "./routes/fixtures.js";
 import { walletRouter } from "./routes/wallet.js";
 import { adminRouter } from "./routes/admin.js";
+import { templatesRouter } from "./routes/templates.js";
 
 const app = express();
 app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
@@ -29,6 +30,7 @@ app.use(accessGuard);                // /api/wallet/* public; everything else LA
 app.use("/api", buildRouter);
 app.use("/api", fixturesRouter);
 app.use("/api", adminRouter);
+app.use("/api", templatesRouter);   // .pkpasstemplate upload/list (control plane)
 // Rate-limit the only public surface (Apple PassKit web service). Device traffic
 // is low-volume per IP, so this is generous for real clients while capping abuse
 // of the unauthenticated /v1/log + registration-list endpoints.

@@ -19,15 +19,25 @@ const svgIcon = (size) => Buffer.from(`
         font-weight="700" fill="white">RP</text>
 </svg>`);
 
-async function emit(buf, name) {
-  await writeFile(`${OUT}/${name}`, buf);
-  console.log(`wrote ${OUT}/${name}`);
+// The committed dev template carries only its pass.json in git; its images
+// are these same placeholders, generated into the bundle here.
+const TEMPLATE_OUT = "templates/dev-sample.pkpasstemplate";
+
+async function emit(buf, name, dir) {
+  await writeFile(`${dir}/${name}`, buf);
+  console.log(`wrote ${dir}/${name}`);
 }
 
-await mkdir(OUT, { recursive: true });
-await emit(await sharp(svgIcon(29)).png().toBuffer(), "icon.png");
-await emit(await sharp(svgIcon(58)).png().toBuffer(), "icon@2x.png");
-await emit(await sharp(svgIcon(87)).png().toBuffer(), "icon@3x.png");
-await emit(await sharp(svgLogo(160, 50, "Rocket Partners")).png().toBuffer(), "logo.png");
-await emit(await sharp(svgLogo(320, 100, "Rocket Partners")).png().toBuffer(), "logo@2x.png");
+const files = {
+  "icon.png": await sharp(svgIcon(29)).png().toBuffer(),
+  "icon@2x.png": await sharp(svgIcon(58)).png().toBuffer(),
+  "icon@3x.png": await sharp(svgIcon(87)).png().toBuffer(),
+  "logo.png": await sharp(svgLogo(160, 50, "Rocket Partners")).png().toBuffer(),
+  "logo@2x.png": await sharp(svgLogo(320, 100, "Rocket Partners")).png().toBuffer()
+};
+
+for (const dir of [OUT, TEMPLATE_OUT]) {
+  await mkdir(dir, { recursive: true });
+  for (const [name, buf] of Object.entries(files)) await emit(buf, name, dir);
+}
 console.log("✓ placeholder assets generated");

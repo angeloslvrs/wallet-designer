@@ -6,7 +6,8 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomBytes } from "node:crypto";
 
-const PATH = "state/passes.json";
+// STATE_PATH override exists for tests, which must never touch the real store.
+const PATH = process.env.STATE_PATH ?? "state/passes.json";
 const EMPTY = { passes: {}, registrations: {}, log: [] };
 
 let cache = null;
@@ -64,6 +65,30 @@ export async function savePass(state) {
   return db.passes[serial];
 }
 
+/**
+ * Issue (or re-issue) a pass backed by a .pkpasstemplate instead of a full
+ * FormState: the record stores only the template id + per-pass field data.
+ * The same stable-token rule as savePass applies — and holds across shapes,
+ * so re-issuing a FormState serial as a template pass keeps its token.
+ * groupId is explicit here: template data has no flight structure to derive it from.
+ */
+export async function saveTemplatePass({ serialNumber, template, data = {}, groupId, passTypeId }) {
+  const db = await load();
+  const existing = db.passes[serialNumber];
+  const token = existing?.authenticationToken ?? randomBytes(16).toString("hex");
+  db.passes[serialNumber] = {
+    // Same env forcing as savePass: the identifiers must match the signing cert.
+    passTypeIdentifier: process.env.PASS_TYPE_ID ?? passTypeId ?? existing?.passTypeIdentifier,
+    authenticationToken: token,
+    groupId,
+    template,
+    data,
+    lastModified: new Date().toUTCString()
+  };
+  await persist();
+  return db.passes[serialNumber];
+}
+
 /** A trip is one flight on one day; every passenger's pass shares this id. */
 export function deriveGroupId(state) {
   if (state.meta?.groupId) return state.meta.groupId;
@@ -100,6 +125,12 @@ export async function deleteGroup(groupId) {
   return members.length;
 }
 
+/** Admin-side lookup: any record by serial, no passTypeId filter. */
+export async function getPassRecord(serial) {
+  const db = await load();
+  return db.passes[serial] ?? null;
+}
+
 export async function getPass(passTypeId, serial) {
   const db = await load();
   const rec = db.passes[serial];
@@ -112,6 +143,17 @@ export async function updatePassState(serial, mutator) {
   const rec = db.passes[serial];
   if (!rec) return null;
   rec.state = mutator(rec.state);
+  rec.lastModified = new Date().toUTCString();
+  await persist();
+  return rec;
+}
+
+/** Template-pass twin of updatePassState: mutates rec.data instead of rec.state. */
+export async function updatePassData(serial, mutator) {
+  const db = await load();
+  const rec = db.passes[serial];
+  if (!rec || rec.template == null) return null;
+  rec.data = mutator(rec.data ?? {});
   rec.lastModified = new Date().toUTCString();
   await persist();
   return rec;

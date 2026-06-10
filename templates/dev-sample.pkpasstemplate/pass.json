@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "passTypeIdentifier": "pass.dev.local",
+  "teamIdentifier": "DEV0000000",
+  "organizationName": "Rocket Partners Airlines",
+  "description": "Boarding pass",
+  "logoText": "Rocket Partners",
+  "foregroundColor": "rgb(255,255,255)",
+  "backgroundColor": "rgb(20,30,80)",
+  "labelColor": "rgb(180,200,255)",
+  "preferredStyleSchemes": ["semanticBoardingPass"],
+  "barcodes": [
+    { "format": "PKBarcodeFormatQR", "message": "SET-AT-ISSUE", "messageEncoding": "iso-8859-1", "altText": "" }
+  ],
+  "boardingPass": {
+    "transitType": "PKTransitTypeAir",
+    "headerFields": [
+      { "key": "gate", "label": "GATE", "value": "—" },
+      { "key": "seat", "label": "SEAT", "value": "—" }
+    ],
+    "primaryFields": [
+      { "key": "depart", "label": "San Francisco", "value": "SFO" },
+      { "key": "arrive", "label": "New York", "value": "JFK" }
+    ],
+    "secondaryFields": [
+      { "key": "passenger", "label": "PASSENGER", "value": "FIRSTNAME LASTNAME" },
+      { "key": "flight", "label": "FLIGHT", "value": "RP000" }
+    ],
+    "auxiliaryFields": [
+      { "key": "boarding", "label": "BOARDING", "value": "", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
+      { "key": "depart-time", "label": "DEPART", "value": "", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
+      { "key": "group", "label": "GROUP", "value": "—" },
+      { "key": "seq", "label": "SEQ", "value": "—" }
+    ],
+    "backFields": [
+      { "key": "ff", "label": "FREQUENT FLYER", "value": "—" },
+      { "key": "terminal-dep", "label": "DEPARTURE TERMINAL", "value": "—" },
+      { "key": "terminal-arr", "label": "ARRIVAL TERMINAL", "value": "—" }
+    ]
+  },
+  "semantics": {
+    "airlineCode": "RP",
+    "departureAirportCode": "SFO",
+    "departureAirportName": "San Francisco Intl",
+    "destinationAirportCode": "JFK",
+    "destinationAirportName": "John F. Kennedy Intl"
+  }
+}

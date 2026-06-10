@@ -4,8 +4,7 @@
 // Spec: https://developer.apple.com/documentation/walletpasses/adding-a-web-service-to-update-passes
 
 import { Router } from "express";
-import { buildPkpass } from "@wpd/pass-builder";
-import { env } from "../env.js";
+import { buildStoredPass } from "../pass-build.js";
 import { timingSafeStrEqual } from "../util/timing-safe.js";
 import {
   getPass, registerDevice, unregisterDevice,
@@ -72,11 +71,8 @@ walletRouter.get("/v1/passes/:passType/:serial", async (req, res) => {
   }
 
   try {
-    const buf = await buildPkpass({
-      state: pass.state,
-      certDir: env.certDir,
-      passphrase: env.passphrase
-    });
+    // Rebuilds from stored state at fetch time — FormState- or template-backed.
+    const buf = await buildStoredPass(pass, req.params.serial);
     res.setHeader("Content-Type", "application/vnd.apple.pkpass");
     res.setHeader("Last-Modified", pass.lastModified);
     res.send(buf);

@@ -4,6 +4,7 @@
   "type": "module",
   "main": "index.js",
   "dependencies": {
+    "adm-zip": "^0.5.17",
     "ajv": "^8.12.0",
     "ajv-formats": "^2.1.1",
     "archiver": "^7.0.0",
