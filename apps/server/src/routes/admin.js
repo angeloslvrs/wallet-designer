@@ -188,6 +188,14 @@ adminRouter.delete("/groups/:groupId", async (req, res) => {
   res.json({ ok: true, count });
 });
 
+// GET /api/log  →  recent device-reported PassKit logs (newest first).
+// Devices write via the public POST /v1/log; this is the admin read side.
+adminRouter.get("/log", async (req, res) => {
+  const snap = await snapshot();
+  const limit = Math.min(Number(req.query.limit) || 50, 500);
+  res.json(snap.log.slice(-limit).reverse());
+});
+
 // GET /api/passes/:serial
 adminRouter.get("/passes/:serial", async (req, res) => {
   const snap = await snapshot();

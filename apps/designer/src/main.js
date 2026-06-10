@@ -79,7 +79,7 @@ async function maybeLoadFromUrl() {
   try { await loadFixture(f); } catch (err) { console.warn(err.message); }
 }
 
-document.documentElement.dataset.build = "20260606a"; // changes bundle hash → busts stale caches
+document.documentElement.dataset.build = "20260610a"; // changes bundle hash → busts stale caches
 showProfile();
 await maybeLoadFromUrl();
 renderForm(document.getElementById("form-pane"));

@@ -1,10 +1,28 @@
 import { replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { esc } from "./esc.js";
+import { buildStatusBody, describePushResult } from "./ops.js";
 
-// Manage view: list every issued pass (grouped by trip) with Add-to-Wallet,
-// push (gate / delay), edit (load back into the designer), and delete — for
-// single passes and whole groups.
+// Manage view — the ops console: every issued pass grouped by trip, with
+// Add-to-Wallet, per-pass quick actions, a full status editor per trip
+// (gate/boarding/depart/arrive/transit/screening/delay → group push), and the
+// device log reported through the public POST /v1/log.
+
+const STATUS_FIELDS = [
+  ["gate", "Gate (B7)"],
+  ["boarding", "Boarding (2026-06-20T07:30:00-07:00)"],
+  ["depart", "Depart (ISO time)"],
+  ["arrive", "Arrive (ISO time)"],
+  ["transitInfo", "Transit info"],
+  ["securityScreening", "Security screening"],
+  ["delayed", "Delay note"]
+];
+
+const fmtWhen = (s) => {
+  const d = new Date(s);
+  return isNaN(d) ? "" : d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
 export function mountManage(root, showDesigner) {
   const setStatus = (serial, msg) => {
     const el = root.querySelector(`[data-status="${CSS.escape(serial)}"]`);
@@ -13,6 +31,32 @@ export function mountManage(root, showDesigner) {
 
   const shell = (inner) => `<div class="mg-wrap"><div class="mg-head"><h2>Manage issued passes</h2>${inner.count != null ? `<span class="mg-count">${inner.count} pass(es)</span>` : ""}</div>${inner.body}</div>`;
 
+  const logCard = () => `
+    <div class="mg-card">
+      <div class="mg-card-head">
+        <div class="mg-trip"><span class="mg-trip-id">Device log</span><span class="mg-badge">POST /v1/log</span></div>
+        <div class="mg-grp-acts"><button data-act="log-refresh">Refresh</button></div>
+      </div>
+      <div class="mg-list" id="mg-log"><p class="mg-empty">Loading…</p></div>
+    </div>`;
+
+  async function loadLog() {
+    const el = root.querySelector("#mg-log");
+    if (!el) return;
+    let log = [];
+    try { log = await fetch("/api/log?limit=50").then(r => r.json()); }
+    catch { el.innerHTML = `<p class="mg-empty">API offline.</p>`; return; }
+    if (!Array.isArray(log) || !log.length) {
+      el.innerHTML = `<p class="mg-empty">No device logs yet — they arrive when an iPhone hits a problem with a pass.</p>`;
+      return;
+    }
+    el.innerHTML = log.map(e => `
+      <div class="mg-row mg-log-row">
+        <code>${esc(fmtWhen(e.at))}</code>
+        <span class="mg-log-msg">${(e.entries ?? []).map(line => esc(String(line))).join("<br>")}</span>
+      </div>`).join("");
+  }
+
   async function load() {
     root.innerHTML = shell({ body: `<p class="mg-empty">Loading…</p>` });
     let list;
@@ -20,35 +64,50 @@ export function mountManage(root, showDesigner) {
     catch { root.innerHTML = shell({ body: `<p class="mg-empty">API offline.</p>` }); return; }
 
     if (!Array.isArray(list) || !list.length) {
-      root.innerHTML = shell({ body: `<p class="mg-empty">Nothing issued yet — build or issue passes in the Designer.</p>` });
+      root.innerHTML = shell({ body: `<p class="mg-empty">Nothing issued yet — build or issue passes in the Designer.</p>` + logCard() });
+      loadLog();
       return;
     }
 
     const groups = {};
-    for (const p of list) (groups[p.groupId] ??= []).push(p);
+    // Passes issued before trip grouping existed have no groupId — label them
+    // honestly (their group-level actions will 404 until re-issued).
+    for (const p of list) (groups[p.groupId ?? "(legacy — no trip id)"] ??= []).push(p);
 
     const cards = Object.entries(groups).map(([gid, members]) => {
       const rows = members.map(p => `
         <div class="mg-row">
-          <div class="mg-info"><b>${esc(p.passenger || "—")}</b> · seat ${esc(p.seat || "—")} · <code>${esc(p.serial)}</code> · ${p.deviceCount} device(s)</div>
+          <div class="mg-info">
+            <b>${esc(p.passenger || "—")}</b> · seat ${esc(p.seat || "—")} · <code>${esc(p.serial)}</code>
+            ${p.template ? `<span class="mg-badge mg-tpl">tpl: ${esc(p.template)}</span>` : ""}
+            · ${p.deviceCount} device(s) · <span class="mg-when">${esc(fmtWhen(p.lastModified))}</span>
+          </div>
           <div class="mg-acts">
             <a class="btn wallet" href="/api/passes/${encodeURIComponent(p.serial)}/pkpass">Add to Wallet</a>
-            <button data-act="edit" data-serial="${esc(p.serial)}">Edit</button>
+            ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}">Edit</button>`}
             <button data-act="gate" data-serial="${esc(p.serial)}">Gate</button>
             <button data-act="delay" data-serial="${esc(p.serial)}">Delay</button>
             <button data-act="del" data-serial="${esc(p.serial)}" class="danger">Delete</button>
           </div>
           <div class="mg-status" data-status="${esc(p.serial)}"></div>
         </div>`).join("");
+
+      const editor = STATUS_FIELDS.map(([key, ph]) =>
+        `<input data-f="${key}" placeholder="${esc(ph)}" />`).join("");
+
       return `
-        <div class="mg-card">
+        <div class="mg-card" data-card="${esc(gid)}">
           <div class="mg-card-head">
             <div class="mg-trip"><span class="mg-trip-id">${esc(gid)}</span><span class="mg-badge">${members.length} pass(es)</span></div>
             <div class="mg-grp-acts">
-              <button data-act="grp-gate" data-grp="${esc(gid)}">Gate · all</button>
-              <button data-act="grp-delay" data-grp="${esc(gid)}">Delay · all</button>
-              <button data-act="grp-clear" data-grp="${esc(gid)}">Clear · all</button>
               <button data-act="grp-del" data-grp="${esc(gid)}" class="danger">Delete trip</button>
+            </div>
+          </div>
+          <div class="mg-editor">
+            ${editor}
+            <div class="mg-editor-acts">
+              <button data-act="grp-update" data-grp="${esc(gid)}">Update trip · push</button>
+              <button data-act="grp-clear" data-grp="${esc(gid)}">Clear delay</button>
               <span class="mg-grp-status" data-grp-status="${esc(gid)}"></span>
             </div>
           </div>
@@ -56,7 +115,8 @@ export function mountManage(root, showDesigner) {
         </div>`;
     }).join("");
 
-    root.innerHTML = shell({ count: list.length, body: cards });
+    root.innerHTML = shell({ count: list.length, body: cards + logCard() });
+    loadLog();
   }
 
   async function pushOne(serial, body) {
@@ -64,7 +124,7 @@ export function mountManage(root, showDesigner) {
     const j = await fetch(`/api/passes/${encodeURIComponent(serial)}/status`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     }).then(r => r.json()).catch(() => ({}));
-    setStatus(serial, j.ok ? `✓ pushed ${j.push?.sent ?? 0} device(s)` : `✗ ${j.error ?? "error"}`);
+    setStatus(serial, describePushResult(j));
   }
 
   async function pushGroup(gid, body) {
@@ -73,7 +133,7 @@ export function mountManage(root, showDesigner) {
     const j = await fetch(`/api/groups/${encodeURIComponent(gid)}/status`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     }).then(r => r.json()).catch(() => ({}));
-    if (el) el.textContent = j.ok ? `✓ ${j.count} pass(es), ${j.sent} device(s)` : `✗ ${j.error ?? "error"}`;
+    if (el) el.textContent = describePushResult(j);
   }
 
   root.addEventListener("click", async (e) => {
@@ -90,10 +150,19 @@ export function mountManage(root, showDesigner) {
     if (act === "delay") { const d = prompt(`Delay note for ${serial}:`, "ATC delay — new boarding 06:30"); if (d != null) await pushOne(serial, { delayed: d }); return; }
     if (act === "del")   { if (confirm(`Delete pass ${serial}?`)) { await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE" }); load(); } return; }
 
-    if (act === "grp-gate")  { const g = prompt(`New gate for whole trip ${grp}:`); if (g != null) await pushGroup(grp, { gate: g }); return; }
-    if (act === "grp-delay") { const d = prompt(`Delay note for whole trip ${grp}:`, "ATC delay — new boarding 06:30"); if (d != null) await pushGroup(grp, { delayed: d }); return; }
+    if (act === "grp-update") {
+      const card = t.closest(".mg-card");
+      const values = {};
+      for (const inp of card.querySelectorAll(".mg-editor input[data-f]")) values[inp.dataset.f] = inp.value;
+      const body = buildStatusBody(values);
+      const el = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
+      if (!body) { if (el) el.textContent = "✗ nothing to update — fill in at least one field"; return; }
+      await pushGroup(grp, body);
+      return;
+    }
     if (act === "grp-clear") { await pushGroup(grp, { delayed: "" }); return; }
     if (act === "grp-del")   { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
+    if (act === "log-refresh") { loadLog(); return; }
   });
 
   load();

@@ -1,0 +1,39 @@
+// Pure helpers for the ops (Manage) view: turn status-editor inputs into a
+// status-route body, and push-route responses into one-line summaries.
+
+/**
+ * Collect the non-empty status-editor fields into a body for the status
+ * routes. Returns null when nothing was entered (caller shows a hint instead
+ * of firing an empty update).
+ * @param {Record<string, string>} values
+ * @returns {Record<string, string> | null}
+ */
+export function buildStatusBody(values) {
+  const body = {};
+  for (const [key, raw] of Object.entries(values ?? {})) {
+    const v = (raw ?? "").trim();
+    if (v) body[key] = v;
+  }
+  return Object.keys(body).length ? body : null;
+}
+
+/**
+ * One-line summary of a status-push response — single-pass
+ * ({ok, push, skippedFields?}) or group ({ok, count, sent, results[]}).
+ * Template passes report field keys their template doesn't declare; surface
+ * them so a convention mismatch is visible from the console, not just logs.
+ * @param {object} j
+ * @returns {string}
+ */
+export function describePushResult(j) {
+  if (!j?.ok) return `✗ ${j?.error ?? "error"}`;
+
+  const skipped = new Set(j.skippedFields ?? []);
+  for (const r of j.results ?? []) for (const k of r.skippedFields ?? []) skipped.add(k);
+  const skippedNote = skipped.size ? ` · template lacks: ${[...skipped].join(", ")}` : "";
+
+  const summary = j.results
+    ? `✓ ${j.count} pass(es), ${j.sent} device(s)`
+    : `✓ pushed ${j.push?.sent ?? 0} device(s)`;
+  return summary + skippedNote;
+}

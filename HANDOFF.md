@@ -73,10 +73,11 @@ Neither tool serves passes, tracks registrations, or pushes updates. Those exist
 - [x] Storage: per-pass data + template reference instead of full FormState (stable-token rule preserved, tested) *(`storage.js: saveTemplatePass/updatePassData/getPassRecord`)*
 - [x] Admin route to upload a zipped `.pkpasstemplate` (Mac → LXC drag-and-drop) *(`POST /api/templates/:id`, zip-slip-guarded; `GET /api/templates` lists field keys)*
 
-### Ops console
-- [ ] Issued-passes table per flight/group: serial, passenger, registration count, lastModified
-- [ ] Gate/status editor wired to existing `POST /api/passes/:serial/status` + `POST /api/groups/:groupId/status` (responses now include `skippedFields` for template passes)
-- [ ] `/v1/log` viewer in the SPA
+### Ops console *(done 2026-06-10 — Manage view in the SPA)*
+- [x] Issued-passes table per flight/group: serial, passenger, registration count, lastModified, template badge
+- [x] Gate/status editor (gate/boarding/depart/arrive/transit/screening/delay) wired to `POST /api/passes/:serial/status` + `POST /api/groups/:groupId/status`; `skippedFields` surfaced in push summaries (`apps/designer/src/ops.js`)
+- [x] `/v1/log` viewer in the SPA (read side added as `GET /api/log` in `routes/admin.js`)
+- [ ] Issue-from-template UI (template picker + data form from `GET /api/templates` field keys — today template issuing is curl-only)
 
 ### Carried over
 - [x] Fix README (wallet service, APNs, admin routes, prod profile, template pipeline) *(2026-06-10)*
