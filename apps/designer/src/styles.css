@@ -5,7 +5,7 @@ header h1 { font-size: 16px; margin: 0; }
 #profile-badge { font-size: 12px; padding: 2px 8px; background: rgba(255,255,255,0.15); border-radius: 4px; }
 main { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px; height: calc(100vh - 50px); }
 /* The hidden attribute must win over the display rules above, or the views stack. */
-main[hidden], #manage-pane[hidden] { display: none !important; }
+main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !important; }
 #form-pane { overflow-y: auto; background: white; padding: 16px; border-radius: 8px; }
 #preview-pane { display: flex; flex-direction: column; gap: 12px; background: white; padding: 16px; border-radius: 8px; }
 #tabs { display: flex; gap: 4px; border-bottom: 1px solid #eee; }
@@ -39,7 +39,7 @@ main[hidden], #manage-pane[hidden] { display: none !important; }
 #view-tabs button.active { background: #fff; color: #1a2150; font-weight: 600; }
 
 /* ---- Manage dashboard ---- */
-#manage-pane { height: calc(100vh - 50px); overflow-y: auto; padding: 28px 20px 72px; }
+#manage-pane, #issue-pane { height: calc(100vh - 50px); overflow-y: auto; padding: 28px 20px 72px; }
 .mg-wrap { max-width: 960px; margin: 0 auto; }
 .mg-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 20px; }
 .mg-head h2 { font-size: 22px; margin: 0; letter-spacing: -0.01em; color: #14163a; }
@@ -66,8 +66,8 @@ main[hidden], #manage-pane[hidden] { display: none !important; }
 .mg-status:empty { display: none; }
 
 /* Buttons: ghost-navy default, danger ghost, Apple-black wallet pill */
-#manage-pane button { background: #fff; color: #1a2150; border: 1px solid #d4d8e6; padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background .12s, border-color .12s; }
-#manage-pane button:hover { background: #f0f1f8; border-color: #b9c0d6; }
+#manage-pane button, #issue-pane button { background: #fff; color: #1a2150; border: 1px solid #d4d8e6; padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background .12s, border-color .12s; }
+#manage-pane button:hover, #issue-pane button:hover { background: #f0f1f8; border-color: #b9c0d6; }
 #manage-pane button.danger { color: #c0182f; border-color: #f0c8ce; }
 #manage-pane button.danger:hover { background: #fdf1f2; border-color: #e3a3ac; }
 .btn.wallet { display: inline-flex; align-items: center; gap: 6px; background: #000; color: #fff; padding: 6px 13px; border-radius: 7px; text-decoration: none; font-size: 12px; font-weight: 600; transition: transform .1s, box-shadow .15s; }
@@ -83,6 +83,19 @@ main[hidden], #manage-pane[hidden] { display: none !important; }
 .mg-log-row { justify-content: flex-start; gap: 12px; }
 .mg-log-row code { flex-shrink: 0; }
 .mg-log-msg { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #555; word-break: break-word; }
+
+/* ---- Issue view (template passes) ---- */
+#issue-pane .live-row { display: flex; gap: 8px; align-items: center; padding: 8px 18px; }
+#issue-pane .live-row label { margin: 0; font-size: 12px; color: #51607a; min-width: 80px; }
+#issue-pane .hint { font-size: 12px; color: #6b7280; margin: 0; padding: 2px 18px 10px; }
+#issue-pane input, #issue-pane select { width: auto; border-color: #d4d8e6; border-radius: 6px; }
+#issue-pane .iss-compose input { flex: 0 1 150px; }
+.iss-row { display: block; }
+.iss-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.iss-fields input { flex: 1 1 120px; min-width: 0; font-size: 12px; }
+.iss-fields input.iss-serial { flex: 1 1 180px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+.iss-qr { width: 76px; height: 76px; border: 1px solid #eee; border-radius: 6px; vertical-align: middle; margin-left: 6px; }
+#issue-pane .mg-editor-acts { padding: 12px 18px; border-top: 1px solid #ececf2; }
 
 fieldset { border: 1px solid #e5e5e8; border-radius: 6px; margin-bottom: 12px; padding: 8px 12px; }
 fieldset > legend { font-weight: 600; padding: 0 4px; }

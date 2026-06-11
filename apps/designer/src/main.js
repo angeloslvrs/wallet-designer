@@ -5,6 +5,7 @@ import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
 import { mountTrip } from "./trip.js";
 import { mountManage } from "./manage.js";
+import { mountIssue } from "./issue.js";
 
 async function showProfile() {
   try {
@@ -57,17 +58,19 @@ async function saveTemplate() {
   else { alert("Could not save template"); }
 }
 
-// Designer / Manage view toggle.
+// Designer / Issue / Manage view toggle.
 function wireViewTabs() {
   const tabs = document.getElementById("view-tabs");
   const main = document.querySelector("main");
   const managePane = document.getElementById("manage-pane");
+  const issuePane = document.getElementById("issue-pane");
   const show = (view) => {
-    const designer = view === "designer";
-    main.hidden = !designer;
-    managePane.hidden = designer;
+    main.hidden = view !== "designer";
+    managePane.hidden = view !== "manage";
+    issuePane.hidden = view !== "issue";
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
-    if (!designer) mountManage(managePane, () => show("designer"));
+    if (view === "manage") mountManage(managePane, () => show("designer"));
+    if (view === "issue") mountIssue(issuePane, () => show("manage"));
   };
   tabs.addEventListener("click", e => { if (e.target.dataset?.view) show(e.target.dataset.view); });
 }

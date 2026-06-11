@@ -77,7 +77,7 @@ Neither tool serves passes, tracks registrations, or pushes updates. Those exist
 - [x] Issued-passes table per flight/group: serial, passenger, registration count, lastModified, template badge
 - [x] Gate/status editor (gate/boarding/depart/arrive/transit/screening/delay) wired to `POST /api/passes/:serial/status` + `POST /api/groups/:groupId/status`; `skippedFields` surfaced in push summaries (`apps/designer/src/ops.js`)
 - [x] `/v1/log` viewer in the SPA (read side added as `GET /api/log` in `routes/admin.js`)
-- [ ] Issue-from-template UI (template picker + data form from `GET /api/templates` field keys — today template issuing is curl-only)
+- [x] Issue-from-template UI (template picker + data form from `GET /api/templates` field keys) *(2026-06-11: Issue view in the SPA — `apps/designer/src/issue.js`; trip-id composer, per-passenger rows generated from field keys, suggested `<groupId>-<NNN>` serials (editable), one `POST /api/passes` per row with per-row inline errors, Add-to-Wallet/QR per issued pass. Template issuing no longer needs curl.)*
 
 ### Carried over
 - [x] Fix README (wallet service, APNs, admin routes, prod profile, template pipeline) *(2026-06-10)*

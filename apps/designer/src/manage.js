@@ -24,6 +24,11 @@ const fmtWhen = (s) => {
 };
 
 export function mountManage(root, showDesigner) {
+  // Re-mounted on every tab visit — drop the previous mount's listener or one
+  // click would fire each action once per visit (duplicate prompts/deletes).
+  root._mountAbort?.abort();
+  const { signal } = (root._mountAbort = new AbortController());
+
   const setStatus = (serial, msg) => {
     const el = root.querySelector(`[data-status="${CSS.escape(serial)}"]`);
     if (el) el.textContent = msg;
@@ -163,7 +168,7 @@ export function mountManage(root, showDesigner) {
     if (act === "grp-clear") { await pushGroup(grp, { delayed: "" }); return; }
     if (act === "grp-del")   { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
     if (act === "log-refresh") { loadLog(); return; }
-  });
+  }, { signal });
 
   load();
 }
