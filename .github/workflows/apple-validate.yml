@@ -64,6 +64,17 @@ jobs:
         with:
           path: pass-builder/.build
           key: buildpass-${{ runner.os }}-${{ env.PASS_BUILDER_SHA }}
+      # Upstream Linux build bug at the pinned SHA: ReadCredential.swift:54
+      # passes an optional `ptr.baseAddress` to explicit_bzero on the
+      # non-macOS branch and doesn't compile with Swift 6.3 on Linux. The
+      # credential code isn't even used by `validate`, but it's in the same
+      # executable target. Patch the one line; drop this step when a fixed
+      # upstream commit exists and the pin moves past it.
+      - name: Patch upstream Linux-only build error (ReadCredential.swift)
+        working-directory: pass-builder
+        run: |
+          sed -i 's/explicit_bzero(ptr.baseAddress, ptr.count)/if let b = ptr.baseAddress { explicit_bzero(b, ptr.count) }/' Sources/buildpass/ReadCredential.swift
+          grep -n "explicit_bzero" Sources/buildpass/ReadCredential.swift
       - name: Build buildpass CLI
         working-directory: pass-builder
         run: swift build -c release --product buildpass
