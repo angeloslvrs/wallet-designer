@@ -19,6 +19,9 @@ npx vitest run tests/manifest.test.js   # single test file
 npm run check               # validate all fixtures/ against the JSON schema
 
 npm run build:pass -- --in fixtures/fully-loaded.json   # headless CLI build → out/*.pkpass
+npm run build:pass -- --template dev-sample             # headless template-path build (--serial, --data data.json)
+npm run validate:apple      # Apple buildpass validators; exits 0 with a skip note if no binary (CI is the real gate)
+node scripts/field-coverage.mjs   # regenerate docs/field-coverage.md from apple/pass-builder protos
 npm run build:designer      # production SPA bundle → apps/designer/dist
 npm start                   # production mode: one Express process serves built SPA + API on :4317
 npm run cert:inspect        # inspect the active signing cert
@@ -32,8 +35,8 @@ npm-workspaces monorepo (`apps/*`, `packages/*`):
 
 - **`packages/pass-schema`** — JSON Schema + JSDoc typedefs for `FormState`, the single source of truth for the pass data model shared by designer, server, and builder.
 - **`packages/pass-builder`** — the core pipeline: `form-to-pass.js` (`formStateToPassJson`), `template.js` (load a `.pkpasstemplate` bundle + merge per-pass data by field key), `template-zip.js` (sanitize uploaded template zips), `manifest.js` (SHA1 manifest), `sign.js` (PKCS#7 detached signature via node-forge), zipped into `.pkpass` with archiver. `validate.js` checks FormState against the schema.
-- **`apps/designer`** — Vite SPA, two-pane (form + tabbed preview). `src/preview/wallet/` renders the faithful Wallet-style preview. Calls the server's `/api/build`.
-- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `templates.js` (upload/list `.pkpasstemplate` bundles), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a JSON-file store (`state/passes.json`) for issued passes + device registrations. `pass-build.js` turns a stored record into a signed `.pkpass` (branches FormState vs template). `template-status.js` maps the status-update vocabulary onto template data.
+- **`apps/designer`** — Vite SPA with three views wired in `main.js`: **Designer** (form + tabbed preview; `src/preview/wallet/` renders the faithful Wallet-style preview), **Issue** (`issue.js` — issue template passes: picker from `GET /api/templates`, per-passenger rows from field keys, suggested serials, plus the template manager card for browser upload/delete), **Manage** (`manage.js`/`ops.js` — ops console: trip tables, status editor, group push, device log). View mounts abort the previous mount's listeners on re-mount (`root._mountAbort`) — keep that pattern or tab switches stack duplicate handlers.
+- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `templates.js` (upload/list/delete `.pkpasstemplate` bundles; DELETE 409s while any stored pass references the template), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a JSON-file store (`state/passes.json`) for issued passes + device registrations. `pass-build.js` turns a stored record into a signed `.pkpass` (branches FormState vs template). `template-status.js` maps the status-update vocabulary onto template data.
 
 ### Two build paths
 
@@ -41,6 +44,10 @@ Stored passes come in two shapes, both rebuilt at fetch time by `apps/server/src
 
 - **FormState** (`rec.state`) — the designer flow; `formStateToPassJson`.
 - **Template** (`rec.template` + `rec.data`) — issue with `POST /api/passes {template, serialNumber, data, groupId}` against a bundle in `templates/<id>.pkpasstemplate/`. `data` addresses template fields **by key**; reserved keys: `semantics` (deep-merge), `additionalInfoFields` (append/replace-by-key), `barcodeMessage`/`barcodeAltText`. Unknown keys fail at issue time (dry-run merge). `serialNumber`/`authenticationToken`/`webServiceURL`/`passTypeIdentifier`/`teamIdentifier` are always injected server-side, never trusted from a template. `templates/dev-sample.pkpasstemplate` is a hand-written stand-in (Pass Designer requires macOS 27 beta — see `templates/README.md` for the swap procedure); the ONLY code that assumes its key names is `apps/server/src/template-status.js`.
+
+### QA gate
+
+`.github/workflows/apple-validate.yml` runs on every push to `main`: builds a pass from `dev-sample` headlessly, unzips it, and runs Apple's `buildpass validate` (built from `apple/pass-builder` at a **pinned SHA** — `PASS_BUILDER_SHA` in the workflow). `scripts/field-coverage.mjs` reads protos at the **same SHA**; bump both together. `validate` checks structure/semantics only (no signature verification), and validation errors fail CI — `templates/dev-sample.pkpasstemplate/pass.json` carries sample semantics specifically to satisfy `BoardingPassValidator`; per-pass data overrides them at issue time.
 
 ### Cert profiles
 

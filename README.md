@@ -30,10 +30,24 @@ Open the designer, edit the form, hit **Build .pkpass** — you'll get a
 download. Dev-profile passes are structurally valid but won't install on iOS
 until you swap to a real Apple cert (`docs/cert-day.md`).
 
+The SPA has three views:
+
+- **Designer** — the form + faithful Wallet-style preview (FormState path).
+- **Issue** — issue template-backed passes without curl: pick an installed
+  template, name the trip, fill one row per passenger (inputs generated from
+  the template's field keys, serials suggested as `<groupId>-<NNN>`), get
+  Add-to-Wallet links/QRs per pass. Also the template manager: upload a zipped
+  `.pkpasstemplate` from the browser, inspect field keys, delete unreferenced
+  bundles.
+- **Manage** — the ops console: issued passes grouped by trip, gate/status
+  editor with group push, device-log viewer.
+
 ## Headless / batch
 
 ```bash
 npm run build:pass -- --in fixtures/fully-loaded.json   # → out/fully-loaded.pkpass
+npm run build:pass -- --template dev-sample             # template path, → out/dev-sample.pkpass
+npm run validate:apple                                  # Apple's buildpass validators (skips if not installed)
 ```
 
 ## HTTP surface
@@ -53,6 +67,7 @@ reachable from private IPs/LAN only, or with admin Basic Auth
 | `DELETE /api/passes/:serial` · `/api/groups/:groupId` | Remove passes + registrations |
 | `POST /api/templates/:id` | Upload a zipped `.pkpasstemplate` (raw body) → `templates/<id>.pkpasstemplate/` |
 | `GET /api/templates` | Installed templates + the field keys each declares |
+| `DELETE /api/templates/:id` | Remove a bundle — **409 while any stored pass references it** (installed passes rebuild from their template on every fetch) |
 | `/api/wallet/v1/*` | **Public.** The five Apple PassKit web-service endpoints (register/unregister device, list updated serials, fetch pass, log). Per-pass `ApplePass` token auth, timing-safe |
 
 Updating a pass = mutate stored state, bump `lastModified`, send an **empty**
@@ -76,12 +91,22 @@ to APNs). Cert workflow: [`docs/cert-day.md`](docs/cert-day.md). Hosting
 - `packages/pass-builder` — `form-to-pass.js`, `template.js` (load/merge/build
   `.pkpasstemplate`), `template-zip.js`, manifest SHA1, PKCS#7 signing.
 - `templates/` — `.pkpasstemplate` bundles ([readme](templates/README.md)).
-- `scripts/` — dev cert bootstrap, placeholder-asset generator, CLI builder.
+- `scripts/` — dev cert bootstrap, placeholder-asset generator, CLI builder,
+  Apple-validator runner (`validate-apple.js`), field-coverage generator
+  (`field-coverage.mjs`).
 - `fixtures/` — sample FormState JSON for tests and demos.
 
-## Tests
+## Tests & QA
 
 ```bash
 npm test              # vitest: unit + integration (builds & re-parses signed passes)
 npm run check         # validate fixtures against the FormState schema
+npm run validate:apple  # Apple's own validators, when a buildpass binary exists locally
 ```
+
+Every push to `main` also runs **Apple's validators** against a freshly built
+pass: `.github/workflows/apple-validate.yml` builds the `buildpass` CLI from
+[apple/pass-builder](https://github.com/apple/pass-builder) at a pinned commit
+and validates the unzipped bundle (structural/semantic checks only — no
+signature verification, so the dev cert is fine). How our semantics stack up
+against Apple's protobufs: [`docs/field-coverage.md`](docs/field-coverage.md).
