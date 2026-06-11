@@ -95,6 +95,34 @@ export function mountIssue(root, showManage) {
       </div>`;
   }
 
+  function templatesCard() {
+    const rows = templates.map(t => `
+      <div class="mg-row">
+        <div class="mg-info">
+          <b>${esc(t.id)}</b>
+          ${t.error
+            ? `<span class="mg-badge" style="background:#fdf1f2;color:#c0182f">broken: ${esc(t.error)}</span>`
+            : `· ${(t.fieldKeys ?? []).length} field key(s) · ${(t.assets ?? []).length} asset(s)`}
+        </div>
+        <div class="mg-acts">
+          <button data-act="tpl-del" data-id="${esc(t.id)}" class="danger">Delete</button>
+        </div>
+      </div>`).join("");
+    return `
+      <div class="mg-card">
+        <div class="mg-card-head">
+          <div class="mg-trip"><span class="mg-trip-id">Templates</span><span class="mg-badge">${templates.length} installed</span></div>
+        </div>
+        <div class="mg-list">${rows || `<p class="mg-empty">None installed — see <code>templates/README.md</code>.</p>`}</div>
+        <div class="mg-editor-acts">
+          <input id="tpl-id" placeholder="id (defaults to file name)" />
+          <input id="tpl-file" type="file" accept=".zip" />
+          <button data-act="tpl-upload">Upload zipped .pkpasstemplate</button>
+          <span class="mg-grp-status" id="tpl-status"></span>
+        </div>
+      </div>`;
+  }
+
   function render() {
     const tpl = current();
     const options = templates.map(t =>
@@ -134,6 +162,7 @@ export function mountIssue(root, showManage) {
             <span class="mg-grp-status" id="iss-status"></span>
           </div>
         </div>
+        ${templatesCard()}
       </div>`;
   }
 
@@ -142,7 +171,8 @@ export function mountIssue(root, showManage) {
       <div class="mg-wrap">
         <div class="mg-head"><h2>Issue passes from a template</h2></div>
         <p class="mg-empty">No templates installed yet — drop a <code>.pkpasstemplate</code> bundle into
-        <code>templates/</code> or upload one (see <code>templates/README.md</code>), then reload.</p>
+        <code>templates/</code> or upload one below (see <code>templates/README.md</code>).</p>
+        ${templatesCard()}
       </div>`;
   }
 
@@ -217,7 +247,45 @@ export function mountIssue(root, showManage) {
     if (act === "rm")  { syncFromInputs(); rows = rows.filter((_, i) => i !== Number(e.target.dataset.i)); reSuggestSerials(); render(); return; }
     if (act === "issue") return issueAll();
     if (act === "manage") return showManage?.();
+    if (act === "tpl-upload") return uploadTemplate();
+    if (act === "tpl-del") return deleteTemplate(e.target.dataset.id);
   }, { signal });
+
+  async function uploadTemplate() {
+    const status = $("#tpl-status");
+    const file = $("#tpl-file").files[0];
+    if (!file) { status.textContent = "✗ choose a zipped .pkpasstemplate first"; return; }
+    const id = ($("#tpl-id").value.trim() || file.name.replace(/\.zip$/i, "").replace(/\.pkpasstemplate$/i, ""));
+    status.textContent = `Uploading ${id}…`;
+    let r, j;
+    try {
+      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, {
+        method: "POST", headers: { "Content-Type": "application/zip" }, body: await file.arrayBuffer()
+      });
+      j = await r.json().catch(() => ({}));
+    } catch { status.textContent = "✗ API offline"; return; }
+    if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
+    syncFromInputs();
+    await load();
+    const el = $("#tpl-status");
+    if (el) el.textContent = `✓ uploaded "${id}" (${(j.fieldKeys ?? []).length} field keys)`;
+  }
+
+  async function deleteTemplate(id) {
+    if (!confirm(`Delete template "${id}"? Passes already issued from it keep working only while the bundle exists.`)) return;
+    const status = $("#tpl-status");
+    let r, j;
+    try {
+      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
+      j = await r.json().catch(() => ({}));
+    } catch { status.textContent = "✗ API offline"; return; }
+    if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
+    if (selected === id) selected = null;
+    syncFromInputs();
+    await load();
+    const el = $("#tpl-status");
+    if (el) el.textContent = `✓ deleted "${id}"`;
+  }
 
   root.addEventListener("input", (e) => {
     if (e.target.id === "iss-group") {

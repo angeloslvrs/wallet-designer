@@ -4,11 +4,12 @@
 // Control plane: the access guard keeps this LAN/Basic-Auth only.
 
 import { raw, Router } from "express";
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { loadTemplate, templateFieldKeys } from "@wpd/pass-builder";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
+import { snapshot } from "../storage.js";
 
 export const templatesRouter = Router();
 
@@ -70,3 +71,33 @@ export async function handleTemplateUpload(req, res) {
 }
 
 templatesRouter.post("/templates/:id", raw({ type: () => true, limit: "20mb" }), handleTemplateUpload);
+
+/**
+ * DELETE /api/templates/:id — refuse (409) while any stored pass references
+ * the template: installed passes rebuild from their bundle on every device
+ * fetch, so deleting a referenced one breaks passes already on phones.
+ */
+export async function handleTemplateDelete(req, res) {
+  const { id } = req.params;
+  if (!TEMPLATE_ID_RE.test(id ?? "")) {
+    return res.status(400).json({ error: 'template id must be a slug like "summer-2026" (letters, digits, dashes)' });
+  }
+  const dir = templateDir(id);
+  try { await stat(dir); } catch { return res.status(404).json({ error: `no template "${id}" installed` }); }
+
+  const snap = await snapshot();
+  const serials = Object.entries(snap.passes)
+    .filter(([, rec]) => rec.template === id)
+    .map(([serial]) => serial);
+  if (serials.length) {
+    return res.status(409).json({
+      error: `template "${id}" is referenced by ${serials.length} issued pass(es) — installed passes rebuild from it on every fetch; delete those passes first`,
+      serials
+    });
+  }
+
+  await rm(dir, { recursive: true, force: true });
+  res.status(200).json({ ok: true, id });
+}
+
+templatesRouter.delete("/templates/:id", handleTemplateDelete);
