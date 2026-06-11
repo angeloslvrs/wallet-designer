@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import { parseArgs } from "node:util";
 import { buildPkpass, buildPkpassFromTemplate } from "@wpd/pass-builder";
 import { shiftPassDates } from "@wpd/pass-builder/shift-dates.js";
+import { templateDir } from "../apps/server/src/pass-build.js";
 import "dotenv/config";
 
 const { values } = parseArgs({
@@ -29,7 +30,9 @@ const certDir = `certs/${profile}`;
 if (values.template) {
   const data = values.data ? JSON.parse(await readFile(values.data, "utf8")) : {};
   const buf = await buildPkpassFromTemplate({
-    templateDir: `templates/${values.template}.pkpasstemplate`,
+    // templateDir() validates the id against TEMPLATE_ID_RE (throws on
+    // anything that could escape templates/) — same guard the server uses.
+    templateDir: templateDir(values.template),
     data,
     overrides: {
       serialNumber: values.serial ?? "CLI-SAMPLE",

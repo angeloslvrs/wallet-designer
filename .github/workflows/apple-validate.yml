@@ -44,6 +44,8 @@ jobs:
         with:
           name: dev-sample-pass
           path: out/dev-sample.pass
+          # a silently-empty artifact would let validate pass on stale bytes
+          if-no-files-found: error
 
   validate:
     needs: build-pass
