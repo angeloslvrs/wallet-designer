@@ -82,7 +82,7 @@ Neither tool serves passes, tracks registrations, or pushes updates. Those exist
 ### Carried over
 - [x] Fix README (wallet service, APNs, admin routes, prod profile, template pipeline) *(2026-06-10)*
 - [ ] Verify prod push end-to-end: real iPhone, gate change via group route, `changeMessage` lock-screen banner *(template path supports per-field `changeMessage` via the object form, e.g. `data.gate = {value, changeMessage}`)*
-- [ ] `buildpass validate` QA gate (build once in LXC/CI; pin the pass-builder commit)
+- [x] `buildpass validate` QA gate (build once in LXC/CI; pin the pass-builder commit) *(2026-06-11: `.github/workflows/apple-validate.yml` — builds a dev-sample pass headlessly (`build:pass --template`), unzips it, and runs `buildpass validate` built from `apple/pass-builder` pinned to `170f2a11` (cached Swift build, `swift:6.3-noble` container). What `validate` checks for us: BoardingPass/EventTicket/FieldFormatting/RequiredImages/Seat validators over the uncompressed bundle — structural + semantic only, NO signature verification, so the self-signed dev cert is irrelevant. Local companion `npm run validate:apple` uses `$BUILDPASS_BIN`/PATH and exits 0 with a "skipped" note when no binary exists.)*
 - [ ] Field-coverage diff vs `Protobufs/PassSemantics.proto` + `PassSeat.proto`
 - [ ] SQLite migration when `state/passes.json` outgrows itself
 

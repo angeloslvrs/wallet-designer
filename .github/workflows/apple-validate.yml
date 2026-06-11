@@ -1,0 +1,75 @@
+# QA gate: validate our built pass with Apple's own validators
+# (the `buildpass` CLI from github.com/apple/pass-builder).
+#
+# What `buildpass validate` actually checks (verified at the pinned SHA):
+#   - it loads an UNCOMPRESSED pass bundle directory — PassPackage(url:)
+#     requires a directory, so a zipped .pkpass is not accepted; we unzip the
+#     real signed artifact and validate exactly the bytes a device receives
+#     (extra manifest.json/signature entries are carried, not rejected)
+#   - PassValidator composes: BoardingPassValidator, EventTicketValidator,
+#     FieldFormattingValidator, RequiredImagesValidator, SeatValidator
+#   - there is NO signature verification in `validate`, so the self-signed
+#     dev cert from `npm run init` is a non-issue here
+#   - validation errors exit non-zero (ExitCode.validationFailure) → red CI
+name: apple-validate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # apple/pass-builder pinned commit (HEAD as of 2026-06-05; pinned 2026-06-11).
+  # Bump deliberately — scripts/field-coverage.mjs reads protos at this same SHA.
+  PASS_BUILDER_SHA: 170f2a11601712acaa94d4aac3ecb4a2da9675fb
+
+jobs:
+  build-pass:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # self-signed dev cert + placeholder assets (required before any build)
+      - run: npm run init
+      - run: node scripts/build-pass.js --template dev-sample --serial CI-SAMPLE --out out/dev-sample.pkpass
+      - name: Unpack to an uncompressed bundle (validate only takes a directory)
+        run: |
+          mkdir -p out/dev-sample.pass
+          unzip -o out/dev-sample.pkpass -d out/dev-sample.pass
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-sample-pass
+          path: out/dev-sample.pass
+
+  validate:
+    needs: build-pass
+    runs-on: ubuntu-latest
+    # pass-builder needs Swift >= 6.3 (swift-tools-version); official image, Ubuntu 24.04
+    container: swift:6.3-noble
+    steps:
+      - name: Checkout apple/pass-builder (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: apple/pass-builder
+          ref: ${{ env.PASS_BUILDER_SHA }}
+          path: pass-builder
+      # First build is slow (SwiftPM cold build); later runs restore .build and
+      # finish in seconds. Key on the pinned SHA so a bump rebuilds cleanly.
+      - name: Cache Swift build
+        uses: actions/cache@v4
+        with:
+          path: pass-builder/.build
+          key: buildpass-${{ runner.os }}-${{ env.PASS_BUILDER_SHA }}
+      - name: Build buildpass CLI
+        working-directory: pass-builder
+        run: swift build -c release --product buildpass
+      - uses: actions/download-artifact@v4
+        with:
+          name: dev-sample-pass
+          path: dev-sample.pass
+      - name: buildpass validate
+        run: pass-builder/.build/release/buildpass validate dev-sample.pass

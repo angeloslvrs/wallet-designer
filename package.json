@@ -16,6 +16,7 @@
     "build:designer": "npm run build --workspace @wpd/designer",
     "start": "node apps/server/src/index.js",
     "cert:inspect": "node scripts/cert-inspect.js",
+    "validate:apple": "node scripts/validate-apple.js",
     "check": "node -e \"import('./packages/pass-builder/validate.js').then(m => m.validateAllFixtures())\"",
     "test": "vitest run"
   },
