@@ -40,9 +40,23 @@
   },
   "semantics": {
     "airlineCode": "RP",
+    "flightCode": "RP247",
+    "flightNumber": 247,
     "departureAirportCode": "SFO",
     "departureAirportName": "San Francisco Intl",
+    "departureCityName": "San Francisco",
+    "departureAirportTimeZone": "America/Los_Angeles",
     "destinationAirportCode": "JFK",
-    "destinationAirportName": "John F. Kennedy Intl"
+    "destinationAirportName": "John F. Kennedy Intl",
+    "destinationCityName": "New York",
+    "destinationAirportTimeZone": "America/New_York",
+    "originalDepartureDate": "2026-07-01T08:00:00-07:00",
+    "currentDepartureDate": "2026-07-01T08:00:00-07:00",
+    "originalBoardingDate": "2026-07-01T07:30:00-07:00",
+    "currentBoardingDate": "2026-07-01T07:30:00-07:00",
+    "originalArrivalDate": "2026-07-01T16:45:00-04:00",
+    "currentArrivalDate": "2026-07-01T16:45:00-04:00",
+    "passengerName": { "givenName": "FIRSTNAME", "familyName": "LASTNAME" },
+    "seats": [{ "seatNumber": "12A", "seatType": "economy" }]
   }
 }
