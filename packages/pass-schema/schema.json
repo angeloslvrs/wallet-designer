@@ -48,6 +48,12 @@
       "properties": {
         "name": { "type": "string" },
         "frequentFlyerNumber": { "type": "string" },
+        "membershipProgramName": { "type": "string" },
+        "confirmationNumber": { "type": "string" },
+        "ticketFareClass": { "type": "string" },
+        "priorityStatus": { "type": "string" },
+        "boardingZone": { "type": "string" },
+        "documentsVerified": { "type": "boolean" },
         "seats": {
           "type": "array",
           "items": {
@@ -57,7 +63,8 @@
               "number": { "type": "string" },
               "cabin": { "type": "string" },
               "row": { "type": "string" },
-              "letter": { "type": "string" }
+              "letter": { "type": "string" },
+              "description": { "type": "string" }
             }
           }
         },
@@ -81,6 +88,9 @@
         "duration": { "type": "number" },
         "securityScreening": { "type": "string" },
         "transitInfo": { "type": "string" },
+        "transitStatus": { "type": "string" },
+        "transitStatusReason": { "type": "string" },
+        "silenceRequested": { "type": "boolean" },
         "wifi": {
           "type": "array",
           "items": {
@@ -100,7 +110,8 @@
             "properties": {
               "key": { "type": "string" },
               "label": { "type": "string" },
-              "value": { "type": "string" }
+              "value": { "type": "string" },
+              "changeMessage": { "type": "string" }
             }
           }
         },

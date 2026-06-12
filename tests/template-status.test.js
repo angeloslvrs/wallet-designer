@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyStatusToTemplateData } from "../apps/server/src/template-status.js";
+import { applyStatusToTemplateData, deriveIssueSemantics } from "../apps/server/src/template-status.js";
 
 const KEYS = ["gate", "seat", "passenger", "flight", "boarding", "depart-time"];
 
@@ -65,5 +65,92 @@ describe("applyStatusToTemplateData", () => {
     const { data, skipped } = applyStatusToTemplateData(input, {}, KEYS);
     expect(data).toEqual(input);
     expect(skipped).toEqual([]);
+  });
+});
+
+describe("applyStatusToTemplateData — transit status", () => {
+  it("maps transitStatus + reason onto semantics and a visible status row with a change banner", () => {
+    const { data, skipped } = applyStatusToTemplateData({}, {
+      transitStatus: "Delayed", transitStatusReason: "crew availability"
+    }, KEYS);
+    expect(data.semantics.transitStatus).toBe("Delayed");
+    expect(data.semantics.transitStatusReason).toBe("crew availability");
+    expect(data.additionalInfoFields).toEqual([
+      { key: "status", label: "STATUS", value: "Delayed — crew availability", changeMessage: "%@" }
+    ]);
+    expect(skipped).toEqual([]);
+  });
+
+  it("composes a reason-only update with the stored transitStatus", () => {
+    const first = applyStatusToTemplateData({}, { transitStatus: "Delayed" }, KEYS);
+    const { data } = applyStatusToTemplateData(first.data, { transitStatusReason: "weather at JFK" }, KEYS);
+    expect(data.semantics.transitStatus).toBe("Delayed");
+    expect(data.additionalInfoFields).toEqual([
+      { key: "status", label: "STATUS", value: "Delayed — weather at JFK", changeMessage: "%@" }
+    ]);
+  });
+
+  it("clears the status row and both semantics with empty strings", () => {
+    const set = applyStatusToTemplateData({}, { transitStatus: "Cancelled", transitStatusReason: "aircraft fault" }, KEYS);
+    const { data } = applyStatusToTemplateData(set.data, { transitStatus: "", transitStatusReason: "" }, KEYS);
+    expect(data.semantics.transitStatus).toBeUndefined();
+    expect(data.semantics.transitStatusReason).toBeUndefined();
+    expect(data.additionalInfoFields).toEqual([]);
+  });
+
+  it("keeps the delay row independent of the status row", () => {
+    const { data } = applyStatusToTemplateData({}, { delayed: "45 min", transitStatus: "Delayed" }, KEYS);
+    expect(data.additionalInfoFields.map(f => f.key).sort()).toEqual(["delay", "status"]);
+  });
+});
+
+describe("applyStatusToTemplateData — per-field changeMessage", () => {
+  it("accepts {value, changeMessage} for a visible field and uses the value for semantics", () => {
+    const { data } = applyStatusToTemplateData({}, {
+      gate: { value: "B12", changeMessage: "Gate changed to %@" }
+    }, KEYS);
+    expect(data.gate).toEqual({ value: "B12", changeMessage: "Gate changed to %@" });
+    expect(data.semantics.departureGate).toBe("B12");
+  });
+
+  it("skips undeclared keys for object-form values but still updates semantics", () => {
+    const { data, skipped } = applyStatusToTemplateData({}, {
+      gate: { value: "B12", changeMessage: "Gate changed to %@" }
+    }, ["seat"]);
+    expect(data.gate).toBeUndefined();
+    expect(data.semantics.departureGate).toBe("B12");
+    expect(skipped).toEqual(["gate"]);
+  });
+});
+
+describe("deriveIssueSemantics", () => {
+  it("maps per-passenger field data onto pass semantics", () => {
+    const out = deriveIssueSemantics({
+      passenger: "Ada Lovelace", seat: "14F", gate: "B7",
+      confirmation: "GHK2X9", "fare-class": "Y", priority: "Gold"
+    }, { seats: [{ seatNumber: "12A", seatType: "economy" }] });
+    expect(out).toEqual({
+      passengerName: { givenName: "Ada", familyName: "Lovelace" },
+      seats: [{ seatNumber: "14F", seatRow: "14", seatSection: "F", seatType: "economy" }],
+      departureGate: "B7",
+      confirmationNumber: "GHK2X9",
+      ticketFareClass: "Y",
+      priorityStatus: "Gold"
+    });
+  });
+
+  it("derives seat row/section from the seat number only, omitting them when unparseable", () => {
+    expect(deriveIssueSemantics({ seat: "UPPER DECK" }, {}).seats).toEqual([{ seatNumber: "UPPER DECK" }]);
+    expect(deriveIssueSemantics({ seat: "38k" }, {}).seats).toEqual([{ seatNumber: "38k", seatRow: "38", seatSection: "K" }]);
+  });
+
+  it("takes the value from object-form data and ignores unmapped keys", () => {
+    const out = deriveIssueSemantics({ gate: { value: "C3", changeMessage: "Gate %@" }, ff: "RP-123" }, {});
+    expect(out).toEqual({ departureGate: "C3" });
+  });
+
+  it("returns an empty object for empty data", () => {
+    expect(deriveIssueSemantics({}, {})).toEqual({});
+    expect(deriveIssueSemantics(undefined, undefined)).toEqual({});
   });
 });

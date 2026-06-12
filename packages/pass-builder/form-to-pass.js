@@ -1,3 +1,5 @@
+import { seatSemantics, splitPersonName } from "./semantics.js";
+
 /**
  * Pure: FormState → Apple pass.json with full iOS 26 opt-in.
  *
@@ -70,9 +72,11 @@ export function formStateToPassJson(s) {
       flightNumber: Number(flight.flightNumber),
       departureAirportCode: dep.iata,
       departureAirportName: dep.name,
+      departureCityName: dep.city,
       departureLocationDescription: dep.city,
       destinationAirportCode: arr.iata,
       destinationAirportName: arr.name,
+      destinationCityName: arr.city,
       destinationLocationDescription: arr.city,
       ...(dep.terminal && { departureTerminal: dep.terminal }),
       ...(dep.gate && { departureGate: dep.gate }),
@@ -85,19 +89,29 @@ export function formStateToPassJson(s) {
       ...(dep.depart && { originalDepartureDate: dep.depart, currentDepartureDate: dep.depart }),
       ...(arr.arrive && { originalArrivalDate: arr.arrive, currentArrivalDate: arr.arrive }),
       ...(dep.boarding && { originalBoardingDate: dep.boarding, currentBoardingDate: dep.boarding }),
-      passengerName: { givenName: firstName(passenger.name), familyName: lastName(passenger.name) },
+      passengerName: splitPersonName(passenger.name),
       boardingGroup: passenger.boardingGroup,
       boardingSequenceNumber: passenger.seqNumber,
-      // Only seatNumber (the canonical full seat, e.g. "38K"). We deliberately
-      // omit seatRow/seatSection: a stale row that disagreed with the number was
-      // being rendered by iOS as a doubled seat (e.g. "3838").
-      seats: passenger.seats.map(x => ({
-        seatNumber: x.number,
-        seatType: x.cabin
+      ...(passenger.boardingZone && { boardingZone: passenger.boardingZone }),
+      ...(passenger.confirmationNumber && { confirmationNumber: passenger.confirmationNumber }),
+      ...(passenger.ticketFareClass && { ticketFareClass: passenger.ticketFareClass }),
+      ...(passenger.priorityStatus && { priorityStatus: passenger.priorityStatus }),
+      ...(passenger.membershipProgramName && { membershipProgramName: passenger.membershipProgramName }),
+      ...(passenger.frequentFlyerNumber && { membershipProgramNumber: passenger.frequentFlyerNumber }),
+      ...(typeof passenger.documentsVerified === "boolean" && { internationalDocumentsAreVerified: passenger.documentsVerified }),
+      // seatRow/seatSection are derived from the seat number inside
+      // seatSemantics — never taken from FormState's row/letter, which can go
+      // stale and used to render as a doubled seat on iOS (e.g. "3838").
+      seats: passenger.seats.map(x => seatSemantics(x.number, {
+        seatType: x.cabin,
+        ...(x.description && { seatDescription: x.description })
       })),
       ...(ios.duration && { duration: ios.duration }),
       ...(ios.securityScreening && { securityScreening: ios.securityScreening }),
       ...(ios.transitInfo && { transitProvider: ios.transitInfo }),
+      ...(ios.transitStatus && { transitStatus: ios.transitStatus }),
+      ...(ios.transitStatusReason && { transitStatusReason: ios.transitStatusReason }),
+      ...(typeof ios.silenceRequested === "boolean" && { silenceRequested: ios.silenceRequested }),
       ...(ios.wifi?.length && { wifiAccess: ios.wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) })) })
     },
     ...(ios.relevantDates?.length && {
@@ -125,5 +139,3 @@ function stripUndef(o) {
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== "") out[k] = v;
   return out;
 }
-function firstName(full) { return (full ?? "").trim().split(/\s+/).slice(0, -1).join(" ") || full; }
-function lastName(full)  { return (full ?? "").trim().split(/\s+/).slice(-1)[0] ?? ""; }

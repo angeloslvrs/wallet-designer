@@ -145,3 +145,78 @@ describe("formStateToPassJson — iOS 26 extras", () => {
     expect(p.webServiceURL).toBeUndefined();
   });
 });
+
+describe("formStateToPassJson — semantics coverage extensions", () => {
+  const coverageState = {
+    ...baseState,
+    passenger: {
+      ...baseState.passenger,
+      frequentFlyerNumber: "RP-GOLD-1234567",
+      membershipProgramName: "Rocket Rewards",
+      confirmationNumber: "GHK2X9",
+      ticketFareClass: "Y",
+      priorityStatus: "Gold",
+      boardingZone: "3",
+      documentsVerified: true,
+      seats: [{ number: "14A", cabin: "economy", description: "Window seat" }]
+    },
+    iOS26: {
+      ...baseState.iOS26,
+      transitStatus: "Delayed",
+      transitStatusReason: "Crew availability",
+      silenceRequested: false
+    }
+  };
+
+  it("always emits the dedicated city-name semantics alongside the location descriptions", () => {
+    const p = formStateToPassJson(baseState);
+    expect(p.semantics.departureCityName).toBe("San Francisco");
+    expect(p.semantics.destinationCityName).toBe("New York");
+    expect(p.semantics.departureLocationDescription).toBe("San Francisco");
+  });
+
+  it("emits per-passenger detail semantics when present", () => {
+    const p = formStateToPassJson(coverageState);
+    expect(p.semantics.confirmationNumber).toBe("GHK2X9");
+    expect(p.semantics.ticketFareClass).toBe("Y");
+    expect(p.semantics.priorityStatus).toBe("Gold");
+    expect(p.semantics.membershipProgramName).toBe("Rocket Rewards");
+    expect(p.semantics.membershipProgramNumber).toBe("RP-GOLD-1234567");
+    expect(p.semantics.boardingZone).toBe("3");
+    expect(p.semantics.internationalDocumentsAreVerified).toBe(true);
+  });
+
+  it("emits transit status + reason and silenceRequested from iOS26", () => {
+    const p = formStateToPassJson(coverageState);
+    expect(p.semantics.transitStatus).toBe("Delayed");
+    expect(p.semantics.transitStatusReason).toBe("Crew availability");
+    expect(p.semantics.silenceRequested).toBe(false);
+  });
+
+  it("omits the optional semantics when their fields are absent", () => {
+    const p = formStateToPassJson(baseState);
+    for (const key of ["confirmationNumber", "ticketFareClass", "priorityStatus", "membershipProgramName",
+                       "membershipProgramNumber", "boardingZone", "internationalDocumentsAreVerified",
+                       "transitStatus", "transitStatusReason", "silenceRequested"]) {
+      expect(p.semantics[key], key).toBeUndefined();
+    }
+  });
+
+  it("derives seatRow/seatSection from the seat number and carries seatDescription", () => {
+    const p = formStateToPassJson(coverageState);
+    expect(p.semantics.seats[0]).toEqual({
+      seatNumber: "14A", seatRow: "14", seatSection: "A",
+      seatType: "economy", seatDescription: "Window seat"
+    });
+  });
+
+  it("keeps unparseable seat numbers seatNumber-only (row/section never disagree with the number)", () => {
+    const state = {
+      ...baseState,
+      passenger: { ...baseState.passenger, seats: [{ number: "UPPER DECK", cabin: "business" }] }
+    };
+    expect(formStateToPassJson(state).semantics.seats[0]).toEqual({
+      seatNumber: "UPPER DECK", seatType: "business"
+    });
+  });
+});

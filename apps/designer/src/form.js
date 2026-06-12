@@ -51,11 +51,18 @@ const sections = [
   ["Passenger", [
     { path: "passenger.name", label: "Name", type: "text" },
     { path: "passenger.boardingGroup", label: "Boarding Group", type: "text" },
-    { path: "passenger.seqNumber", label: "Sequence", type: "text" }
+    { path: "passenger.boardingZone", label: "Boarding Zone", type: "text" },
+    { path: "passenger.seqNumber", label: "Sequence", type: "text" },
+    { path: "passenger.confirmationNumber", label: "Confirmation #", type: "text" },
+    { path: "passenger.ticketFareClass", label: "Fare Class", type: "text" },
+    { path: "passenger.priorityStatus", label: "Priority Status", type: "text" },
+    { path: "passenger.frequentFlyerNumber", label: "Frequent Flyer #", type: "text" },
+    { path: "passenger.membershipProgramName", label: "Loyalty Program", type: "text" }
   ]],
   ["Seat (first only — multi-seat in CLI for now)", [
     { path: "passenger.seats.0.number", label: "Seat Number", type: "text" },
-    { path: "passenger.seats.0.cabin", label: "Cabin", type: "select", options: ["economy", "premium", "business", "first"] }
+    { path: "passenger.seats.0.cabin", label: "Cabin", type: "select", options: ["economy", "premium", "business", "first"] },
+    { path: "passenger.seats.0.description", label: "Seat Description (Window seat)", type: "text" }
   ]],
   ["Barcode", [
     { path: "barcode.format", label: "Format", type: "select", options: ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
@@ -67,6 +74,8 @@ const sections = [
     { path: "iOS26.duration", label: "Duration (seconds)", type: "number" },
     { path: "iOS26.securityScreening", label: "Security Screening", type: "text" },
     { path: "iOS26.transitInfo", label: "Transit Info", type: "text" },
+    { path: "iOS26.transitStatus", label: "Transit Status (On Time / Delayed)", type: "text" },
+    { path: "iOS26.transitStatusReason", label: "Status Reason", type: "text" },
     { path: "iOS26.wifi.0.ssid", label: "Wifi SSID", type: "text" },
     { path: "iOS26.wifi.0.password", label: "Wifi Password", type: "text" }
   ]]

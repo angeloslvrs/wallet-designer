@@ -8,30 +8,57 @@ import {
   devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
-import { applyStatusToTemplateData } from "../template-status.js";
+import { applyStatusToTemplateData, deriveIssueSemantics, transitStatusDisplay } from "../template-status.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
 
 export const adminRouter = Router();
 
+// Template data values may be plain ("B12") or field patches ({value: "B12", …}).
+const fieldDataValue = v => (v !== null && typeof v === "object" && !Array.isArray(v)) ? v.value : v;
+
 /**
  * Apply a status change to a pass's FormState. Pure: returns a new state.
  * Recognized fields: gate, boarding, depart, arrive, transitInfo,
- * securityScreening, delayed ("" clears the delay).
+ * securityScreening, delayed ("" clears the delay), transitStatus +
+ * transitStatusReason ("" clears both the semantics and the status row).
+ * Object-form values ({value, changeMessage}) are normalized to their value —
+ * FormState fields are scalars; only the status row carries a changeMessage.
  */
-function applyStatus(state, body = {}) {
-  const { gate, boarding, depart, arrive, transitInfo, securityScreening, delayed } = body;
+export function applyStatus(state, body = {}) {
+  const {
+    gate, boarding, depart, arrive, transitInfo, securityScreening, delayed,
+    transitStatus, transitStatusReason
+  } = body;
   const next = structuredClone(state);
-  if (gate !== undefined)     next.flight.departure.gate = gate;
-  if (boarding !== undefined) next.flight.departure.boarding = boarding;
-  if (depart !== undefined)   next.flight.departure.depart = depart;
-  if (arrive !== undefined)   next.flight.arrival.arrive = arrive;
+  if (gate !== undefined)     next.flight.departure.gate = fieldDataValue(gate);
+  if (boarding !== undefined) next.flight.departure.boarding = fieldDataValue(boarding);
+  if (depart !== undefined)   next.flight.departure.depart = fieldDataValue(depart);
+  if (arrive !== undefined)   next.flight.arrival.arrive = fieldDataValue(arrive);
   next.iOS26 ??= {};
-  if (transitInfo !== undefined)       next.iOS26.transitInfo = transitInfo;
-  if (securityScreening !== undefined) next.iOS26.securityScreening = securityScreening;
+  if (transitInfo !== undefined)       next.iOS26.transitInfo = fieldDataValue(transitInfo);
+  if (securityScreening !== undefined) next.iOS26.securityScreening = fieldDataValue(securityScreening);
+
+  const upsertInfoRow = (key, row) => {
+    next.iOS26.additionalInfoFields = (next.iOS26.additionalInfoFields ?? []).filter(f => f.key !== key);
+    if (row) next.iOS26.additionalInfoFields.push(row);
+  };
   if (delayed !== undefined) {
-    next.iOS26.additionalInfoFields ??= [];
-    next.iOS26.additionalInfoFields = next.iOS26.additionalInfoFields.filter(f => f.key !== "delay");
-    if (delayed) next.iOS26.additionalInfoFields.push({ key: "delay", label: "DELAY", value: delayed });
+    const v = fieldDataValue(delayed);
+    upsertInfoRow("delay", v ? { key: "delay", label: "DELAY", value: v } : null);
+  }
+  // Mirror of the template path: semantic status + a visible "status" row whose
+  // changeMessage makes the push banner carry the why ("Delayed — crew availability").
+  if (transitStatus !== undefined || transitStatusReason !== undefined) {
+    if (transitStatus !== undefined) {
+      const v = fieldDataValue(transitStatus);
+      if (v) next.iOS26.transitStatus = v; else delete next.iOS26.transitStatus;
+    }
+    if (transitStatusReason !== undefined) {
+      const v = fieldDataValue(transitStatusReason);
+      if (v) next.iOS26.transitStatusReason = v; else delete next.iOS26.transitStatusReason;
+    }
+    const display = transitStatusDisplay(next.iOS26.transitStatus, next.iOS26.transitStatusReason);
+    upsertInfoRow("status", display ? { key: "status", label: "STATUS", value: display, changeMessage: "%@" } : null);
   }
   return next;
 }
@@ -48,7 +75,7 @@ async function pushPass(rec, serial) {
  * typo fails at issue time, not at device fetch time), and the caller must
  * name the group — template data has no flight structure to derive one from.
  */
-async function issueTemplatePass({ template, serialNumber, data = {}, groupId }) {
+export async function issueTemplatePass({ template, serialNumber, data = {}, groupId }) {
   if (!TEMPLATE_ID_RE.test(template)) throw new Error("invalid template id");
   if (typeof serialNumber !== "string" || !serialNumber.trim()) throw new Error("serialNumber is required");
   if (typeof groupId !== "string" || !groupId.trim()) {
@@ -59,7 +86,14 @@ async function issueTemplatePass({ template, serialNumber, data = {}, groupId })
   }
   const { passJson } = await loadTemplate(templateDir(template));
   applyTemplateData(passJson, data);
-  return saveTemplatePass({ serialNumber, template, data, groupId, passTypeId: passJson.passTypeIdentifier });
+  // Per-passenger data also lands in semantics — the template's placeholder
+  // semantics (passengerName, seats, …) must never ship on an issued pass.
+  // Anything the caller set explicitly under data.semantics wins.
+  const derived = deriveIssueSemantics(data, passJson.semantics ?? {});
+  const stored = Object.keys(derived).length
+    ? { ...data, semantics: { ...derived, ...data.semantics } }
+    : data;
+  return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
 }
 
 // POST /api/passes  →  registers a "live" pass. Two body shapes:
@@ -81,8 +115,6 @@ adminRouter.post("/passes", async (req, res) => {
   }
 });
 
-// Template data values may be plain ("B12") or field patches ({value: "B12", …}).
-const fieldDataValue = v => (v !== null && typeof v === "object" && !Array.isArray(v)) ? v.value : v;
 const passengerOf = rec => rec.state?.passenger?.name ?? fieldDataValue(rec.data?.passenger);
 
 // GET /api/passes  →  all issued passes, with their group + device count

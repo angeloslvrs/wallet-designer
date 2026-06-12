@@ -8,6 +8,8 @@ import { buildStatusBody, describePushResult } from "./ops.js";
 // (gate/boarding/depart/arrive/transit/screening/delay → group push), and the
 // device log reported through the public POST /v1/log.
 
+// [bodyKey, placeholder, selectOptions?] — entries with options render as a
+// <select> whose empty first option means "no change" (buildStatusBody drops it).
 const STATUS_FIELDS = [
   ["gate", "Gate (B7)"],
   ["boarding", "Boarding (2026-06-20T07:30:00-07:00)"],
@@ -15,7 +17,9 @@ const STATUS_FIELDS = [
   ["arrive", "Arrive (ISO time)"],
   ["transitInfo", "Transit info"],
   ["securityScreening", "Security screening"],
-  ["delayed", "Delay note"]
+  ["delayed", "Delay note"],
+  ["transitStatus", "Status", ["", "On Time", "Delayed", "Cancelled", "Diverted"]],
+  ["transitStatusReason", "Status reason (crew availability)"]
 ];
 
 const fmtWhen = (s) => {
@@ -92,13 +96,17 @@ export function mountManage(root, showDesigner) {
             ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}">Edit</button>`}
             <button data-act="gate" data-serial="${esc(p.serial)}">Gate</button>
             <button data-act="delay" data-serial="${esc(p.serial)}">Delay</button>
+            <button data-act="status" data-serial="${esc(p.serial)}">Status</button>
             <button data-act="del" data-serial="${esc(p.serial)}" class="danger">Delete</button>
           </div>
           <div class="mg-status" data-status="${esc(p.serial)}"></div>
         </div>`).join("");
 
-      const editor = STATUS_FIELDS.map(([key, ph]) =>
-        `<input data-f="${key}" placeholder="${esc(ph)}" />`).join("");
+      const editor = STATUS_FIELDS.map(([key, ph, options]) =>
+        options
+          ? `<select data-f="${key}" title="${esc(ph)}">${options.map(o =>
+              `<option value="${esc(o)}">${esc(o || `${ph}: (no change)`)}</option>`).join("")}</select>`
+          : `<input data-f="${key}" placeholder="${esc(ph)}" />`).join("");
 
       return `
         <div class="mg-card" data-card="${esc(gid)}">
@@ -112,7 +120,7 @@ export function mountManage(root, showDesigner) {
             ${editor}
             <div class="mg-editor-acts">
               <button data-act="grp-update" data-grp="${esc(gid)}">Update trip · push</button>
-              <button data-act="grp-clear" data-grp="${esc(gid)}">Clear delay</button>
+              <button data-act="grp-clear" data-grp="${esc(gid)}">Clear delay/status</button>
               <span class="mg-grp-status" data-grp-status="${esc(gid)}"></span>
             </div>
           </div>
@@ -153,19 +161,26 @@ export function mountManage(root, showDesigner) {
     }
     if (act === "gate")  { const g = prompt(`New gate for ${serial}:`); if (g != null) await pushOne(serial, { gate: g }); return; }
     if (act === "delay") { const d = prompt(`Delay note for ${serial}:`, "ATC delay — new boarding 06:30"); if (d != null) await pushOne(serial, { delayed: d }); return; }
+    if (act === "status") {
+      const s = prompt(`Status for ${serial} (On Time / Delayed / Cancelled — empty clears):`, "Delayed");
+      if (s == null) return;
+      const why = prompt("Reason (shown as the push banner, e.g. crew availability):", "");
+      await pushOne(serial, { transitStatus: s, transitStatusReason: why ?? "" });
+      return;
+    }
     if (act === "del")   { if (confirm(`Delete pass ${serial}?`)) { await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE" }); load(); } return; }
 
     if (act === "grp-update") {
       const card = t.closest(".mg-card");
       const values = {};
-      for (const inp of card.querySelectorAll(".mg-editor input[data-f]")) values[inp.dataset.f] = inp.value;
+      for (const inp of card.querySelectorAll(".mg-editor [data-f]")) values[inp.dataset.f] = inp.value;
       const body = buildStatusBody(values);
       const el = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
       if (!body) { if (el) el.textContent = "✗ nothing to update — fill in at least one field"; return; }
       await pushGroup(grp, body);
       return;
     }
-    if (act === "grp-clear") { await pushGroup(grp, { delayed: "" }); return; }
+    if (act === "grp-clear") { await pushGroup(grp, { delayed: "", transitStatus: "", transitStatusReason: "" }); return; }
     if (act === "grp-del")   { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
     if (act === "log-refresh") { loadLog(); return; }
   }, { signal });

@@ -34,6 +34,9 @@
     ],
     "backFields": [
       { "key": "ff", "label": "FREQUENT FLYER", "value": "—" },
+      { "key": "confirmation", "label": "CONFIRMATION", "value": "—" },
+      { "key": "fare-class", "label": "FARE CLASS", "value": "—" },
+      { "key": "priority", "label": "PRIORITY", "value": "—" },
       { "key": "terminal-dep", "label": "DEPARTURE TERMINAL", "value": "—" },
       { "key": "terminal-arr", "label": "ARRIVAL TERMINAL", "value": "—" }
     ]
@@ -57,6 +60,9 @@
     "originalArrivalDate": "2026-07-01T16:45:00-04:00",
     "currentArrivalDate": "2026-07-01T16:45:00-04:00",
     "passengerName": { "givenName": "FIRSTNAME", "familyName": "LASTNAME" },
-    "seats": [{ "seatNumber": "12A", "seatType": "economy" }]
+    "confirmationNumber": "GHK2X9",
+    "ticketFareClass": "Y",
+    "priorityStatus": "Gold",
+    "seats": [{ "seatNumber": "12A", "seatRow": "12", "seatSection": "A", "seatType": "economy" }]
   }
 }

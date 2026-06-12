@@ -6,6 +6,7 @@ import { validate } from "./validate.js";
 
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, buildPkpassFromTemplate } from "./template.js";
+export { seatSemantics, splitPersonName } from "./semantics.js";
 
 /**
  * One-shot: FormState → signed .pkpass Buffer.

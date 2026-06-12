@@ -91,7 +91,8 @@ async function designerSemantics() {
 function statusSemantics() {
   const { data } = applyStatusToTemplateData({}, {
     gate: "B7", boarding: "2026-06-20T07:30:00-07:00", depart: "2026-06-20T08:00:00-07:00",
-    arrive: "2026-06-20T16:45:00-04:00", transitInfo: "x", securityScreening: "x", delayed: "x"
+    arrive: "2026-06-20T16:45:00-04:00", transitInfo: "x", securityScreening: "x", delayed: "x",
+    transitStatus: "Delayed", transitStatusReason: "x"
   }, []);
   return new Set(Object.keys(data.semantics ?? {}));
 }
