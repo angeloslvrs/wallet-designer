@@ -1,0 +1,107 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mkdtemp, writeFile, readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+// SQLite persistence specifics: DB file siting, one-shot legacy-JSON import
+// with a timestamped backup, import idempotency across boots, and token
+// stability across re-issue + reboot. The storage API itself is covered by
+// tests/template-storage.test.js, which must keep passing unmodified.
+
+/** Fresh "boot": storage.js resolves STATE_PATH at import time. */
+async function bootStorage(statePath) {
+  vi.resetModules();
+  process.env.STATE_PATH = statePath;
+  return import("../apps/server/src/storage.js");
+}
+
+const LEGACY = {
+  passes: {
+    "RP1@2026-06-01-001": {
+      passTypeIdentifier: "pass.dev.local",
+      authenticationToken: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      groupId: "RP1@2026-06-01",
+      template: "dev-sample",
+      data: { passenger: "Ada Lovelace" },
+      lastModified: "Wed, 10 Jun 2026 10:00:00 GMT"
+    },
+    "RP-FORM-1": {
+      passTypeIdentifier: "pass.dev.local",
+      authenticationToken: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      groupId: "RP247@2026-06-01",
+      state: { meta: { serialNumber: "RP-FORM-1" }, flight: {} },
+      lastModified: "Wed, 10 Jun 2026 11:00:00 GMT"
+    }
+  },
+  registrations: {
+    DEVICE1: {
+      "RP1@2026-06-01-001": {
+        pushToken: "tok1",
+        passTypeIdentifier: "pass.dev.local",
+        registeredAt: "2026-06-10T10:00:00.000Z"
+      }
+    }
+  },
+  log: [{ at: "2026-06-10T10:00:00.000Z", entries: ["hello"] }]
+};
+
+describe("SQLite storage", () => {
+  let dir, statePath;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "wpd-sqlite-"));
+    statePath = join(dir, "passes.json");
+  });
+
+  it("persists to a SQLite file next to STATE_PATH and stops writing JSON", async () => {
+    const s = await bootStorage(statePath);
+    await s.saveTemplatePass({ serialNumber: "S-1", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local" });
+    expect(existsSync(join(dir, "passes.sqlite"))).toBe(true);
+    expect(existsSync(statePath)).toBe(false);
+  });
+
+  it("imports a legacy passes.json on first boot, with a timestamped backup", async () => {
+    await writeFile(statePath, JSON.stringify(LEGACY));
+    const s = await bootStorage(statePath);
+    const snap = await s.snapshot();
+    expect(Object.keys(snap.passes).sort()).toEqual(["RP-FORM-1", "RP1@2026-06-01-001"]);
+    expect(snap.passes["RP1@2026-06-01-001"]).toEqual(LEGACY.passes["RP1@2026-06-01-001"]);
+    expect(snap.passes["RP-FORM-1"]).toEqual(LEGACY.passes["RP-FORM-1"]);
+    expect(snap.registrations).toEqual(LEGACY.registrations);
+    expect(snap.log).toEqual(LEGACY.log);
+    const backups = (await readdir(dir)).filter(f => f.startsWith("passes.json.bak-"));
+    expect(backups).toHaveLength(1);
+  });
+
+  it("never re-imports on later boots — deletions survive and one backup exists", async () => {
+    await writeFile(statePath, JSON.stringify(LEGACY));
+    const s1 = await bootStorage(statePath);
+    expect(await s1.deletePass("RP1@2026-06-01-001")).toBe(true);
+
+    const s2 = await bootStorage(statePath); // legacy file still on disk
+    const snap = await s2.snapshot();
+    expect(Object.keys(snap.passes)).toEqual(["RP-FORM-1"]);
+    expect(snap.registrations).toEqual({}); // registration removed with its pass
+    const backups = (await readdir(dir)).filter(f => f.startsWith("passes.json.bak-"));
+    expect(backups).toHaveLength(1);
+  });
+
+  it("keeps the authenticationToken stable across re-issue and reboot", async () => {
+    const s1 = await bootStorage(statePath);
+    const first = await s1.saveTemplatePass({ serialNumber: "S-9", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local" });
+    expect(first.authenticationToken).toMatch(/^[0-9a-f]{32}$/);
+
+    const s2 = await bootStorage(statePath);
+    const again = await s2.saveTemplatePass({ serialNumber: "S-9", template: "dev-sample", data: { seat: "1A" }, groupId: "G@1", passTypeId: "pass.dev.local" });
+    expect(again.authenticationToken).toBe(first.authenticationToken);
+  });
+
+  it("bounds the device log to its ring size across reboots", async () => {
+    const s1 = await bootStorage(statePath);
+    for (let i = 0; i < 1005; i++) await s1.logFromDevice([`line ${i}`]);
+    const snap = await (await bootStorage(statePath)).snapshot();
+    expect(snap.log).toHaveLength(1000);
+    expect(snap.log.at(-1).entries).toEqual(["line 1004"]);
+  });
+});

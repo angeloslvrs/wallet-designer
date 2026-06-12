@@ -27,7 +27,7 @@
     "vitest": "^1.6.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "dependencies": {
     "dotenv": "^17.4.2"
