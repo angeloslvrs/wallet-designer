@@ -2,13 +2,17 @@
 // for a single pass or for a whole trip (group of passes on one flight).
 
 import { Router } from "express";
-import { applyTemplateData, loadTemplate, templateFieldKeys } from "@wpd/pass-builder";
+import { applyTemplateData, loadTemplate } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
   devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
-import { applyStatusToTemplateData, deriveIssueSemantics, transitStatusDisplay } from "../template-status.js";
+import {
+  applyStatusToTemplateData, deriveIssueSemantics, normalizeStatusBody,
+  transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS
+} from "../template-status.js";
+import { bindingsForTemplate } from "../template-bindings.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
 
 export const adminRouter = Router();
@@ -18,24 +22,28 @@ const fieldDataValue = v => (v !== null && typeof v === "object" && !Array.isArr
 
 /**
  * Apply a status change to a pass's FormState. Pure: returns a new state.
- * Recognized fields: gate, boarding, depart, arrive, transitInfo,
- * securityScreening, delayed ("" clears the delay), transitStatus +
- * transitStatusReason ("" clears both the semantics and the status row).
+ * The vocabulary is semantic keys (route layer normalizes the legacy verbs):
+ * departureGate, currentBoardingDate, currentDepartureDate,
+ * currentArrivalDate, transitProvider, securityScreening, delayed ("" clears
+ * the delay), transitStatus + transitStatusReason ("" clears both the
+ * semantics and the status row). FormState has fixed structure, so the
+ * semantic → state-path mapping is static here — form-to-pass re-derives the
+ * pass-level semantics from the state on every rebuild.
  * Object-form values ({value, changeMessage}) are normalized to their value —
  * FormState fields are scalars; only the status row carries a changeMessage.
  */
 export function applyStatus(state, body = {}) {
   const {
-    gate, boarding, depart, arrive, transitInfo, securityScreening, delayed,
-    transitStatus, transitStatusReason
+    departureGate, currentBoardingDate, currentDepartureDate, currentArrivalDate,
+    transitProvider, securityScreening, delayed, transitStatus, transitStatusReason
   } = body;
   const next = structuredClone(state);
-  if (gate !== undefined)     next.flight.departure.gate = fieldDataValue(gate);
-  if (boarding !== undefined) next.flight.departure.boarding = fieldDataValue(boarding);
-  if (depart !== undefined)   next.flight.departure.depart = fieldDataValue(depart);
-  if (arrive !== undefined)   next.flight.arrival.arrive = fieldDataValue(arrive);
+  if (departureGate !== undefined)        next.flight.departure.gate = fieldDataValue(departureGate);
+  if (currentBoardingDate !== undefined)  next.flight.departure.boarding = fieldDataValue(currentBoardingDate);
+  if (currentDepartureDate !== undefined) next.flight.departure.depart = fieldDataValue(currentDepartureDate);
+  if (currentArrivalDate !== undefined)   next.flight.arrival.arrive = fieldDataValue(currentArrivalDate);
   next.iOS26 ??= {};
-  if (transitInfo !== undefined)       next.iOS26.transitInfo = fieldDataValue(transitInfo);
+  if (transitProvider !== undefined)   next.iOS26.transitInfo = fieldDataValue(transitProvider);
   if (securityScreening !== undefined) next.iOS26.securityScreening = fieldDataValue(securityScreening);
 
   const upsertInfoRow = (key, row) => {
@@ -86,13 +94,19 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
   }
   const { passJson } = await loadTemplate(templateDir(template));
   applyTemplateData(passJson, data);
-  // Per-passenger data also lands in semantics — the template's placeholder
-  // semantics (passengerName, seats, …) must never ship on an issued pass.
-  // Anything the caller set explicitly under data.semantics wins.
-  const derived = deriveIssueSemantics(data, passJson.semantics ?? {});
-  const stored = Object.keys(derived).length
-    ? { ...data, semantics: { ...derived, ...data.semantics } }
-    : data;
+  // Per-passenger data also lands in semantics, translated through the
+  // template's binding map. Designer sample values must never ship on an
+  // issued pass: volatile placeholder semantics (schedule dates,
+  // passengerName, seats) are cleared (null deletes at merge time) unless
+  // re-derived from data or set explicitly — explicit data.semantics wins.
+  const bindings = await bindingsForTemplate(template, passJson);
+  const derived = deriveIssueSemantics(data, bindings, passJson.semantics ?? {});
+  const clears = {};
+  for (const k of VOLATILE_ISSUE_SEMANTICS) {
+    if (passJson.semantics?.[k] !== undefined) clears[k] = null;
+  }
+  const semantics = { ...clears, ...derived, ...data.semantics };
+  const stored = Object.keys(semantics).length ? { ...data, semantics } : data;
   return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
 }
 
@@ -133,25 +147,28 @@ adminRouter.get("/passes", async (_req, res) => {
 });
 
 /**
- * Apply a status body to a stored pass of either shape. Template passes also
- * report which visible-field keys their template doesn't declare (semantics
- * still update for those). Returns null when the serial is unknown.
+ * Apply a status body to a stored pass of either shape. The body vocabulary
+ * is semantic keys; the legacy verbs (gate, boarding, …) are normalized here
+ * so both spellings keep working. Template passes also report semantic keys
+ * with no bound visible field (semantics still update for those). Returns
+ * null when the serial is unknown.
  */
 async function applyStatusToStoredPass(serial, body) {
   const rec = await getPassRecord(serial);
   if (!rec) return null;
+  const normalized = normalizeStatusBody(body);
   if (rec.template) {
     const { passJson } = await loadTemplate(templateDir(rec.template));
-    const fieldKeys = templateFieldKeys(passJson);
+    const bindings = await bindingsForTemplate(rec.template, passJson);
     let skipped = [];
     const updated = await updatePassData(serial, data => {
-      const result = applyStatusToTemplateData(data, body, fieldKeys);
+      const result = applyStatusToTemplateData(data, normalized, bindings);
       skipped = result.skipped;
       return result.data;
     });
     return { rec: updated, skipped };
   }
-  return { rec: await updatePassState(serial, state => applyStatus(state, body)), skipped: [] };
+  return { rec: await updatePassState(serial, state => applyStatus(state, normalized)), skipped: [] };
 }
 
 // POST /api/passes/:serial/status  →  update one pass + push its devices

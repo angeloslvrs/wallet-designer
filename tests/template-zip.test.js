@@ -28,13 +28,14 @@ describe("readTemplateZip", () => {
     expect(Object.keys(files).sort()).toEqual(["en.lproj/pass.strings", "icon.png", "pass.json"]);
   });
 
-  it("drops __MACOSX, .DS_Store, and stale manifest/signature entries", () => {
+  it("drops __MACOSX, .DS_Store, tooling.json, and stale manifest/signature entries", () => {
     const files = readTemplateZip(zipOf({
       "pass.json": PASS_JSON,
       "icon.png": "png-bytes",
       ".DS_Store": "junk",
       "manifest.json": "{}",
       "signature": "stale",
+      "tooling.json": '{"designer":"1.0"}',
       "__MACOSX/pass.json": "resource-fork",
       "__MACOSX/._icon.png": "resource-fork"
     }));

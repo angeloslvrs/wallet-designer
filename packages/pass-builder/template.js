@@ -11,6 +11,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { TIMEZONE_KEY_ALIASES } from "./semantics.js";
 import { signPkpass } from "./sign.js";
 
 /**
@@ -29,7 +30,7 @@ import { signPkpass } from "./sign.js";
  */
 
 const STYLE_KEYS = ["boardingPass", "coupon", "eventTicket", "generic", "storeCard"];
-const FIELD_ZONES = ["headerFields", "primaryFields", "secondaryFields", "auxiliaryFields", "backFields", "additionalInfoFields"];
+export const FIELD_ZONES = ["headerFields", "primaryFields", "secondaryFields", "auxiliaryFields", "backFields", "additionalInfoFields"];
 const RESERVED_KEYS = new Set(["semantics", "additionalInfoFields", "barcodeMessage", "barcodeAltText"]);
 
 /** The style dict key ("boardingPass", …) of a pass.json, or undefined. */
@@ -107,10 +108,13 @@ export function applyTemplateData(passJson, data = {}) {
   return out;
 }
 
-/** Objects merge recursively; arrays and scalars replace. */
+/** Objects merge recursively; arrays and scalars replace; null DELETES the
+ *  key — that's how issue-time data clears a template's placeholder semantics
+ *  (sample schedule dates, passengerName, seats) that nothing re-derives. */
 function deepMerge(base, patch) {
   const out = { ...base };
   for (const [k, v] of Object.entries(patch)) {
+    if (v === null) { delete out[k]; continue; }
     const bothObjects =
       v !== null && typeof v === "object" && !Array.isArray(v) &&
       out[k] !== null && typeof out[k] === "object" && !Array.isArray(out[k]);
@@ -119,10 +123,11 @@ function deepMerge(base, patch) {
   return out;
 }
 
-// Files that must never be carried from a template into a built pass: OS junk
-// plus any stale manifest/signature (present when a signed .pkpass was unzipped
-// and repurposed as a template — the build regenerates both).
-const SKIPPED_FILES = new Set([".DS_Store", "manifest.json", "signature"]);
+// Files that must never be carried from a template into a built pass: OS junk,
+// any stale manifest/signature (present when a signed .pkpass was unzipped and
+// repurposed as a template — the build regenerates both), and Pass Designer's
+// tooling.json (Designer-only metadata, not part of a pass).
+const SKIPPED_FILES = new Set([".DS_Store", "manifest.json", "signature", "tooling.json"]);
 const SKIPPED_DIRS = new Set(["__MACOSX"]);
 
 /**
@@ -173,7 +178,7 @@ async function collectAssets(root, rel, out) {
  */
 export async function buildPkpassFromTemplate({ templateDir, data = {}, overrides = {}, certDir, passphrase }) {
   const { passJson, assets } = await loadTemplate(templateDir);
-  const merged = applyTemplateData(passJson, data);
+  const merged = mirrorTimeZoneAliases(stripInternalIds(applyTemplateData(passJson, data)));
   for (const key of OVERRIDE_KEYS) {
     if (overrides[key] !== undefined) merged[key] = overrides[key];
   }
@@ -182,3 +187,38 @@ export async function buildPkpassFromTemplate({ templateDir, data = {}, override
 }
 
 const OVERRIDE_KEYS = ["serialNumber", "passTypeIdentifier", "teamIdentifier", "authenticationToken", "webServiceURL"];
+
+/**
+ * Pure: ensure BOTH time-zone key spellings carry the same IANA value on the
+ * emitted pass. Apple's docs list only *LocationTimeZone while Pass Designer
+ * and the protos emit *AirportTimeZone — Designer exports carry one spelling,
+ * so the build mirrors whichever is present onto its missing twin.
+ */
+export function mirrorTimeZoneAliases(passJson) {
+  if (!passJson?.semantics) return passJson;
+  const semantics = { ...passJson.semantics };
+  for (const [docKey, designerKey] of Object.entries(TIMEZONE_KEY_ALIASES)) {
+    if (semantics[docKey] !== undefined && semantics[designerKey] === undefined) semantics[designerKey] = semantics[docKey];
+    if (semantics[designerKey] !== undefined && semantics[docKey] === undefined) semantics[docKey] = semantics[designerKey];
+  }
+  return { ...passJson, semantics };
+}
+
+/**
+ * Pure: deep-copy with every `_id` property removed. Pass Designer stamps
+ * internal `_id` UUIDs on fields and semantics seats; they are Designer
+ * bookkeeping, not pass content, so EMITTED pass.json drops them — on-disk
+ * template bundles stay faithful to what Designer exported.
+ */
+export function stripInternalIds(value) {
+  if (Array.isArray(value)) return value.map(stripInternalIds);
+  if (value !== null && typeof value === "object") {
+    /** @type {Record<string, any>} */
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k !== "_id") out[k] = stripInternalIds(v);
+    }
+    return out;
+  }
+  return value;
+}

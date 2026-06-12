@@ -82,8 +82,11 @@ export function formStateToPassJson(s) {
       ...(dep.gate && { departureGate: dep.gate }),
       ...(arr.terminal && { destinationTerminal: arr.terminal }),
       ...(arr.gate && { destinationGate: arr.gate }),
-      ...(dep.timeZone && { departureLocationTimeZone: dep.timeZone }),
-      ...(arr.timeZone && { destinationLocationTimeZone: arr.timeZone }),
+      // Both time-zone key spellings, same IANA value: Apple's docs list only
+      // *LocationTimeZone; Pass Designer + the protos emit *AirportTimeZone.
+      // Emit both, rename nothing — see docs/field-coverage.md.
+      ...(dep.timeZone && { departureLocationTimeZone: dep.timeZone, departureAirportTimeZone: dep.timeZone }),
+      ...(arr.timeZone && { destinationLocationTimeZone: arr.timeZone, destinationAirportTimeZone: arr.timeZone }),
       ...(hasGeo(dep) && { departureLocation: { latitude: dep.latitude, longitude: dep.longitude } }),
       ...(hasGeo(arr) && { destinationLocation: { latitude: arr.latitude, longitude: arr.longitude } }),
       ...(dep.depart && { originalDepartureDate: dep.depart, currentDepartureDate: dep.depart }),

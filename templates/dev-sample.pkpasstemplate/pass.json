@@ -8,15 +8,15 @@
   "foregroundColor": "rgb(255,255,255)",
   "backgroundColor": "rgb(20,30,80)",
   "labelColor": "rgb(180,200,255)",
-  "preferredStyleSchemes": ["semanticBoardingPass"],
+  "preferredStyleSchemes": ["semanticBoardingPass", "boardingPass"],
   "barcodes": [
     { "format": "PKBarcodeFormatQR", "message": "SET-AT-ISSUE", "messageEncoding": "iso-8859-1", "altText": "" }
   ],
   "boardingPass": {
     "transitType": "PKTransitTypeAir",
     "headerFields": [
-      { "key": "gate", "label": "GATE", "value": "—" },
-      { "key": "seat", "label": "SEAT", "value": "—" }
+      { "key": "gate", "label": "GATE", "value": "B7" },
+      { "key": "seat", "label": "SEAT", "value": "12A" }
     ],
     "primaryFields": [
       { "key": "depart", "label": "San Francisco", "value": "SFO" },
@@ -24,21 +24,21 @@
     ],
     "secondaryFields": [
       { "key": "passenger", "label": "PASSENGER", "value": "FIRSTNAME LASTNAME" },
-      { "key": "flight", "label": "FLIGHT", "value": "RP000" }
+      { "key": "flight", "label": "FLIGHT", "value": "RP247" }
     ],
     "auxiliaryFields": [
-      { "key": "boarding", "label": "BOARDING", "value": "", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
-      { "key": "depart-time", "label": "DEPART", "value": "", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
-      { "key": "group", "label": "GROUP", "value": "—" },
-      { "key": "seq", "label": "SEQ", "value": "—" }
+      { "key": "boarding", "label": "BOARDING", "value": "2026-07-01T07:30:00-07:00", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
+      { "key": "depart-time", "label": "DEPART", "value": "2026-07-01T08:00:00-07:00", "dateStyle": "PKDateStyleNone", "timeStyle": "PKDateStyleShort" },
+      { "key": "group", "label": "GROUP", "value": "3" },
+      { "key": "seq", "label": "SEQ", "value": "23" }
     ],
     "backFields": [
-      { "key": "ff", "label": "FREQUENT FLYER", "value": "—" },
-      { "key": "confirmation", "label": "CONFIRMATION", "value": "—" },
-      { "key": "fare-class", "label": "FARE CLASS", "value": "—" },
-      { "key": "priority", "label": "PRIORITY", "value": "—" },
-      { "key": "terminal-dep", "label": "DEPARTURE TERMINAL", "value": "—" },
-      { "key": "terminal-arr", "label": "ARRIVAL TERMINAL", "value": "—" }
+      { "key": "ff", "label": "FREQUENT FLYER", "value": "RP-12345" },
+      { "key": "confirmation", "label": "CONFIRMATION", "value": "GHK2X9" },
+      { "key": "fare-class", "label": "FARE CLASS", "value": "Y" },
+      { "key": "priority", "label": "PRIORITY", "value": "Gold" },
+      { "key": "terminal-dep", "label": "DEPARTURE TERMINAL", "value": "T1" },
+      { "key": "terminal-arr", "label": "ARRIVAL TERMINAL", "value": "T4" }
     ]
   },
   "semantics": {
@@ -49,10 +49,15 @@
     "departureAirportName": "San Francisco Intl",
     "departureCityName": "San Francisco",
     "departureAirportTimeZone": "America/Los_Angeles",
+    "departureLocationTimeZone": "America/Los_Angeles",
+    "departureTerminal": "T1",
+    "departureGate": "B7",
     "destinationAirportCode": "JFK",
     "destinationAirportName": "John F. Kennedy Intl",
     "destinationCityName": "New York",
     "destinationAirportTimeZone": "America/New_York",
+    "destinationLocationTimeZone": "America/New_York",
+    "destinationTerminal": "T4",
     "originalDepartureDate": "2026-07-01T08:00:00-07:00",
     "currentDepartureDate": "2026-07-01T08:00:00-07:00",
     "originalBoardingDate": "2026-07-01T07:30:00-07:00",
@@ -60,9 +65,12 @@
     "originalArrivalDate": "2026-07-01T16:45:00-04:00",
     "currentArrivalDate": "2026-07-01T16:45:00-04:00",
     "passengerName": { "givenName": "FIRSTNAME", "familyName": "LASTNAME" },
+    "boardingGroup": "3",
+    "boardingSequenceNumber": "23",
     "confirmationNumber": "GHK2X9",
     "ticketFareClass": "Y",
     "priorityStatus": "Gold",
-    "seats": [{ "seatNumber": "12A", "seatRow": "12", "seatSection": "A", "seatType": "economy" }]
+    "membershipProgramNumber": "RP-12345",
+    "seats": [{ "seatNumber": "A", "seatRow": "12", "seatType": "economy" }]
   }
 }

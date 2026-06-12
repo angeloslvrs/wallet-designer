@@ -1,37 +1,123 @@
-// Shared semantic-field derivation used by both pass shapes: the FormState
-// emitter (form-to-pass.js) and the template issue/status conventions
-// (apps/server/src/template-status.js).
+// Shared semantic-field derivation used by both pass shapes — the FormState
+// emitter (form-to-pass.js) and the template issue/status paths
+// (apps/server/src/template-status.js) — plus the hardcoded boarding-pass
+// semantic vocabulary.
+//
+// Polarity rule: semantic tags are APPLE'S vocabulary (the fixed SemanticTags
+// keys, cross-checked against the published docs list and PassSemantics.proto
+// at the pinned apple/pass-builder SHA). Field keys are the DESIGNER'S
+// vocabulary — arbitrary and editable per template — so code hardcodes
+// semantics and discovers field bindings per template (see bindings.js),
+// never the other way around.
+
+/**
+ * Airline-boarding-pass-relevant subset of Apple's semantic keys, tagged with
+ * the value shape the status/issue paths must enforce:
+ *  - "string": plain string
+ *  - "date":   ISO 8601 string
+ *  - "number", "personName", "seats": structured — derived, never set raw
+ * @type {Readonly<Record<string, "string"|"date"|"number"|"personName"|"seats">>}
+ */
+export const BOARDING_SEMANTICS = Object.freeze({
+  // flight identity
+  airlineCode: "string",
+  flightCode: "string",
+  flightNumber: "number",
+  // route
+  departureAirportCode: "string",
+  departureAirportName: "string",
+  departureCityName: "string",
+  departureLocationDescription: "string",
+  departureTerminal: "string",
+  departureGate: "string",
+  departureLocationTimeZone: "string",
+  departureAirportTimeZone: "string",
+  destinationAirportCode: "string",
+  destinationAirportName: "string",
+  destinationCityName: "string",
+  destinationLocationDescription: "string",
+  destinationTerminal: "string",
+  destinationGate: "string",
+  destinationLocationTimeZone: "string",
+  destinationAirportTimeZone: "string",
+  // schedule
+  originalDepartureDate: "date",
+  currentDepartureDate: "date",
+  originalBoardingDate: "date",
+  currentBoardingDate: "date",
+  originalArrivalDate: "date",
+  currentArrivalDate: "date",
+  // boarding
+  boardingGroup: "string",
+  boardingZone: "string",
+  boardingSequenceNumber: "string",
+  // passenger / ticket
+  passengerName: "personName",
+  seats: "seats",
+  confirmationNumber: "string",
+  ticketFareClass: "string",
+  priorityStatus: "string",
+  membershipProgramName: "string",
+  membershipProgramNumber: "string",
+  // status line / day-of-travel extras
+  transitStatus: "string",
+  transitStatusReason: "string",
+  transitProvider: "string",
+  securityScreening: "string"
+});
+
+/** The six schedule-date semantic keys (original/current × departure/boarding/arrival). */
+export const SEMANTIC_DATE_KEYS = Object.freeze(
+  Object.keys(BOARDING_SEMANTICS).filter(k => BOARDING_SEMANTICS[k] === "date")
+);
+
+/**
+ * Apple disagrees with Apple on the time-zone key names: the published
+ * SemanticTags docs list ONLY departure/destinationLocationTimeZone, while
+ * Pass Designer 1.0 and PassSemantics.proto emit
+ * departure/destinationAirportTimeZone. Policy: emit BOTH with the same IANA
+ * value, rename nothing (see docs/field-coverage.md).
+ */
+export const TIMEZONE_KEY_ALIASES = Object.freeze({
+  departureLocationTimeZone: "departureAirportTimeZone",
+  destinationLocationTimeZone: "destinationAirportTimeZone"
+});
 
 const SEAT_RE = /^(\d+)\s*([A-Za-z]+)$/;
 
 /**
- * PassSeat semantics from the canonical seat number ("38K" → row "38",
- * section "K"). Row/section are DERIVED from the number, never taken from
- * separate input, so they cannot disagree with it — a stale row that
- * disagreed with the number used to render as a doubled seat on iOS (e.g.
- * "3838"). Unparseable numbers stay seatNumber-only.
- * @param {string} number
+ * PassSeat semantics from a composite seat string, decomposed the way Pass
+ * Designer 1.0 models it: "17C" → {seatRow: "17", seatNumber: "C"} (row is
+ * the digits, number is the letter(s) only). Row/number are DERIVED from the
+ * composite, never taken from separate input, so they cannot disagree with it
+ * — a stale row that disagreed used to render as a doubled seat on iOS (e.g.
+ * "3838"). Composites that don't split stay whole in seatNumber.
+ * @param {string} composite seat as entered/displayed ("17C", "38 K", "UPPER DECK")
  * @param {Record<string, any>} [extra] additional PassSeat fields (seatType, seatDescription, …)
  * @returns {Record<string, any>}
  */
-export function seatSemantics(number, extra = {}) {
-  const m = SEAT_RE.exec((number ?? "").trim());
-  return {
-    seatNumber: number,
-    ...(m && { seatRow: m[1], seatSection: m[2].toUpperCase() }),
-    ...extra
-  };
+export function seatSemantics(composite, extra = {}) {
+  const m = SEAT_RE.exec((composite ?? "").trim());
+  return m
+    ? { seatRow: m[1], seatNumber: m[2].toUpperCase(), ...extra }
+    : { seatNumber: composite, ...extra };
 }
 
 /**
  * "ANGELO SOLIVERES" → {givenName: "ANGELO", familyName: "SOLIVERES"}.
- * Multi-word given names keep everything but the last word; single-word
- * names land in both (the historical form-to-pass behavior).
+ * Airline "SURNAME/GIVEN" convention is recognized: "DELA CRUZ/JUAN" →
+ * {givenName: "JUAN", familyName: "DELA CRUZ"}. Multi-word given names keep
+ * everything but the last word; single-word names land in both (the
+ * historical form-to-pass behavior).
  * @param {string} full
  * @returns {{givenName: string, familyName: string}}
  */
 export function splitPersonName(full) {
   const trimmed = (full ?? "").trim();
+  if (trimmed.includes("/")) {
+    const [family, given] = trimmed.split("/").map(s => s.trim());
+    return { givenName: given ?? "", familyName: family };
+  }
   const parts = trimmed.split(/\s+/);
   return { givenName: parts.slice(0, -1).join(" ") || trimmed, familyName: parts.at(-1) ?? "" };
 }

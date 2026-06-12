@@ -35,15 +35,21 @@ jobs:
       - run: npm ci
       # self-signed dev cert + placeholder assets (required before any build)
       - run: npm run init
-      - run: node scripts/build-pass.js --template dev-sample --serial CI-SAMPLE --out out/dev-sample.pkpass
-      - name: Unpack to an uncompressed bundle (validate only takes a directory)
+      - name: Build a pass from EVERY template bundle and unpack it
+        # validate only takes an uncompressed directory, so each .pkpass is
+        # unzipped into out/passes/<id>.pass
         run: |
-          mkdir -p out/dev-sample.pass
-          unzip -o out/dev-sample.pkpass -d out/dev-sample.pass
+          set -e
+          for d in templates/*.pkpasstemplate; do
+            id=$(basename "$d" .pkpasstemplate)
+            node scripts/build-pass.js --template "$id" --serial "CI-$id" --out "out/$id.pkpass"
+            mkdir -p "out/passes/$id.pass"
+            unzip -o "out/$id.pkpass" -d "out/passes/$id.pass"
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: dev-sample-pass
-          path: out/dev-sample.pass
+          name: template-passes
+          path: out/passes
           # a silently-empty artifact would let validate pass on stale bytes
           if-no-files-found: error
 
@@ -82,7 +88,12 @@ jobs:
         run: swift build -c release --product buildpass
       - uses: actions/download-artifact@v4
         with:
-          name: dev-sample-pass
-          path: dev-sample.pass
-      - name: buildpass validate
-        run: pass-builder/.build/release/buildpass validate dev-sample.pass
+          name: template-passes
+          path: passes
+      - name: buildpass validate (every template's pass)
+        run: |
+          set -e
+          for d in passes/*.pass; do
+            echo "== validate $d =="
+            pass-builder/.build/release/buildpass validate "$d"
+          done

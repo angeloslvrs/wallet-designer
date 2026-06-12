@@ -14,7 +14,7 @@
 
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { formStateToPassJson } from "@wpd/pass-builder";
+import { BOARDING_SEMANTICS, formStateToPassJson, TIMEZONE_KEY_ALIASES } from "@wpd/pass-builder";
 import { applyStatusToTemplateData } from "../apps/server/src/template-status.js";
 
 // Keep in sync with PASS_BUILDER_SHA in .github/workflows/apple-validate.yml.
@@ -87,13 +87,16 @@ async function designerSemantics() {
   return { keys, seatKeys };
 }
 
-/** Semantics keys the ops status vocabulary can write on template passes. */
+/** Semantics keys the ops status vocabulary can write on template passes —
+ *  the vocabulary IS the semantic keys now, so exercise the whole
+ *  string/date subset of BOARDING_SEMANTICS plus the status-row extras. */
 function statusSemantics() {
-  const { data } = applyStatusToTemplateData({}, {
-    gate: "B7", boarding: "2026-06-20T07:30:00-07:00", depart: "2026-06-20T08:00:00-07:00",
-    arrive: "2026-06-20T16:45:00-04:00", transitInfo: "x", securityScreening: "x", delayed: "x",
-    transitStatus: "Delayed", transitStatusReason: "x"
-  }, []);
+  const body = { delayed: "x", transitStatus: "Delayed", transitStatusReason: "x" };
+  for (const [key, type] of Object.entries(BOARDING_SEMANTICS)) {
+    if (type === "string") body[key] ??= "x";
+    if (type === "date") body[key] = "2026-06-20T08:00:00-07:00";
+  }
+  const { data } = applyStatusToTemplateData({}, body, {});
   return new Set(Object.keys(data.semantics ?? {}));
 }
 
@@ -138,7 +141,10 @@ for (const f of semanticsFields) {
 }
 
 const protoCamel = new Set(semanticsFields.map(f => f.camel));
-const drift = [...designer.keys].filter(k => !protoCamel.has(k)).sort();
+// Time-zone keys are a known docs-vs-tooling alias pair (we emit BOTH
+// spellings deliberately) — neither spelling counts as drift.
+const aliasKeys = new Set([...Object.keys(TIMEZONE_KEY_ALIASES), ...Object.values(TIMEZONE_KEY_ALIASES)]);
+const drift = [...designer.keys].filter(k => !protoCamel.has(k) && !aliasKeys.has(k)).sort();
 
 const seatCovered = [], seatMissing = [];
 for (const f of seatFields) {
@@ -184,9 +190,19 @@ Covered: ${seatCovered.map(r => r[0]).join(", ") || "—"}
 
 Missing: ${seatMissing.map(r => r[0]).join(", ") || "—"}
 
-> \`seatRow\`/\`seatSection\` are omitted **deliberately** — a stale row that
-> disagreed with \`seatNumber\` was rendered by iOS as a doubled seat (e.g.
-> "3838"); see the comment in \`packages/pass-builder/form-to-pass.js\`.
+> Seats follow the Pass Designer 1.0 convention: the composite ("17C")
+> decomposes into \`seatRow\` "17" + \`seatNumber\` "C" (letter only).
+> \`seatSection\` is omitted **deliberately** — Designer never emits it, and a
+> stale row/section that disagreed with the number used to render as a doubled
+> seat on iOS; see \`packages/pass-builder/semantics.js\`.
+
+## Time zones — Apple disagrees with Apple
+
+The published SemanticTags docs list ONLY \`departure/destinationLocationTimeZone\`;
+Pass Designer 1.0 and \`PassSemantics.proto\` emit \`departure/destinationAirportTimeZone\`.
+**Resolved: we emit BOTH spellings with the same IANA value and rename nothing**
+(\`TIMEZONE_KEY_ALIASES\` in \`packages/pass-builder/semantics.js\`); neither pair
+is counted as drift below.
 
 ## Drift — keys we emit that are NOT in the protos
 
@@ -204,9 +220,9 @@ In rough order of value for the expanded boarding-pass view:
    row only; the semantic status is what the expanded view and Live Activities key off.
 2. **\`confirmationNumber\` + \`ticketFareClass\` + \`priorityStatus\`** — cheap wins,
    plain strings shown in the expanded details card.
-3. **\`departureAirportTimeZone\` / \`destinationAirportTimeZone\`** — see drift
-   list: we emit \`departure/destinationLocationTimeZone\` instead; renaming to the
-   proto names is likely the fix.
+3. **\`departureAirportTimeZone\` / \`destinationAirportTimeZone\`** — resolved:
+   we emit both this spelling and the docs' \`*LocationTimeZone\` twin (see the
+   Time zones section above).
 4. **\`departureCityName\` / \`destinationCityName\`** — we ship the city only inside
    \`departure/destinationLocationDescription\`; the dedicated fields are what the
    route header uses.

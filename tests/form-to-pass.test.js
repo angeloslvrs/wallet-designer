@@ -76,7 +76,7 @@ describe("formStateToPassJson", () => {
     expect(p.semantics.passengerName.familyName).toBe("SOLIVERES");
     expect(p.semantics.passengerName.givenName).toBe("ANGELO");
     expect(p.semantics.seats).toHaveLength(1);
-    expect(p.semantics.seats[0].seatNumber).toBe("14A");
+    expect(p.semantics.seats[0]).toMatchObject({ seatRow: "14", seatNumber: "A" });
     expect(p.semantics.boardingGroup).toBe("3");
     expect(p.semantics.wifiAccess[0].ssid).toBe("GoGoInflight");
   });
@@ -94,10 +94,12 @@ describe("formStateToPassJson", () => {
 });
 
 describe("formStateToPassJson — iOS 26 extras", () => {
-  it("emits timezones + geo coordinates", () => {
+  it("emits timezones (both key spellings — docs vs Designer/protos) + geo coordinates", () => {
     const p = formStateToPassJson(richState);
     expect(p.semantics.departureLocationTimeZone).toBe("America/Los_Angeles");
     expect(p.semantics.destinationLocationTimeZone).toBe("America/New_York");
+    expect(p.semantics.departureAirportTimeZone).toBe("America/Los_Angeles");
+    expect(p.semantics.destinationAirportTimeZone).toBe("America/New_York");
     expect(p.semantics.departureLocation).toEqual({ latitude: 37.6213, longitude: -122.3790 });
     expect(p.semantics.destinationLocation).toEqual({ latitude: 40.6413, longitude: -73.7781 });
   });
@@ -202,15 +204,15 @@ describe("formStateToPassJson — semantics coverage extensions", () => {
     }
   });
 
-  it("derives seatRow/seatSection from the seat number and carries seatDescription", () => {
+  it("decomposes the composite seat into seatRow + seatNumber (Designer convention) and carries seatDescription", () => {
     const p = formStateToPassJson(coverageState);
     expect(p.semantics.seats[0]).toEqual({
-      seatNumber: "14A", seatRow: "14", seatSection: "A",
+      seatRow: "14", seatNumber: "A",
       seatType: "economy", seatDescription: "Window seat"
     });
   });
 
-  it("keeps unparseable seat numbers seatNumber-only (row/section never disagree with the number)", () => {
+  it("keeps unparseable seat numbers seatNumber-only (row never disagrees with the number)", () => {
     const state = {
       ...baseState,
       passenger: { ...baseState.passenger, seats: [{ number: "UPPER DECK", cabin: "business" }] }

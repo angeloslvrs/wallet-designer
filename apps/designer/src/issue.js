@@ -1,5 +1,10 @@
 import bwipjs from "bwip-js";
+import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
+
+// The boarding semantic subset offered in the bindings editor — structured
+// keys included (seats/passengerName decompose at issue time).
+const SEMANTIC_KEYS = Object.keys(BOARDING_SEMANTICS);
 
 // Issue view — issue template-backed passes from the browser: pick an
 // installed .pkpasstemplate, name the trip (groupId), fill one row per
@@ -58,10 +63,13 @@ export function mountIssue(root, showManage) {
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
 
-  let templates = [];        // [{ id, fieldKeys, assets, error? }]
+  let templates = [];        // [{ id, fieldKeys, bindings, assets, error? }]
   let selected = null;       // template id
   let groupId = "";
   let rows = [{ values: {}, serial: "", serialEdited: false }];
+  // Per-template unsaved binding edits: { tplId: { semanticKey: fieldKey } }.
+  // Seeded from the server's discovered/stored map on load; PUT on save.
+  let bindingDrafts = {};
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -95,6 +103,43 @@ export function mountIssue(root, showManage) {
       </div>`;
   }
 
+  // Binding editor for one template: a dropdown per bound semantic (field
+  // keys × the boarding semantic subset), an add row for unbound semantics,
+  // and a save → PUT /api/templates/:id/bindings. Unbound is informational —
+  // iOS 26 renders the semantic scheme from semantics, bound field or not.
+  function bindingsEditor(t) {
+    const draft = bindingDrafts[t.id] ?? {};
+    const fieldOptions = (sel) => [""].concat(t.fieldKeys ?? []).map(k =>
+      `<option value="${esc(k)}" ${k === sel ? "selected" : ""}>${esc(k || "(unbound)")}</option>`).join("");
+    const guessed = (sem) => {
+      const b = t.bindings?.[sem];
+      return b && b.fieldKey === draft[sem] && b.confidence !== "high"
+        ? ` <span class="mg-badge" title="auto-discovered from the template's sample values (${esc(b.source)})">guess</span>` : "";
+    };
+    const bound = Object.keys(draft).sort().map(sem => `
+      <div class="live-row tpl-bind-row">
+        <label><code>${esc(sem)}</code>${guessed(sem)}</label>
+        <select data-bind-sem="${esc(sem)}" data-tpl="${esc(t.id)}">${fieldOptions(draft[sem])}</select>
+      </div>`).join("");
+    const unbound = SEMANTIC_KEYS.filter(k => !draft[k]);
+    return `
+      <details class="tpl-bindings">
+        <summary>Bindings: ${Object.keys(draft).length} bound · ${unbound.length} unbound (informational)</summary>
+        ${bound || `<p class="hint">No bindings yet — add one below.</p>`}
+        <div class="live-row tpl-bind-row">
+          <select data-add-sem data-tpl="${esc(t.id)}">
+            <option value="">+ bind semantic…</option>
+            ${unbound.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}
+          </select>
+          <select data-add-field data-tpl="${esc(t.id)}">${fieldOptions("")}</select>
+          <button data-act="bind-add" data-id="${esc(t.id)}">Add</button>
+          <button data-act="bind-save" data-id="${esc(t.id)}">Save bindings</button>
+          <span class="mg-grp-status" data-bind-status="${esc(t.id)}"></span>
+        </div>
+        <p class="hint">Unbound semantics still update on push — modern devices render from semantics; a bound field also updates the classic layout.</p>
+      </details>`;
+  }
+
   function templatesCard() {
     const rows = templates.map(t => `
       <div class="mg-row">
@@ -103,6 +148,7 @@ export function mountIssue(root, showManage) {
           ${t.error
             ? `<span class="mg-badge" style="background:#fdf1f2;color:#c0182f">broken: ${esc(t.error)}</span>`
             : `· ${(t.fieldKeys ?? []).length} field key(s) · ${(t.assets ?? []).length} asset(s)`}
+          ${t.error ? "" : bindingsEditor(t)}
         </div>
         <div class="mg-acts">
           <button data-act="tpl-del" data-id="${esc(t.id)}" class="danger">Delete</button>
@@ -222,7 +268,10 @@ export function mountIssue(root, showManage) {
     root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">Loading templates…</p></div>`;
     try { templates = await fetch("/api/templates").then(r => r.json()); }
     catch { root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">API offline.</p></div>`; return; }
-    if (!Array.isArray(templates) || !templates.length) { renderEmpty(); return; }
+    if (!Array.isArray(templates)) { renderEmpty(); return; }
+    bindingDrafts = Object.fromEntries(templates.filter(t => !t.error).map(t =>
+      [t.id, Object.fromEntries(Object.entries(t.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]))]));
+    if (!templates.length) { renderEmpty(); return; }
     selected ??= (templates.find(t => !t.error) ?? templates[0]).id;
     reSuggestSerials();
     render();
@@ -249,7 +298,36 @@ export function mountIssue(root, showManage) {
     if (act === "manage") return showManage?.();
     if (act === "tpl-upload") return uploadTemplate();
     if (act === "tpl-del") return deleteTemplate(e.target.dataset.id);
+    if (act === "bind-add") {
+      const id = e.target.dataset.id;
+      const sem = root.querySelector(`select[data-add-sem][data-tpl="${CSS.escape(id)}"]`)?.value;
+      const field = root.querySelector(`select[data-add-field][data-tpl="${CSS.escape(id)}"]`)?.value;
+      if (!sem || !field) return;
+      syncFromInputs();
+      bindingDrafts = { ...bindingDrafts, [id]: { ...bindingDrafts[id], [sem]: field } };
+      render();
+      return;
+    }
+    if (act === "bind-save") return saveBindings(e.target.dataset.id);
   }, { signal });
+
+  async function saveBindings(id) {
+    const status = root.querySelector(`[data-bind-status="${CSS.escape(id)}"]`);
+    if (status) status.textContent = "Saving…";
+    let r, j;
+    try {
+      r = await fetch(`/api/templates/${encodeURIComponent(id)}/bindings`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bindingDrafts[id] ?? {})
+      });
+      j = await r.json().catch(() => ({}));
+    } catch { if (status) status.textContent = "✗ API offline"; return; }
+    if (!r.ok) { if (status) status.textContent = `✗ ${j.error ?? r.status}`; return; }
+    syncFromInputs();
+    await load();
+    const el = root.querySelector(`[data-bind-status="${CSS.escape(id)}"]`);
+    if (el) el.textContent = `✓ saved ${Object.keys(j.bindings ?? {}).length} binding(s)`;
+  }
 
   async function uploadTemplate() {
     const status = $("#tpl-status");
@@ -306,6 +384,13 @@ export function mountIssue(root, showManage) {
 
   root.addEventListener("change", (e) => {
     if (e.target.id === "iss-tpl") { syncFromInputs(); selected = e.target.value; render(); }
+    if (e.target.matches("select[data-bind-sem]")) {
+      const { bindSem, tpl } = e.target.dataset;
+      const draft = { ...bindingDrafts[tpl] };
+      if (e.target.value) draft[bindSem] = e.target.value; else delete draft[bindSem];
+      bindingDrafts = { ...bindingDrafts, [tpl]: draft };
+      if (!e.target.value) { syncFromInputs(); render(); }   // row disappears → re-render
+    }
   }, { signal });
 
   load();

@@ -1,0 +1,187 @@
+{
+  "backgroundColor" : "rgb(246,226,79)",
+  "barcodes" : [
+    {
+      "format" : "PKBarcodeFormatAztec",
+      "message" : "123456789",
+      "messageEncoding" : "iso-8859-1"
+    }
+  ],
+  "boardingPass" : {
+    "auxiliaryFields" : [
+      {
+        "_id" : "85C3198C-BB76-4547-9FD9-038A8F364F6F",
+        "dataDetectorTypes" : [
+          "PKDataDetectorTypeAddress",
+          "PKDataDetectorTypePhoneNumber",
+          "PKDataDetectorTypeLink",
+          "PKDataDetectorTypeCalendarEvent"
+        ],
+        "ignoresTimeZone" : false,
+        "isRelative" : false,
+        "key" : "boardingTime",
+        "label" : "Boarding",
+        "timeStyle" : "PKDateStyleShort",
+        "value" : "2026-06-12T15:30:09Z"
+      },
+      {
+        "_id" : "73B7BADB-ECC1-4E8B-AE3D-C46C3FA3CBD8",
+        "key" : "term",
+        "label" : "Terminal",
+        "textAlignment" : "PKTextAlignmentCenter",
+        "value" : "3 INTL"
+      },
+      {
+        "_id" : "73C5B267-D716-4FC6-A38A-965C3CB13607",
+        "key" : "sequence",
+        "label" : "SEQ",
+        "textAlignment" : "PKTextAlignmentNatural",
+        "value" : "78"
+      },
+      {
+        "_id" : "BF8F77C5-5223-4DD0-922A-47BDA871262C",
+        "key" : "group",
+        "label" : "Group",
+        "textAlignment" : "PKTextAlignmentCenter",
+        "value" : "1"
+      },
+      {
+        "_id" : "6480C134-F1B1-481A-824B-B3EB5C0ECED4",
+        "key" : "seat",
+        "label" : "Seat",
+        "textAlignment" : "PKTextAlignmentCenter",
+        "value" : "17C"
+      }
+    ],
+    "backFields" : [
+
+    ],
+    "headerFields" : [
+      {
+        "_id" : "4534E3E3-7DBF-4EF6-B5A7-06AEA7862DC7",
+        "key" : "gate",
+        "label" : "Gate",
+        "textAlignment" : "PKTextAlignmentCenter",
+        "value" : "TBA"
+      },
+      {
+        "_id" : "D837DB24-193B-49FE-B8C2-4EE8CF97A5D2",
+        "dataDetectorTypes" : [
+          "PKDataDetectorTypePhoneNumber",
+          "PKDataDetectorTypeLink",
+          "PKDataDetectorTypeAddress",
+          "PKDataDetectorTypeCalendarEvent"
+        ],
+        "key" : "flight",
+        "label" : "Flight",
+        "value" : "5J 5056"
+      }
+    ],
+    "primaryFields" : [
+      {
+        "_id" : "DFCC3F73-000D-470F-B487-2D9AF3E55785",
+        "dataDetectorTypes" : [
+          "PKDataDetectorTypeCalendarEvent",
+          "PKDataDetectorTypeLink",
+          "PKDataDetectorTypePhoneNumber",
+          "PKDataDetectorTypeAddress"
+        ],
+        "key" : "depart",
+        "label" : "MANILA",
+        "value" : "MNL"
+      },
+      {
+        "_id" : "C10A55EA-D6D8-4D93-B284-5811C7D14E4D",
+        "dataDetectorTypes" : [
+          "PKDataDetectorTypeLink",
+          "PKDataDetectorTypeCalendarEvent",
+          "PKDataDetectorTypeAddress",
+          "PKDataDetectorTypePhoneNumber"
+        ],
+        "key" : "arrive",
+        "label" : "TOKYO (NARITA)",
+        "value" : "NRT"
+      }
+    ],
+    "secondaryFields" : [
+      {
+        "_id" : "7EC172B1-0D2E-437C-B0D0-5859DB16B459",
+        "key" : "passenger",
+        "label" : "Passenger",
+        "textAlignment" : "PKTextAlignmentNatural",
+        "value" : "DELA CRUZ\/JUAN"
+      },
+      {
+        "_id" : "0E028B60-260E-40BC-A32A-C3CE1EA8433C",
+        "dataDetectorTypes" : [
+          "PKDataDetectorTypeLink",
+          "PKDataDetectorTypePhoneNumber",
+          "PKDataDetectorTypeAddress",
+          "PKDataDetectorTypeCalendarEvent"
+        ],
+        "dateStyle" : "PKDateStyleFull",
+        "ignoresTimeZone" : false,
+        "isRelative" : false,
+        "key" : "date",
+        "label" : "Date",
+        "textAlignment" : "PKTextAlignmentLeft",
+        "value" : "2026-06-12T04:15:09Z"
+      }
+    ],
+    "transitType" : "PKTransitTypeAir"
+  },
+  "description" : "Airline Boarding Pass",
+  "foregroundColor" : "rgb(0,0,0)",
+  "formatVersion" : 1,
+  "groupingIdentifier" : "",
+  "labelColor" : "rgb(54,114,182)",
+  "organizationName" : "Airline",
+  "passTypeIdentifier" : "pass.com.example.boarding",
+  "preferredStyleSchemes" : [
+    "semanticBoardingPass",
+    "boardingPass"
+  ],
+  "semantics" : {
+    "airlineCode" : "5J",
+    "boardingGroup" : "5",
+    "boardingSequenceNumber" : "78",
+    "currentArrivalDate" : "2026-06-12T09:00:28Z",
+    "currentBoardingDate" : "2026-06-12T15:30:41Z",
+    "currentDepartureDate" : "2026-06-12T04:15:07Z",
+    "departureAirportCode" : "MNL",
+    "departureAirportTimeZone" : "Asia\/Manila",
+    "departureCityName" : "Manila",
+    "departureTerminal" : "3 INTL",
+    "destinationAirportCode" : "NRT",
+    "destinationAirportTimeZone" : "Asia\/Tokyo",
+    "destinationCityName" : "Tokyo (Narita)",
+    "destinationTerminal" : "2",
+    "eventType" : "PKEventTypeGeneric",
+    "flightNumber" : 5056,
+    "internationalDocumentsAreVerified" : false,
+    "originalArrivalDate" : "2026-06-12T09:00:52Z",
+    "originalBoardingDate" : "2026-06-12T15:30:53Z",
+    "originalDepartureDate" : "2026-06-12T04:15:45Z",
+    "passengerCapabilities" : [
+      "PKPassengerCapabilityCarryon",
+      "PKPassengerCapabilityPersonalItem"
+    ],
+    "passengerName" : {
+      "familyName" : "Dela Cruz",
+      "givenName" : "Juan"
+    },
+    "seats" : [
+      {
+        "_id" : "573C5B45-B433-40E6-A71D-E6EA80F2150E",
+        "seatDescription" : "Pre-reclined (fixed)",
+        "seatNumber" : "C",
+        "seatRow" : "17",
+        "seatSectionColor" : "rgb(239,254,95)"
+      }
+    ]
+  },
+  "serialNumber" : "gT6zrHkaW",
+  "stripColor" : "rgb(0,0,0)",
+  "teamIdentifier" : "",
+  "voided" : false
+}

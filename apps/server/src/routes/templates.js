@@ -6,10 +6,11 @@
 import { raw, Router } from "express";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { loadTemplate, templateFieldKeys } from "@wpd/pass-builder";
+import { discoverBindings, loadTemplate, templateFieldKeys } from "@wpd/pass-builder";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
-import { snapshot } from "../storage.js";
+import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
+import { bindingsForTemplate, sanitizeBindingEdits } from "../template-bindings.js";
 
 export const templatesRouter = Router();
 
@@ -30,6 +31,7 @@ templatesRouter.get("/templates", async (_req, res) => {
         description: passJson.description,
         organizationName: passJson.organizationName,
         fieldKeys: templateFieldKeys(passJson),
+        bindings: await bindingsForTemplate(id, passJson),
         assets: Object.keys(assets)
       });
     } catch (err) {
@@ -64,7 +66,11 @@ export async function handleTemplateUpload(req, res) {
       await writeFile(dest, buf);
     }
     const { passJson } = await loadTemplate(dir);
-    res.status(201).json({ id, fieldKeys: templateFieldKeys(passJson), files: Object.keys(files) });
+    // (Re-)discover bindings for the fresh bundle — a re-upload may have
+    // renamed field keys, so stored bindings are recomputed, not kept.
+    const bindings = discoverBindings(passJson);
+    await saveTemplateBindings(id, bindings);
+    res.status(201).json({ id, fieldKeys: templateFieldKeys(passJson), bindings, files: Object.keys(files) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -97,7 +103,32 @@ export async function handleTemplateDelete(req, res) {
   }
 
   await rm(dir, { recursive: true, force: true });
+  await deleteTemplateBindings(id);
   res.status(200).json({ ok: true, id });
 }
 
 templatesRouter.delete("/templates/:id", handleTemplateDelete);
+
+/**
+ * PUT /api/templates/:id/bindings — replace the template's semanticKey →
+ * fieldKey map with user-confirmed bindings ({semanticKey: fieldKey}; null or
+ * "" unbinds). Unbound semantics are informational, never an error.
+ */
+export async function handleBindingsSave(req, res) {
+  const { id } = req.params;
+  if (!TEMPLATE_ID_RE.test(id ?? "")) {
+    return res.status(400).json({ error: 'template id must be a slug like "summer-2026" (letters, digits, dashes)' });
+  }
+  let passJson;
+  try { ({ passJson } = await loadTemplate(templateDir(id))); }
+  catch { return res.status(404).json({ error: `no template "${id}" installed` }); }
+  try {
+    const bindings = sanitizeBindingEdits(req.body, passJson);
+    await saveTemplateBindings(id, bindings);
+    res.json({ id, bindings });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+templatesRouter.put("/templates/:id/bindings", handleBindingsSave);

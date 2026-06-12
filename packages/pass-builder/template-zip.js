@@ -3,8 +3,10 @@
 
 import AdmZip from "adm-zip";
 
-// Root-level files regenerated at build time — never accepted from an upload.
-const STALE_ROOT_FILES = new Set(["manifest.json", "signature"]);
+// Root-level files never accepted from an upload: manifest/signature are
+// regenerated at build time; tooling.json is Pass Designer-only metadata that
+// must not ship inside built passes.
+const STALE_ROOT_FILES = new Set(["manifest.json", "signature", "tooling.json"]);
 // Templates are a pass.json + a handful of images; anything bigger than this
 // uncompressed is a zip bomb, not a template.
 const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;

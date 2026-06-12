@@ -3,33 +3,48 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AdmZip from "adm-zip";
+import { applyTemplateData } from "../packages/pass-builder/template.js";
 
-// Issue-time semantics derivation: POST /api/passes with template data must
-// store derived semantics (passengerName, seats, confirmationNumber, …) so
-// template placeholder semantics never ship on an issued pass.
+// Issue-time semantics derivation, map-driven: POST /api/passes with template
+// data must store semantics translated through the template's discovered
+// binding map, and must CLEAR (null → delete at merge) the template's
+// volatile placeholder semantics (schedule dates, passengerName, seats) that
+// nothing re-derives — placeholders never ship on an issued pass.
 //
 // storage.js resolves STATE_PATH at import time, so set the env before the
 // dynamic imports below (same pattern as template-delete.test.js).
 let handleTemplateUpload, issueTemplatePass, getPassRecord;
 
+// Sample values mirror the semantics (the Pass Designer way), so binding
+// discovery at upload time can propose the map this test relies on.
 const PASS_JSON = JSON.stringify({
   formatVersion: 1,
   passTypeIdentifier: "pass.dev.placeholder",
   description: "Boarding pass",
   boardingPass: {
-    headerFields: [{ key: "gate", label: "GATE", value: "—" }],
+    headerFields: [
+      { key: "gate", label: "GATE", value: "B7" },
+      { key: "seat", label: "SEAT", value: "12A" }
+    ],
     secondaryFields: [{ key: "passenger", label: "PASSENGER", value: "FIRSTNAME LASTNAME" }],
+    auxiliaryFields: [
+      { key: "boarding", label: "BOARDING", value: "2026-07-01T07:30:00-07:00", dateStyle: "PKDateStyleNone", timeStyle: "PKDateStyleShort" }
+    ],
     backFields: [
-      { key: "confirmation", label: "CONFIRMATION", value: "—" },
-      { key: "fare-class", label: "FARE CLASS", value: "—" },
-      { key: "priority", label: "PRIORITY", value: "—" },
-      { key: "seat", label: "SEAT", value: "—" }
+      { key: "confirmation", label: "CONFIRMATION", value: "GHK2X9" },
+      { key: "fare-class", label: "FARE CLASS", value: "Y" },
+      { key: "priority", label: "PRIORITY", value: "Gold" }
     ]
   },
   semantics: {
+    departureGate: "B7",
     passengerName: { givenName: "FIRSTNAME", familyName: "LASTNAME" },
-    seats: [{ seatNumber: "12A", seatType: "economy" }],
-    confirmationNumber: "PLACEHOLDER"
+    seats: [{ seatNumber: "A", seatRow: "12", seatType: "economy" }],
+    originalBoardingDate: "2026-07-01T07:30:00-07:00",
+    currentBoardingDate: "2026-07-01T07:30:00-07:00",
+    confirmationNumber: "GHK2X9",
+    ticketFareClass: "Y",
+    priorityStatus: "Gold"
   }
 });
 
@@ -59,20 +74,34 @@ beforeAll(async () => {
   expect(res.statusCode).toBe(201);
 });
 
-describe("issueTemplatePass — derived semantics", () => {
-  it("stores semantics derived from per-passenger data so placeholders never ship", async () => {
+describe("issueTemplatePass — map-driven derived semantics", () => {
+  it("stores semantics translated through the binding map, clearing un-derived volatile placeholders", async () => {
     await issueTemplatePass({
       template: "iss", serialNumber: "ISS-001", groupId: "ISS@2026-07-01",
-      data: { passenger: "Ada Lovelace", seat: "14F", confirmation: "GHK2X9", "fare-class": "Y", priority: "Gold" }
+      data: { passenger: "Ada Lovelace", seat: "14F", gate: "B9", confirmation: "ZZTOP1", "fare-class": "J", priority: "Platinum" }
     });
     const rec = await getPassRecord("ISS-001");
     expect(rec.data.semantics).toEqual({
+      // boarding dates were not in the issue data → cleared (null deletes at merge)
+      currentBoardingDate: null,
+      originalBoardingDate: null,
       passengerName: { givenName: "Ada", familyName: "Lovelace" },
-      seats: [{ seatNumber: "14F", seatRow: "14", seatSection: "F", seatType: "economy" }],
-      confirmationNumber: "GHK2X9",
-      ticketFareClass: "Y",
-      priorityStatus: "Gold"
+      seats: [{ seatRow: "14", seatNumber: "F", seatType: "economy" }],
+      departureGate: "B9",
+      confirmationNumber: "ZZTOP1",
+      ticketFareClass: "J",
+      priorityStatus: "Platinum"
     });
+  });
+
+  it("populates both date pairs from a bound date input", async () => {
+    await issueTemplatePass({
+      template: "iss", serialNumber: "ISS-004", groupId: "ISS@2026-07-01",
+      data: { boarding: "2026-08-01T09:10:00+08:00" }
+    });
+    const rec = await getPassRecord("ISS-004");
+    expect(rec.data.semantics.currentBoardingDate).toBe("2026-08-01T09:10:00+08:00");
+    expect(rec.data.semantics.originalBoardingDate).toBe("2026-08-01T09:10:00+08:00");
   });
 
   it("lets explicit data.semantics win over derived values", async () => {
@@ -87,11 +116,20 @@ describe("issueTemplatePass — derived semantics", () => {
     expect(rec.data.semantics.passengerName).toEqual({ givenName: "Augusta Ada", familyName: "King" });
   });
 
-  it("stores data without a semantics key when nothing is derivable", async () => {
+  it("clears ALL volatile placeholders when nothing is derivable, and the merge deletes them", async () => {
     await issueTemplatePass({
       template: "iss", serialNumber: "ISS-003", groupId: "ISS@2026-07-01", data: {}
     });
     const rec = await getPassRecord("ISS-003");
-    expect(rec.data.semantics).toBeUndefined();
+    expect(rec.data.semantics).toEqual({
+      currentBoardingDate: null, originalBoardingDate: null, passengerName: null, seats: null
+    });
+    const merged = applyTemplateData(JSON.parse(PASS_JSON), rec.data);
+    expect(merged.semantics.passengerName).toBeUndefined();
+    expect(merged.semantics.seats).toBeUndefined();
+    expect(merged.semantics.currentBoardingDate).toBeUndefined();
+    expect(merged.semantics.originalBoardingDate).toBeUndefined();
+    // non-volatile template semantics survive untouched
+    expect(merged.semantics.confirmationNumber).toBe("GHK2X9");
   });
 });

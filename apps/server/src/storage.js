@@ -59,6 +59,11 @@ function open() {
       entries_json TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS template_bindings (
+      template_id   TEXT PRIMARY KEY,
+      bindings_json TEXT NOT NULL,
+      updated_at    TEXT NOT NULL
+    );
   `);
   importLegacyJson();
   return db;
@@ -262,6 +267,32 @@ export async function updatePassData(serial, mutator) {
   rec.lastModified = new Date().toUTCString();
   writePass(serial, rec);
   return rec;
+}
+
+/**
+ * The stored semanticKey → fieldKey binding map for a template, or null when
+ * none has been saved yet (caller discovers + saves on first use).
+ * @returns {Promise<Record<string, {fieldKey: string, source: string, confidence: string}> | null>}
+ */
+export async function getTemplateBindings(templateId) {
+  const row = open().prepare("SELECT bindings_json FROM template_bindings WHERE template_id = ?").get(templateId);
+  return row ? JSON.parse(row.bindings_json) : null;
+}
+
+/** Upsert a template's binding map (replaces the whole map). */
+export async function saveTemplateBindings(templateId, bindings) {
+  open().prepare(`
+    INSERT INTO template_bindings (template_id, bindings_json, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(template_id) DO UPDATE SET
+      bindings_json = excluded.bindings_json,
+      updated_at    = excluded.updated_at
+  `).run(templateId, JSON.stringify(bindings ?? {}), new Date().toISOString());
+}
+
+/** Drop a template's stored bindings (template deleted, or force re-discovery). */
+export async function deleteTemplateBindings(templateId) {
+  open().prepare("DELETE FROM template_bindings WHERE template_id = ?").run(templateId);
 }
 
 export async function registerDevice({ deviceLibraryIdentifier, passTypeIdentifier, serialNumber, pushToken }) {

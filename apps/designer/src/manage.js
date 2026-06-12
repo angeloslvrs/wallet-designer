@@ -10,12 +10,14 @@ import { buildStatusBody, describePushResult } from "./ops.js";
 
 // [bodyKey, placeholder, selectOptions?] — entries with options render as a
 // <select> whose empty first option means "no change" (buildStatusBody drops it).
+// Body keys are Apple's semantic keys (the status API vocabulary); the old
+// verbs (gate, boarding, …) remain accepted server-side as aliases.
 const STATUS_FIELDS = [
-  ["gate", "Gate (B7)"],
-  ["boarding", "Boarding (2026-06-20T07:30:00-07:00)"],
-  ["depart", "Depart (ISO time)"],
-  ["arrive", "Arrive (ISO time)"],
-  ["transitInfo", "Transit info"],
+  ["departureGate", "Gate (B7)"],
+  ["currentBoardingDate", "Boarding (2026-06-20T07:30:00-07:00)"],
+  ["currentDepartureDate", "Depart (ISO time)"],
+  ["currentArrivalDate", "Arrive (ISO time)"],
+  ["transitProvider", "Transit info"],
   ["securityScreening", "Security screening"],
   ["delayed", "Delay note"],
   ["transitStatus", "Status", ["", "On Time", "Delayed", "Cancelled", "Diverted"]],
@@ -159,7 +161,7 @@ export function mountManage(root, showDesigner) {
       if (rec?.state) { replaceState(rec.state); renderForm(document.getElementById("form-pane")); showDesigner(); }
       return;
     }
-    if (act === "gate")  { const g = prompt(`New gate for ${serial}:`); if (g != null) await pushOne(serial, { gate: g }); return; }
+    if (act === "gate")  { const g = prompt(`New gate for ${serial}:`); if (g != null) await pushOne(serial, { departureGate: g }); return; }
     if (act === "delay") { const d = prompt(`Delay note for ${serial}:`, "ATC delay — new boarding 06:30"); if (d != null) await pushOne(serial, { delayed: d }); return; }
     if (act === "status") {
       const s = prompt(`Status for ${serial} (On Time / Delayed / Cancelled — empty clears):`, "Delayed");
