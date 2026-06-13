@@ -116,3 +116,13 @@ fieldset > legend { font-weight: 600; padding: 0 4px; }
 label { display: block; margin: 8px 0 2px; font-size: 12px; color: #555; }
 input, select { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font: inherit; }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.suggest-btn { background:#1a2150; color:#fff; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:12px; margin-bottom:6px; }
+.df-section { border-top: 1px solid #ececf2; padding: 6px 0; }
+.df-head { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 3px; }
+.df-row { display: flex; gap: 6px; align-items: center; margin: 3px 0; }
+.df-row .df-key { flex: 0 0 96px; font-size: 12px; }
+.df-row .df-label { flex: 1; }
+.df-row .df-value { flex: 2; }
+.df-row button { flex: none; width: auto; }
+.df-add { font-size: 12px; margin-top: 2px; width: auto; }
