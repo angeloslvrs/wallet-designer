@@ -11,8 +11,11 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TIMEZONE_KEY_ALIASES } from "./semantics.js";
+import { TIMEZONE_KEY_ALIASES, REQUIRED_SEMANTICS } from "./semantics.js";
+import { semanticKind, kindAttrs } from "./field-kinds.js";
 import { signPkpass } from "./sign.js";
+
+const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
 
 /**
  * Per-pass data accepted by {@link applyTemplateData}:
@@ -70,24 +73,49 @@ export function templateFieldKeys(passJson) {
 }
 
 /**
- * Per-field type descriptors for the template's declared fields, across all
- * zones of its style dict. `kind` tells the issue UI which input to render so
- * values come out in the format the field expects: a field carrying
- * `dateStyle`/`timeStyle` holds an ISO-8601 timestamp (iOS rejects the pass at
- * install if it is not valid ISO-8601), so it gets a date picker; everything
- * else is free text.
+ * Per-field validation descriptors for the template's declared fields, across
+ * all zones of its style dict. The issue/manage UI renders an input from `kind`
+ * and validates against it; the server enforces the same kinds (defense in
+ * depth). Resolution order for a field's `kind`, highest authority first:
+ *   1. the field is bound to a semantic → the spec type of that semantic
+ *      (see {@link semanticKind}); rules attach to semantics, never to the
+ *      template's arbitrary field-key names.
+ *   2. `dateStyle`/`timeStyle` present → "date" (the value is ISO-8601; iOS
+ *      rejects the pass at install if it is not).
+ *   3. `numberStyle` present → "number".
+ *   4. otherwise → "text" (free, but flagged when required-by-binding & empty).
  * @param {object} passJson
- * @returns {{key: string, label?: string, kind: "date"|"text"}[]}
+ * @param {Record<string, {fieldKey: string}>} [bindings] semanticKey → binding
+ * @returns {{key: string, label?: string, kind: import("./field-kinds.js").FieldKind,
+ *            required: boolean, boundSemantic: string|null,
+ *            maxLength?: number, pattern?: string, inputmode?: string}[]}
  */
-export function templateFieldDescriptors(passJson) {
+export function templateFieldDescriptors(passJson, bindings = {}) {
   const style = styleKey(passJson);
   if (!style) return [];
+  // Invert the binding map to fieldKey → semanticKey (first binding wins).
+  const fieldToSemantic = {};
+  for (const [semanticKey, b] of Object.entries(bindings ?? {})) {
+    if (b?.fieldKey && !(b.fieldKey in fieldToSemantic)) fieldToSemantic[b.fieldKey] = semanticKey;
+  }
   const out = [];
   for (const zone of FIELD_ZONES) {
     for (const field of passJson[style][zone] ?? []) {
       if (field?.key === undefined) continue;
-      const isDate = field.dateStyle !== undefined || field.timeStyle !== undefined;
-      out.push({ key: field.key, label: field.label, kind: isDate ? "date" : "text" });
+      const boundSemantic = fieldToSemantic[field.key] ?? null;
+      let kind;
+      if (boundSemantic) kind = semanticKind(boundSemantic);
+      else if (field.dateStyle !== undefined || field.timeStyle !== undefined) kind = "date";
+      else if (field.numberStyle !== undefined) kind = "number";
+      else kind = "text";
+      out.push({
+        key: field.key,
+        label: field.label,
+        kind,
+        required: boundSemantic ? REQUIRED_SEMANTIC_SET.has(boundSemantic) : false,
+        boundSemantic,
+        ...kindAttrs(kind)
+      });
     }
   }
   return out;

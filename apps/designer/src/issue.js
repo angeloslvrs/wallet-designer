@@ -3,6 +3,7 @@ import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
 import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
+import { kindAttrs, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput } from "./inputs.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
@@ -119,10 +120,100 @@ export function mountIssue(root, showManage) {
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
-  // A field's expected input type, from the template's declared field metadata
-  // (server-derived in templateFieldDescriptors): "date" fields hold ISO-8601 and
-  // get a datetime picker so a mistyped value can't ship a pass iOS won't install.
-  const fieldKind = (k) => current()?.fields?.find(f => f.key === k)?.kind ?? "text";
+  // A field's full descriptor (kind/required/affordances), server-derived in
+  // templateFieldDescriptors by resolving the field's bound semantic. Defaults
+  // to free text for an unknown key.
+  const descriptorFor = (k) => current()?.fields?.find(f => f.key === k) ?? { key: k, kind: "text", required: false };
+  // A field's expected input type: "date" fields hold ISO-8601 and get a
+  // datetime picker so a mistyped value can't ship a pass iOS won't install;
+  // iata/number/seat get their own affordance; everything else is free text.
+  const fieldKind = (k) => descriptorFor(k).kind;
+
+  // HTML attribute string for a non-date input, from the kind's affordances.
+  function inputAttrs(kind) {
+    const a = kindAttrs(kind);
+    const out = [`data-kind="${esc(kind)}"`];
+    if (a.maxLength) out.push(`maxlength="${a.maxLength}"`);
+    if (a.inputmode) out.push(`inputmode="${esc(a.inputmode)}"`);
+    return out.join(" ");
+  }
+  const errMsg = (k, value) => {
+    const d = descriptorFor(k);
+    return validateFieldValue({ kind: d.kind, required: d.required }, value);
+  };
+  const setErr = (span, msg) => { if (span) { span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg)); } };
+  const sharedErrSpan = (k) => root.querySelector(`[data-err-shared="${CSS.escape(k)}"]`);
+  const rowErrSpan = (i, k) => root.querySelector(`.iss-row[data-i="${i}"] [data-err-key="${CSS.escape(k)}"]`);
+  // The error slot for a given typed input element (shared or row-scoped).
+  const spanOf = (inp) => inp.dataset.sharedKey
+    ? sharedErrSpan(inp.dataset.sharedKey)
+    : (inp.closest(".iss-row") ? rowErrSpan(Number(inp.closest(".iss-row").dataset.i), inp.dataset.key) : null);
+  // While typing: clear an already-shown error the moment the value becomes
+  // valid, but don't surface a new error mid-keystroke (that waits for blur).
+  const liveClearError = (inp) => {
+    const span = spanOf(inp);
+    if (span?.classList.contains("show")) setErr(span, errMsg(inp.dataset.sharedKey ?? inp.dataset.key, inp.value));
+  };
+
+  // The shared/individual field controls + their inline-error slots. A date
+  // field keeps the typed picker (mounted post-render); the rest are plain
+  // inputs carrying their kind's affordances.
+  function sharedFieldHtml(k) {
+    const control = fieldKind(k) === "date"
+      ? `<div class="iss-typed" data-typed-shared="${esc(k)}" title="${esc(k)} (ISO-8601)"></div>`
+      : `<input data-shared-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />`;
+    return `${control}<span class="field-err" data-err-shared="${esc(k)}"></span>`;
+  }
+  function rowFieldHtml(k, r, i) {
+    const control = fieldKind(k) === "date"
+      ? `<div class="iss-typed" data-typed-key="${esc(k)}" data-i="${i}" title="${esc(k)} (ISO-8601)"></div>`
+      : `<input data-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`;
+    return `<span class="iss-field">${control}<span class="field-err" data-err-key="${esc(k)}"></span></span>`;
+  }
+
+  // Every invalid field across the trip, reading text inputs from the DOM and
+  // date fields from state (their pickers write straight to state). Required-
+  // but-empty fields count as invalid so the Issue button stays disabled.
+  function collectValidationErrors() {
+    const tpl = current();
+    if (!tpl || tpl.error) return [];
+    const errs = [];
+    const sharedKeys = (tpl.fieldKeys ?? []).filter(k => !individualKeys.has(k));
+    for (const k of sharedKeys) {
+      const v = fieldKind(k) === "date" ? shared[k] : (root.querySelector(`input[data-shared-key="${CSS.escape(k)}"]`)?.value ?? shared[k] ?? "");
+      const msg = errMsg(k, v);
+      if (msg) errs.push({ scope: "shared", key: k, msg });
+    }
+    const indKeys = (tpl.fieldKeys ?? []).filter(k => individualKeys.has(k));
+    rows.forEach((r, i) => {
+      const rowEl = root.querySelector(`.iss-row[data-i="${i}"]`);
+      for (const k of indKeys) {
+        const v = fieldKind(k) === "date" ? r.values[k] : (rowEl?.querySelector(`input[data-key="${CSS.escape(k)}"]`)?.value ?? r.values[k] ?? "");
+        const msg = errMsg(k, v);
+        if (msg) errs.push({ scope: "row", i, key: k, msg });
+      }
+    });
+    return errs;
+  }
+
+  // Disable the Issue button while anything is invalid, with a visible reason.
+  function refreshGate() {
+    const btn = root.querySelector('button[data-act="issue"]');
+    if (!btn) return;
+    const errs = collectValidationErrors();
+    btn.disabled = errs.length > 0;
+    const reason = root.querySelector("#iss-gate-reason");
+    if (reason) reason.textContent = errs.length ? `Fix ${errs.length} field(s) before issuing` : "";
+  }
+
+  // Render an error beside every offending field (used on submit).
+  function showAllErrors() {
+    for (const span of root.querySelectorAll(".field-err")) setErr(span, "");
+    const errs = collectValidationErrors();
+    for (const e of errs) setErr(e.scope === "shared" ? sharedErrSpan(e.key) : rowErrSpan(e.i, e.key), e.msg);
+    refreshGate();
+    return errs;
+  }
 
   function reSuggestSerials() {
     rows = rows.map((r, i) => r.serialEdited ? r : { ...r, serial: suggestSerial(groupId, i + 1) });
@@ -156,10 +247,7 @@ export function mountIssue(root, showManage) {
   }
 
   function rowHtml(r, i) {
-    const fields = (current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)).map(k =>
-      fieldKind(k) === "date"
-        ? `<div class="iss-typed" data-typed-key="${esc(k)}" data-i="${i}" title="${esc(k)} (ISO-8601)"></div>`
-        : `<input data-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`).join("");
+    const fields = (current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)).map(k => rowFieldHtml(k, r, i)).join("");
     return `
       <div class="iss-row mg-row" data-i="${i}">
         <div class="iss-sem-wrap">
@@ -255,9 +343,7 @@ export function mountIssue(root, showManage) {
             ${sharedKeys.map(k => `
               <div class="iss-shared-row">
                 <label title="${esc(k)}">${esc(k)}</label>
-                ${fieldKind(k) === "date"
-                  ? `<div class="iss-typed" data-typed-shared="${esc(k)}" title="${esc(k)} (ISO-8601)"></div>`
-                  : `<input data-shared-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />`}
+                ${sharedFieldHtml(k)}
                 <button data-act="to-individual" data-key="${esc(k)}" class="iss-toggle" title="vary this per passenger">individualize →</button>
               </div>`).join("") || `<p class="hint">No shared fields — every field is per-passenger.</p>`}
           </div>
@@ -300,6 +386,7 @@ export function mountIssue(root, showManage) {
           <div class="mg-list">${indHeader}${rows.map(rowHtml).join("")}</div>
           <div class="mg-editor-acts">
             <button data-act="issue">Issue ${rows.length} pass(es)</button>
+            <span class="hint" id="iss-gate-reason"></span>
             <span class="mg-grp-status" id="iss-status"></span>
           </div>
         </div>
@@ -307,6 +394,7 @@ export function mountIssue(root, showManage) {
       </div>`;
     mountSemanticsEditors();
     mountTypedFields();
+    refreshGate();   // initial button state (required-but-empty fields disable it)
   }
 
   // Mount typed inputs (currently ISO-8601 date pickers) into their placeholders
@@ -375,6 +463,8 @@ export function mountIssue(root, showManage) {
     syncFromInputs();
     const status = $("#iss-status");
     if (!groupId.trim()) { status.textContent = "✗ trip id is required for template passes"; return; }
+    const invalid = showAllErrors();
+    if (invalid.length) { status.textContent = `✗ fix ${invalid.length} invalid field(s) before issuing`; return; }
     status.textContent = "Issuing…";
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
@@ -541,6 +631,24 @@ export function mountIssue(root, showManage) {
       const i = Number(e.target.closest(".iss-row").dataset.i);
       rows = rows.map((r, n) => n === i ? { ...r, serialEdited: true } : r);
     }
+    if (e.target.matches("input[data-kind]")) {
+      const inp = e.target;
+      if (inp.dataset.kind === "iata" && inp.value !== inp.value.toUpperCase()) {
+        const pos = inp.selectionStart;
+        inp.value = inp.value.toUpperCase();
+        try { inp.setSelectionRange(pos, pos); } catch { /* unfocused / unsupported */ }
+      }
+      liveClearError(inp);
+      refreshGate();
+    }
+  }, { signal });
+
+  // Validate a typed field when focus leaves it — show the inline error then.
+  root.addEventListener("focusout", (e) => {
+    const inp = e.target;
+    if (!inp?.matches?.("input[data-kind]")) return;
+    setErr(spanOf(inp), errMsg(inp.dataset.sharedKey ?? inp.dataset.key, inp.value));
+    refreshGate();
   }, { signal });
 
   root.addEventListener("change", (e) => {

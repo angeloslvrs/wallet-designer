@@ -1,6 +1,25 @@
 // Pure helpers for the ops (Manage) view: turn status-editor inputs into a
 // status-route body, and push-route responses into one-line summaries.
 
+import { semanticKind, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
+
+/**
+ * Validate the status-editor's values the same way the issue form and the
+ * server do: each field's kind comes from its semantic (the editor's keys ARE
+ * semantic keys), so a date edit must be ISO-8601, etc. Empty values clear a
+ * semantic and are fine. Returns { fieldKey: message } for the invalid ones.
+ * @param {Record<string, string>} values
+ * @returns {Record<string, string>}
+ */
+export function validateStatusValues(values) {
+  const errors = {};
+  for (const [key, raw] of Object.entries(values ?? {})) {
+    const msg = validateFieldValue({ kind: semanticKind(key), required: false }, raw);
+    if (msg) errors[key] = msg;
+  }
+  return errors;
+}
+
 /**
  * Collect the non-empty status-editor fields into a body for the status
  * routes. Returns null when nothing was entered (caller shows a hint instead

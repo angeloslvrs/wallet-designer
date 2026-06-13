@@ -58,8 +58,9 @@ async function saveTemplate() {
   else { alert("Could not save template"); }
 }
 
-// Designer / Issue / Manage view toggle.
-function wireViewTabs() {
+// Issue / Manage / Design view toggle. The template→issue→manage flow is the
+// front door; the hand-designer is the secondary "Design (advanced)" tab.
+function wireViewTabs(initialView = "issue") {
   const tabs = document.getElementById("view-tabs");
   const main = document.querySelector("main");
   const managePane = document.getElementById("manage-pane");
@@ -73,6 +74,7 @@ function wireViewTabs() {
     if (view === "issue") mountIssue(issuePane, () => show("manage"));
   };
   tabs.addEventListener("click", e => { if (e.target.dataset?.view) show(e.target.dataset.view); });
+  show(initialView);   // land on the issue flow, not the hand-designer
 }
 
 async function maybeLoadFromUrl() {

@@ -1,7 +1,7 @@
 import { replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { esc } from "./esc.js";
-import { buildStatusBody, describePushResult } from "./ops.js";
+import { buildStatusBody, describePushResult, validateStatusValues } from "./ops.js";
 
 // Manage view — the ops console: every issued pass grouped by trip, with
 // Add-to-Wallet, per-pass quick actions, a full status editor per trip
@@ -104,11 +104,13 @@ export function mountManage(root, showDesigner) {
           <div class="mg-status" data-status="${esc(p.serial)}"></div>
         </div>`).join("");
 
-      const editor = STATUS_FIELDS.map(([key, ph, options]) =>
-        options
+      const editor = STATUS_FIELDS.map(([key, ph, options]) => {
+        const control = options
           ? `<select data-f="${key}" title="${esc(ph)}">${options.map(o =>
               `<option value="${esc(o)}">${esc(o || `${ph}: (no change)`)}</option>`).join("")}</select>`
-          : `<input data-f="${key}" placeholder="${esc(ph)}" />`).join("");
+          : `<input data-f="${key}" placeholder="${esc(ph)}" />`;
+        return `<span class="mg-field">${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
+      }).join("");
 
       return `
         <div class="mg-card" data-card="${esc(gid)}">
@@ -176,8 +178,16 @@ export function mountManage(root, showDesigner) {
       const card = t.closest(".mg-card");
       const values = {};
       for (const inp of card.querySelectorAll(".mg-editor [data-f]")) values[inp.dataset.f] = inp.value;
-      const body = buildStatusBody(values);
       const el = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
+      // Same guardrails as the issue form: a date/gate edit must be well-formed
+      // before it pushes to every installed pass on the trip.
+      const errs = validateStatusValues(values);
+      for (const span of card.querySelectorAll(".mg-editor [data-ferr]")) {
+        const msg = errs[span.dataset.ferr];
+        span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg));
+      }
+      if (Object.keys(errs).length) { if (el) el.textContent = `✗ fix ${Object.keys(errs).length} invalid field(s) before pushing`; return; }
+      const body = buildStatusBody(values);
       if (!body) { if (el) el.textContent = "✗ nothing to update — fill in at least one field"; return; }
       await pushGroup(grp, body);
       return;
@@ -185,6 +195,15 @@ export function mountManage(root, showDesigner) {
     if (act === "grp-clear") { await pushGroup(grp, { delayed: "", transitStatus: "", transitStatusReason: "" }); return; }
     if (act === "grp-del")   { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
     if (act === "log-refresh") { loadLog(); return; }
+  }, { signal });
+
+  // Validate a status-editor field when focus leaves it (same kinds as issue).
+  root.addEventListener("focusout", (e) => {
+    const inp = e.target;
+    if (!inp?.matches?.(".mg-editor [data-f]")) return;
+    const msg = validateStatusValues({ [inp.dataset.f]: inp.value })[inp.dataset.f];
+    const span = inp.parentElement?.querySelector("[data-ferr]");
+    if (span) { span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg)); }
   }, { signal });
 
   load();

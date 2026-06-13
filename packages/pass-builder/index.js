@@ -7,6 +7,7 @@ import { validate } from "./validate.js";
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, templateFieldDescriptors, buildPkpassFromTemplate, stripInternalIds, mirrorTimeZoneAliases, ensureBaseImageVariants, isSemanticDriven } from "./template.js";
 export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
+export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from "./field-kinds.js";
 export { discoverBindings, collectFields } from "./bindings.js";
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";

@@ -27,13 +27,16 @@ export async function handleTemplateList(_req, res) {
     const id = name.slice(0, -BUNDLE_SUFFIX.length);
     try {
       const { passJson, assets } = await loadTemplate(join(templatesRoot(), name));
+      const bindings = await bindingsForTemplate(id, passJson);
       out.push({
         id,
         description: passJson.description,
         organizationName: passJson.organizationName,
         fieldKeys: templateFieldKeys(passJson),
-        fields: templateFieldDescriptors(passJson),
-        bindings: await bindingsForTemplate(id, passJson),
+        // Descriptors resolve each field's validation kind through the bindings
+        // (semantics → kind), so the issue UI and server validate identically.
+        fields: templateFieldDescriptors(passJson, bindings),
+        bindings,
         semantics: passJson.semantics ?? {},
         assets: Object.keys(assets)
       });

@@ -116,6 +116,20 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .sem-editor > select { margin-top: 6px; font-size: 12px; }
 #issue-pane .mg-editor-acts { padding: 12px 18px; border-top: 1px solid #ececf2; }
 
+/* Inline validation: typed field + its error message, and a disabled-with-reason
+   submit button. Errors are hidden until .show is added on blur/submit. */
+.field-err { font-size: 11px; color: #c0182f; display: none; }
+.field-err.show { display: inline-block; }
+.iss-shared-row { flex-wrap: wrap; }
+.iss-shared-row .field-err.show { flex: 1 0 100%; padding-left: 158px; }
+.iss-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 120px; min-width: 0; }
+.iss-field input { flex: 1 1 120px; min-width: 0; font-size: 12px; }
+.iss-field .field-err.show { flex: 1 0 100%; }
+button[data-act="issue"]:disabled { opacity: 0.5; cursor: not-allowed; }
+#iss-gate-reason { color: #c0182f; font-size: 12px; }
+.mg-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mg-field input, .mg-field select { width: 100%; }
+
 fieldset { border: 1px solid #e5e5e8; border-radius: 6px; margin-bottom: 12px; padding: 8px 12px; }
 fieldset > legend { font-weight: 600; padding: 0 4px; }
 label { display: block; margin: 8px 0 2px; font-size: 12px; color: #555; }

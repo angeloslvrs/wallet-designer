@@ -2,14 +2,17 @@
 // for a single pass or for a whole trip (group of passes on one flight).
 
 import { Router } from "express";
-import { applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven } from "@wpd/pass-builder";
+import {
+  applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven,
+  templateFieldDescriptors, validateFieldValue, normalizeFieldValue
+} from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
   devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 import {
-  applyStatusToTemplateData, normalizeStatusBody,
+  applyStatusToTemplateData, normalizeStatusBody, validateStatusBody,
   transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS
 } from "../template-status.js";
 import { bindingsForTemplate } from "../template-bindings.js";
@@ -87,19 +90,40 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
     throw new Error("data must be an object of fieldKey → value");
   }
   const { passJson } = await loadTemplate(templateDir(template));
-  applyTemplateData(passJson, data);
+  applyTemplateData(passJson, data);   // dry-run merge: unknown field keys fail here
+
+  // Defense in depth: validate every PROVIDED field value against its
+  // descriptor kind (resolved from the template's bindings → semantics), so a
+  // malformed value (bad airport code, non-numeric sequence, non-ISO date) is
+  // rejected at issue time rather than shipping a broken pass. Empty/absent
+  // values fall back to the template default, so only non-empty values are
+  // checked here (required-ness is the UI's submit gate). Valid values are
+  // normalized (IATA codes uppercased) before storage.
+  const bindings = await bindingsForTemplate(template, passJson);
+  const descByKey = Object.fromEntries(templateFieldDescriptors(passJson, bindings).map(d => [d.key, d]));
+  const errors = [];
+  const normalizedData = {};
+  for (const [key, raw] of Object.entries(data)) {
+    const d = descByKey[key];
+    if (!d) { normalizedData[key] = raw; continue; }   // reserved/non-field keys pass through
+    const msg = validateFieldValue({ kind: d.kind, required: false }, fieldDataValue(raw));
+    if (msg) { errors.push(`${key}: ${msg}`); continue; }
+    normalizedData[key] = typeof raw === "string" ? normalizeFieldValue(d.kind, raw) : raw;
+  }
+  if (errors.length) throw new Error(errors.join("; "));
+
   // Semantics-first: the client sends explicit `data.semantics` (filled-only,
   // typed via SEMANTIC_CATALOG). The server NEVER derives semantics from display
   // fields — that mis-mapped time fields onto airport codes and shipped non-ISO
   // dates. Volatile placeholders the user left unset are cleared (null deletes at
   // merge), so the template's sample values never ship.
-  const explicit = (data.semantics && typeof data.semantics === "object") ? data.semantics : {};
+  const explicit = (normalizedData.semantics && typeof normalizedData.semantics === "object") ? normalizedData.semantics : {};
   const clears = {};
   for (const k of VOLATILE_ISSUE_SEMANTICS) {
     if (passJson.semantics?.[k] !== undefined && explicit[k] === undefined) clears[k] = null;
   }
   const semantics = { ...clears, ...explicit };
-  const stored = Object.keys(semantics).length ? { ...data, semantics } : data;
+  const stored = Object.keys(semantics).length ? { ...normalizedData, semantics } : normalizedData;
   return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
 }
 
@@ -181,6 +205,8 @@ async function applyStatusToStoredPass(serial, body) {
 
 // POST /api/passes/:serial/status  →  update one pass + push its devices
 adminRouter.post("/passes/:serial/status", async (req, res) => {
+  const invalid = validateStatusBody(req.body ?? {});
+  if (invalid.length) return res.status(400).json({ error: invalid.join("; "), fields: invalid });
   try {
     const result = await applyStatusToStoredPass(req.params.serial, req.body ?? {});
     if (!result) return res.status(404).json({ error: "pass not registered — POST /api/passes first" });
@@ -196,6 +222,8 @@ adminRouter.post("/passes/:serial/status", async (req, res) => {
 
 // POST /api/groups/:groupId/status  →  update EVERY pass on the flight + push all devices
 adminRouter.post("/groups/:groupId/status", async (req, res) => {
+  const invalid = validateStatusBody(req.body ?? {});
+  if (invalid.length) return res.status(400).json({ error: invalid.join("; "), fields: invalid });
   const members = await passesInGroup(req.params.groupId);
   if (!members.length) return res.status(404).json({ error: "no passes in this group" });
   try {

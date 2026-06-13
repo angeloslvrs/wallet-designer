@@ -15,7 +15,7 @@
 // — visible fields keep the whole patch (so a push can carry a lock-screen
 // banner), semantics always take the .value.
 
-import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS } from "@wpd/pass-builder";
+import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS, semanticKind, validateFieldValue } from "@wpd/pass-builder";
 
 const isPatch = (raw) => raw !== null && typeof raw === "object" && !Array.isArray(raw);
 const valueOf = (raw) => (isPatch(raw) ? raw.value : raw);
@@ -44,6 +44,25 @@ export function normalizeStatusBody(body = {}) {
     if (alias in body && !(semantic in out)) out[semantic] = body[alias];
   }
   return out;
+}
+
+/**
+ * Validate a status-update body before it is applied, so a malformed value is
+ * a 400 (with a per-field message) instead of a 500 or a silently-broken pass.
+ * Vocabulary is semantic keys (legacy aliases normalized first); each value's
+ * kind comes from its semantic — the same table the issue path uses. Empty
+ * values clear a semantic, so only non-empty values are checked.
+ * @param {object} [body] status-update request body (semantic or legacy-verb keys)
+ * @returns {string[]} "key: message" per invalid field; [] when clean
+ */
+export function validateStatusBody(body = {}) {
+  const normalized = normalizeStatusBody(body);
+  const errors = [];
+  for (const [key, raw] of Object.entries(normalized)) {
+    const msg = validateFieldValue({ kind: semanticKind(key), required: false }, valueOf(raw));
+    if (msg) errors.push(`${key}: ${msg}`);
+  }
+  return errors;
 }
 
 /** "Delayed" + "crew availability" → "Delayed — crew availability". */

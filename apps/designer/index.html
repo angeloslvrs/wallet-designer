@@ -9,13 +9,13 @@
     <header>
       <h1>wallet-pass-designer</h1>
       <nav id="view-tabs">
-        <button data-view="designer" class="active">Designer</button>
-        <button data-view="issue">Issue</button>
+        <button data-view="issue" class="active">Issue</button>
         <button data-view="manage">Manage</button>
+        <button data-view="designer">Design (advanced)</button>
       </nav>
       <span id="profile-badge">…</span>
     </header>
-    <main>
+    <main hidden>
       <section id="form-pane"></section>
       <section id="preview-pane">
         <nav id="tabs">
@@ -35,7 +35,7 @@
       </section>
     </main>
     <section id="manage-pane" hidden></section>
-    <section id="issue-pane" hidden></section>
+    <section id="issue-pane"></section>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

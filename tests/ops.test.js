@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildStatusBody, describePushResult } from "../apps/designer/src/ops.js";
+import { buildStatusBody, describePushResult, validateStatusValues } from "../apps/designer/src/ops.js";
 
 describe("buildStatusBody", () => {
   it("keeps only non-empty trimmed fields", () => {
@@ -53,5 +53,23 @@ describe("describePushResult", () => {
   it("describes a group push with no skips", () => {
     expect(describePushResult({ ok: true, count: 2, sent: 4, results: [] }))
       .toBe("✓ 2 pass(es), 4 device(s)");
+  });
+});
+
+describe("validateStatusValues", () => {
+  it("flags a non-ISO date field by its semantic kind", () => {
+    const errs = validateStatusValues({ currentBoardingDate: "soon", departureGate: "B7" });
+    expect(errs.currentBoardingDate).toMatch(/date/i);
+    expect(errs.departureGate).toBeUndefined();
+  });
+
+  it("is empty when every field is valid or blank", () => {
+    expect(validateStatusValues({
+      currentBoardingDate: "2026-06-20T07:30:00-07:00", departureGate: "B7", delayed: ""
+    })).toEqual({});
+  });
+
+  it("does not constrain free-text status fields", () => {
+    expect(validateStatusValues({ transitStatus: "Delayed", transitStatusReason: "crew availability" })).toEqual({});
   });
 });
