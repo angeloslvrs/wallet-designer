@@ -127,20 +127,36 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
   return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
 }
 
+/**
+ * Core of POST /api/passes for both body shapes. Reports `created` — false when
+ * a pass with this serial already existed and was OVERWRITTEN. Apple keys a
+ * pass by serialNumber + passTypeId, so re-posting a serial UPDATES that pass
+ * rather than creating a second one; surfacing created:false lets the issue UI
+ * flag an accidental clobber instead of it passing silently. The existence
+ * check must run BEFORE the save.
+ * @param {object} body full FormState, or { template, serialNumber, data, groupId }
+ */
+export async function registerPass(body = {}) {
+  const isTemplate = typeof body?.template === "string";
+  const serialNumber = isTemplate ? body.serialNumber : body?.meta?.serialNumber;
+  const created = serialNumber ? !(await getPassRecord(serialNumber)) : true;
+  const rec = isTemplate ? await issueTemplatePass(body) : await savePass(body);
+  return {
+    serialNumber: isTemplate ? body.serialNumber : body.meta.serialNumber,
+    authenticationToken: rec.authenticationToken,
+    groupId: rec.groupId,
+    lastModified: rec.lastModified,
+    created,
+    ...(rec.template && { template: rec.template })
+  };
+}
+
 // POST /api/passes  →  registers a "live" pass. Two body shapes:
 //   full FormState                                  (designer flow)
 //   { template, serialNumber, data, groupId }       (template flow)
 adminRouter.post("/passes", async (req, res) => {
   try {
-    const isTemplate = typeof req.body?.template === "string";
-    const rec = isTemplate ? await issueTemplatePass(req.body) : await savePass(req.body);
-    res.status(201).json({
-      serialNumber: isTemplate ? req.body.serialNumber : req.body.meta.serialNumber,
-      authenticationToken: rec.authenticationToken,
-      groupId: rec.groupId,
-      lastModified: rec.lastModified,
-      ...(rec.template && { template: rec.template })
-    });
+    res.status(201).json(await registerPass(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

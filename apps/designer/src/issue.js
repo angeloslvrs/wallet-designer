@@ -117,6 +117,10 @@ export function mountIssue(root, showManage) {
   let shared = {};
   let fieldsInitFor = null;    // template id whose shared/individual split is seeded
   let baseSemantics = {};      // the selected template's baked semantics (editor seed)
+  // Serials already issued (GET /api/passes). Apple requires serialNumber to be
+  // unique per pass type — re-posting one UPDATES that pass rather than creating
+  // a new one, so we warn before an issue would silently overwrite an existing one.
+  let existingSerials = new Set();
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -144,6 +148,25 @@ export function mountIssue(root, showManage) {
   const setErr = (span, msg) => { if (span) { span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg)); } };
   const sharedErrSpan = (k) => root.querySelector(`[data-err-shared="${CSS.escape(k)}"]`);
   const rowErrSpan = (i, k) => root.querySelector(`.iss-row[data-i="${i}"] [data-err-key="${CSS.escape(k)}"]`);
+  const serialErrSpan = (i) => root.querySelector(`.iss-row[data-i="${i}"] [data-err-serial]`);
+  const DUP_SERIAL_MSG = "duplicate serial — each pass needs a unique serial";
+  // Row indices whose (trimmed, non-empty) serial duplicates another row's. Two
+  // rows sharing a serial would silently overwrite each other at issue time —
+  // Apple keys a pass by serialNumber + passTypeId — so it is always a mistake.
+  function serialDuplicateIndices() {
+    const seen = new Map(); const dup = new Set();
+    for (const inp of root.querySelectorAll("input[data-serial]")) {
+      const i = Number(inp.closest(".iss-row").dataset.i);
+      const v = (inp.value ?? "").trim();
+      if (!v) continue;
+      if (seen.has(v)) { dup.add(i); dup.add(seen.get(v)); } else seen.set(v, i);
+    }
+    return dup;
+  }
+  function refreshSerialErrors() {
+    for (const span of root.querySelectorAll("[data-err-serial]")) setErr(span, "");
+    for (const i of serialDuplicateIndices()) setErr(serialErrSpan(i), DUP_SERIAL_MSG);
+  }
   // The error slot for a given typed input element (shared or row-scoped).
   const spanOf = (inp) => inp.dataset.sharedKey
     ? sharedErrSpan(inp.dataset.sharedKey)
@@ -193,6 +216,7 @@ export function mountIssue(root, showManage) {
         if (msg) errs.push({ scope: "row", i, key: k, msg });
       }
     });
+    for (const i of serialDuplicateIndices()) errs.push({ scope: "serial", i, msg: DUP_SERIAL_MSG });
     return errs;
   }
 
@@ -210,7 +234,10 @@ export function mountIssue(root, showManage) {
   function showAllErrors() {
     for (const span of root.querySelectorAll(".field-err")) setErr(span, "");
     const errs = collectValidationErrors();
-    for (const e of errs) setErr(e.scope === "shared" ? sharedErrSpan(e.key) : rowErrSpan(e.i, e.key), e.msg);
+    for (const e of errs) setErr(
+      e.scope === "shared" ? sharedErrSpan(e.key)
+        : e.scope === "serial" ? serialErrSpan(e.i)
+          : rowErrSpan(e.i, e.key), e.msg);
     refreshGate();
     return errs;
   }
@@ -256,7 +283,8 @@ export function mountIssue(root, showManage) {
         </div>
         <div class="iss-fields">
           ${fields}
-          <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id)" />
+          <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id) — must be unique per pass" />
+          <span class="field-err" data-err-serial="${i}"></span>
           <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} title="remove">✕</button>
         </div>
         <div class="mg-status" data-row-status="${i}"></div>
@@ -394,6 +422,7 @@ export function mountIssue(root, showManage) {
       </div>`;
     mountSemanticsEditors();
     mountTypedFields();
+    refreshSerialErrors();   // flag any colliding serials right away
     refreshGate();   // initial button state (required-but-empty fields disable it)
   }
 
@@ -447,9 +476,10 @@ export function mountIssue(root, showManage) {
     if (el) el.innerHTML = html;
   }
 
-  function walletAffordance(serial) {
+  function walletAffordance(serial, updated = false) {
     const url = `${location.origin}/api/passes/${encodeURIComponent(serial)}/pkpass`;
-    return `✓ issued · <a class="btn wallet" href="${esc(url)}">Add to Wallet</a> <canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas>`;
+    const label = updated ? "↻ updated existing pass" : "✓ issued";
+    return `${label} · <a class="btn wallet" href="${esc(url)}">Add to Wallet</a> <canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas>`;
   }
 
   function drawQrCodes() {
@@ -465,6 +495,16 @@ export function mountIssue(root, showManage) {
     if (!groupId.trim()) { status.textContent = "✗ trip id is required for template passes"; return; }
     const invalid = showAllErrors();
     if (invalid.length) { status.textContent = `✗ fix ${invalid.length} invalid field(s) before issuing`; return; }
+    // Apple keys a pass by serialNumber — re-posting an existing serial UPDATES
+    // that pass, it does not create a second one. Confirm before doing so by
+    // accident; an intentional re-issue (e.g. a gate correction) just says OK.
+    const clashes = [...new Set(rows.map(r => (r.serial ?? "").trim()).filter(s => existingSerials.has(s)))];
+    if (clashes.length && !confirm(
+      `${clashes.length} serial(s) already exist and will be UPDATED, not created:\n\n` +
+      `${clashes.join("\n")}\n\nContinue? (Cancel to change the serial and issue a new pass instead.)`)) {
+      status.textContent = "✗ cancelled — change the serial(s) to issue new passes";
+      return;
+    }
     status.textContent = "Issuing…";
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
@@ -478,7 +518,7 @@ export function mountIssue(root, showManage) {
         });
         j = await r.json().catch(() => ({}));
       } catch { setRowStatus(i, "✗ API offline"); continue; }
-      if (r.ok) { okCount++; setRowStatus(i, walletAffordance(j.serialNumber)); }
+      if (r.ok) { okCount++; existingSerials.add(j.serialNumber ?? body.serialNumber); setRowStatus(i, walletAffordance(j.serialNumber, j.created === false)); }
       else setRowStatus(i, esc(describeIssueResult(false, j)));
     }
     drawQrCodes();
@@ -495,6 +535,11 @@ export function mountIssue(root, showManage) {
     bindingDrafts = Object.fromEntries(templates.filter(t => !t.error).map(t =>
       [t.id, Object.fromEntries(Object.entries(t.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]))]));
     if (!templates.length) { renderEmpty(); return; }
+    // Existing serials → warn before an issue would silently overwrite a pass.
+    try {
+      const passes = await fetch("/api/passes").then(r => r.json());
+      existingSerials = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
+    } catch { existingSerials = new Set(); }
     selected ??= (templates.find(t => !t.error) ?? templates[0]).id;
     reSuggestSerials();
     render();
@@ -626,10 +671,14 @@ export function mountIssue(root, showManage) {
         const inp = rowEl.querySelector("input[data-serial]");
         if (inp && !rows[i].serialEdited) inp.value = rows[i].serial;
       }
+      refreshSerialErrors();
+      refreshGate();
     }
     if (e.target.matches("input[data-serial]")) {
       const i = Number(e.target.closest(".iss-row").dataset.i);
       rows = rows.map((r, n) => n === i ? { ...r, serialEdited: true } : r);
+      refreshSerialErrors();
+      refreshGate();
     }
     if (e.target.matches("input[data-kind]")) {
       const inp = e.target;

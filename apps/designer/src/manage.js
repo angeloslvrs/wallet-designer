@@ -2,6 +2,8 @@ import { replaceState } from "./state.js";
 import { renderForm } from "./form.js";
 import { esc } from "./esc.js";
 import { buildStatusBody, describePushResult, validateStatusValues } from "./ops.js";
+import { semanticKind } from "@wpd/pass-builder/field-kinds.js";
+import { renderTypedInput } from "./inputs.js";
 
 // Manage view — the ops console: every issued pass grouped by trip, with
 // Add-to-Wallet, per-pass quick actions, a full status editor per trip
@@ -34,6 +36,12 @@ export function mountManage(root, showDesigner) {
   // click would fire each action once per visit (duplicate prompts/deletes).
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
+
+  // Typed (ISO-8601 date) status-editor values, keyed by trip id then field key.
+  // Date fields are the picker component (not plain [data-f] inputs), so the
+  // picker writes its formatted value here; grp-update reads it back. Reset on
+  // every load() so a refresh starts the editors empty (like the plain fields).
+  let editorValues = {};
 
   const setStatus = (serial, msg) => {
     const el = root.querySelector(`[data-status="${CSS.escape(serial)}"]`);
@@ -68,7 +76,28 @@ export function mountManage(root, showDesigner) {
       </div>`).join("");
   }
 
+  // Mount the typed ISO-8601 pickers into their placeholders after innerHTML is
+  // set (same pattern as the Issue view). The picker reports a correctly-formed
+  // value straight into editorValues and validates it inline.
+  function mountStatusDateFields() {
+    for (const ph of root.querySelectorAll("[data-typed-status]")) {
+      const key = ph.dataset.typedStatus, grp = ph.dataset.grp;
+      (editorValues[grp] ??= {});
+      ph.replaceChildren(renderTypedInput({
+        type: "date",
+        value: editorValues[grp][key],
+        onChange: (v) => {
+          (editorValues[grp] ??= {})[key] = v;
+          const span = ph.parentElement?.querySelector("[data-ferr]");
+          const msg = validateStatusValues({ [key]: v })[key];
+          if (span) { span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg)); }
+        }
+      }));
+    }
+  }
+
   async function load() {
+    editorValues = {};   // fresh editors on every (re)load
     root.innerHTML = shell({ body: `<p class="mg-empty">Loading…</p>` });
     let list;
     try { list = await fetch("/api/passes").then(r => r.json()); }
@@ -105,10 +134,17 @@ export function mountManage(root, showDesigner) {
         </div>`).join("");
 
       const editor = STATUS_FIELDS.map(([key, ph, options]) => {
-        const control = options
-          ? `<select data-f="${key}" title="${esc(ph)}">${options.map(o =>
-              `<option value="${esc(o)}">${esc(o || `${ph}: (no change)`)}</option>`).join("")}</select>`
-          : `<input data-f="${key}" placeholder="${esc(ph)}" />`;
+        let control;
+        if (options) {
+          control = `<select data-f="${esc(key)}" title="${esc(ph)}">${options.map(o =>
+            `<option value="${esc(o)}">${esc(o || `${ph}: (no change)`)}</option>`).join("")}</select>`;
+        } else if (semanticKind(key) === "date") {
+          // ISO-8601 schedule field → datetime-local + offset picker (same as the
+          // Issue view), mounted post-render so a malformed date can't be typed.
+          control = `<div class="mg-typed" data-typed-status="${esc(key)}" data-grp="${esc(gid)}" title="${esc(ph)}"></div>`;
+        } else {
+          control = `<input data-f="${esc(key)}" placeholder="${esc(ph)}" />`;
+        }
         return `<span class="mg-field">${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
       }).join("");
 
@@ -133,6 +169,7 @@ export function mountManage(root, showDesigner) {
     }).join("");
 
     root.innerHTML = shell({ count: list.length, body: cards + logCard() });
+    mountStatusDateFields();
     loadLog();
   }
 
@@ -178,6 +215,7 @@ export function mountManage(root, showDesigner) {
       const card = t.closest(".mg-card");
       const values = {};
       for (const inp of card.querySelectorAll(".mg-editor [data-f]")) values[inp.dataset.f] = inp.value;
+      Object.assign(values, editorValues[grp] ?? {});   // typed ISO-8601 date fields
       const el = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
       // Same guardrails as the issue form: a date/gate edit must be well-formed
       // before it pushes to every installed pass on the trip.
