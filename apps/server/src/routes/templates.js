@@ -16,8 +16,9 @@ export const templatesRouter = Router();
 
 const BUNDLE_SUFFIX = ".pkpasstemplate";
 
-// GET /api/templates — installed templates and their merge surface (field keys)
-templatesRouter.get("/templates", async (_req, res) => {
+// GET /api/templates — installed templates and their merge surface (field keys +
+// the baked semantics block, which the semantics-first editor pre-fills from).
+export async function handleTemplateList(_req, res) {
   let names = [];
   try { names = await readdir(templatesRoot()); } catch { /* no templates yet */ }
   const out = [];
@@ -32,6 +33,7 @@ templatesRouter.get("/templates", async (_req, res) => {
         organizationName: passJson.organizationName,
         fieldKeys: templateFieldKeys(passJson),
         bindings: await bindingsForTemplate(id, passJson),
+        semantics: passJson.semantics ?? {},
         assets: Object.keys(assets)
       });
     } catch (err) {
@@ -39,7 +41,8 @@ templatesRouter.get("/templates", async (_req, res) => {
     }
   }
   res.json(out);
-});
+}
+templatesRouter.get("/templates", handleTemplateList);
 
 /** POST /api/templates/:id — body is the zipped .pkpasstemplate itself. */
 export async function handleTemplateUpload(req, res) {
