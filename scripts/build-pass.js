@@ -54,7 +54,7 @@ let state = JSON.parse(await readFile(values.in, "utf8"));
 if (values.now) {
   const leadMinutes = Number(values.lead ?? 60);
   state = shiftPassDates(state, { leadMinutes });
-  console.log(`↻ shifted schedule: departs ${state.flight.departure.depart} (now + ${leadMinutes}m)`);
+  console.log(`↻ shifted schedule: departs ${state.semantics?.currentDepartureDate ?? "?"} (now + ${leadMinutes}m)`);
 }
 
 // Force identifiers to match the signing cert so the pass installs on a device.
