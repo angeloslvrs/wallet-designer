@@ -49,4 +49,14 @@ describe("integration: build → re-parse → validate", () => {
     expect(pass.semantics.wifiAccess[0].ssid).toBe("GoGoInflight");
     expect(pass.semantics.duration).toBe(19800);
   });
+
+  it("lets server overrides win over the FormState meta (webServiceURL/serial/team)", async () => {
+    const state = JSON.parse(await readFile("fixtures/fully-loaded.json", "utf8"));
+    const overrides = { webServiceURL: "https://prod.example/api/wallet", serialNumber: "OVERRIDE-1", teamIdentifier: "TEAMOVERRIDE" };
+    const buf = await buildPkpass({ state, certDir, overrides });
+    const pass = JSON.parse(new AdmZip(buf).getEntry("pass.json").getData().toString("utf8"));
+    expect(pass.webServiceURL).toBe("https://prod.example/api/wallet");
+    expect(pass.serialNumber).toBe("OVERRIDE-1");
+    expect(pass.teamIdentifier).toBe("TEAMOVERRIDE");
+  });
 });

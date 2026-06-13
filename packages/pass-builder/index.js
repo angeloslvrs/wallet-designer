@@ -16,8 +16,11 @@ export { discoverBindings, collectFields } from "./bindings.js";
  * @param {string} opts.certDir
  * @param {string} [opts.passphrase]
  * @param {string} [opts.assetsDir]   — default "./assets"
+ * @param {Record<string,unknown>} [opts.overrides] — server-controlled top-level
+ *   pass.json values (serialNumber, passTypeIdentifier, teamIdentifier,
+ *   authenticationToken, webServiceURL) that win over the FormState's own meta.
  */
-export async function buildPkpass({ state, certDir, passphrase, assetsDir = "assets" }) {
+export async function buildPkpass({ state, certDir, passphrase, assetsDir = "assets", overrides = {} }) {
   const v = validate(state);
   if (!v.ok) {
     const err = new Error("FormState failed schema validation");
@@ -25,6 +28,10 @@ export async function buildPkpass({ state, certDir, passphrase, assetsDir = "ass
     throw err;
   }
   const passJson = formStateToPassJson(state);
+  // Server identity wins over whatever the FormState carried. Notably webServiceURL:
+  // the designer's dev default (http://localhost:4317/...) is not HTTPS, so iOS
+  // refuses to install a pass that still carries it.
+  for (const [k, val] of Object.entries(overrides)) if (val !== undefined) passJson[k] = val;
   const assetNames = ["icon.png", "icon@2x.png", "icon@3x.png", "logo.png", "logo@2x.png"];
   /** @type {Record<string,Buffer>} */
   const assets = {};

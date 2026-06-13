@@ -43,5 +43,19 @@ export async function buildStoredPass(rec, serial) {
       passphrase: env.passphrase
     });
   }
-  return buildPkpass({ state: rec.state, certDir: env.certDir, passphrase: env.passphrase });
+  return buildPkpass({
+    state: rec.state,
+    certDir: env.certDir,
+    passphrase: env.passphrase,
+    // Same server-controlled identity the template path forces. Without it a
+    // FormState pass keeps the designer's dev webServiceURL (http://localhost),
+    // which iOS rejects at install, plus any stale team id / token in the state.
+    overrides: {
+      serialNumber: serial,
+      ...(rec.passTypeIdentifier && { passTypeIdentifier: rec.passTypeIdentifier }),
+      ...(rec.authenticationToken && { authenticationToken: rec.authenticationToken }),
+      ...(process.env.TEAM_ID && { teamIdentifier: process.env.TEAM_ID }),
+      ...(process.env.WEB_SERVICE_URL && { webServiceURL: process.env.WEB_SERVICE_URL })
+    }
+  });
 }
