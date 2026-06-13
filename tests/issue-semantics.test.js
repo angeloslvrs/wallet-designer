@@ -74,62 +74,50 @@ beforeAll(async () => {
   expect(res.statusCode).toBe(201);
 });
 
-describe("issueTemplatePass — map-driven derived semantics", () => {
-  it("stores semantics translated through the binding map, clearing un-derived volatile placeholders", async () => {
+describe("issueTemplatePass — explicit semantics, no field derivation", () => {
+  it("stores the explicit semantics the client sends, untouched", async () => {
     await issueTemplatePass({
       template: "iss", serialNumber: "ISS-001", groupId: "ISS@2026-07-01",
-      data: { passenger: "Ada Lovelace", seat: "14F", gate: "B9", confirmation: "ZZTOP1", "fare-class": "J", priority: "Platinum" }
+      data: {
+        passenger: "Ada Lovelace", seat: "14F", gate: "B9",
+        semantics: {
+          passengerName: { givenName: "Ada", familyName: "Lovelace" },
+          seats: [{ seatRow: "14", seatNumber: "F" }],
+          departureGate: "B9", confirmationNumber: "ZZTOP1"
+        }
+      }
     });
     const rec = await getPassRecord("ISS-001");
     expect(rec.data.semantics).toEqual({
-      // boarding dates were not in the issue data → cleared (null deletes at merge)
-      currentBoardingDate: null,
-      originalBoardingDate: null,
       passengerName: { givenName: "Ada", familyName: "Lovelace" },
-      seats: [{ seatRow: "14", seatNumber: "F", seatType: "economy" }],
-      departureGate: "B9",
-      confirmationNumber: "ZZTOP1",
-      ticketFareClass: "J",
-      priorityStatus: "Platinum"
+      seats: [{ seatRow: "14", seatNumber: "F" }],
+      departureGate: "B9", confirmationNumber: "ZZTOP1",
+      // volatile placeholders in the template the client did NOT set are cleared:
+      originalBoardingDate: null, currentBoardingDate: null
     });
   });
 
-  it("populates both date pairs from a bound date input", async () => {
+  it("does NOT derive semantics from display fields (the cebpac bug)", async () => {
     await issueTemplatePass({
-      template: "iss", serialNumber: "ISS-004", groupId: "ISS@2026-07-01",
-      data: { boarding: "2026-08-01T09:10:00+08:00" }
+      template: "iss", serialNumber: "ISS-005", groupId: "ISS@2026-07-01",
+      data: { gate: "12:15", seat: "67C" }   // raw fields, no data.semantics
     });
-    const rec = await getPassRecord("ISS-004");
-    expect(rec.data.semantics.currentBoardingDate).toBe("2026-08-01T09:10:00+08:00");
-    expect(rec.data.semantics.originalBoardingDate).toBe("2026-08-01T09:10:00+08:00");
+    const rec = await getPassRecord("ISS-005");
+    // no field translated into a semantic; only volatile placeholders cleared
+    expect(rec.data.semantics.departureGate).toBeUndefined();
+    expect(rec.data.semantics).toEqual({
+      passengerName: null, seats: null, originalBoardingDate: null, currentBoardingDate: null
+    });
   });
 
-  it("lets explicit data.semantics win over derived values", async () => {
-    await issueTemplatePass({
-      template: "iss", serialNumber: "ISS-002", groupId: "ISS@2026-07-01",
-      data: {
-        passenger: "Ada Lovelace",
-        semantics: { passengerName: { givenName: "Augusta Ada", familyName: "King" } }
-      }
-    });
-    const rec = await getPassRecord("ISS-002");
-    expect(rec.data.semantics.passengerName).toEqual({ givenName: "Augusta Ada", familyName: "King" });
-  });
-
-  it("clears ALL volatile placeholders when nothing is derivable, and the merge deletes them", async () => {
-    await issueTemplatePass({
-      template: "iss", serialNumber: "ISS-003", groupId: "ISS@2026-07-01", data: {}
-    });
+  it("clears all volatile placeholders when no semantics provided", async () => {
+    await issueTemplatePass({ template: "iss", serialNumber: "ISS-003", groupId: "ISS@2026-07-01", data: {} });
     const rec = await getPassRecord("ISS-003");
     expect(rec.data.semantics).toEqual({
       currentBoardingDate: null, originalBoardingDate: null, passengerName: null, seats: null
     });
     const merged = applyTemplateData(JSON.parse(PASS_JSON), rec.data);
     expect(merged.semantics.passengerName).toBeUndefined();
-    expect(merged.semantics.seats).toBeUndefined();
-    expect(merged.semantics.currentBoardingDate).toBeUndefined();
-    expect(merged.semantics.originalBoardingDate).toBeUndefined();
-    // non-volatile template semantics survive untouched
-    expect(merged.semantics.confirmationNumber).toBe("GHK2X9");
+    expect(merged.semantics.confirmationNumber).toBe("GHK2X9");   // non-volatile template semantic survives
   });
 });

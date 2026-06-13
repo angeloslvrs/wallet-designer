@@ -25,12 +25,19 @@ describe("cebpac template — issued passes carry no Designer sample data", () =
     await issueTemplatePass({
       template: "cebpac", serialNumber: "CEB-001", groupId: "5J5056@2026-08-01",
       data: {
-        passenger: "SOLIVERES/ANGELO",
-        seat: "23F",
-        boardingTime: "2026-08-01T09:10:00+08:00",
-        date: "2026-08-01T10:00:00+08:00",
-        term: "1 DOM",
-        sequence: "12"
+        // display fields (free text) — no longer used to derive semantics
+        passenger: "SOLIVERES/ANGELO", seat: "23F", term: "1 DOM", sequence: "12",
+        // explicit, typed semantics — what the semantics-first editor sends
+        semantics: {
+          passengerName: { givenName: "ANGELO", familyName: "SOLIVERES" },
+          seats: [{ seatRow: "23", seatNumber: "F" }],
+          originalBoardingDate: "2026-08-01T09:10:00+08:00",
+          currentBoardingDate: "2026-08-01T09:10:00+08:00",
+          originalDepartureDate: "2026-08-01T10:00:00+08:00",
+          currentDepartureDate: "2026-08-01T10:00:00+08:00",
+          departureTerminal: "1 DOM",
+          boardingSequenceNumber: "12"
+        }
       }
     });
     const rec = await getPassRecord("CEB-001");
@@ -47,7 +54,7 @@ describe("cebpac template — issued passes carry no Designer sample data", () =
     expect(merged.semantics.originalBoardingDate).toBe("2026-08-01T09:10:00+08:00");
     expect(merged.semantics.currentDepartureDate).toBe("2026-08-01T10:00:00+08:00");
     expect(merged.semantics.originalDepartureDate).toBe("2026-08-01T10:00:00+08:00");
-    // arrival had no bound field and no input → cleared, not the sample
+    // arrival not set by the user → cleared (null deletes at merge), not the sample
     expect(merged.semantics.currentArrivalDate).toBeUndefined();
     expect(merged.semantics.originalArrivalDate).toBeUndefined();
     expect(merged.semantics.departureTerminal).toBe("1 DOM");
@@ -56,7 +63,7 @@ describe("cebpac template — issued passes carry no Designer sample data", () =
     // build-time hygiene on the emitted pass.json
     expect(JSON.stringify(merged)).not.toContain("_id");
 
-    // both time-zone key spellings, same IANA value (Designer carries one)
+    // both time-zone key spellings, same IANA value (non-volatile → survives from the template)
     expect(merged.semantics.departureAirportTimeZone).toBe("Asia/Manila");
     expect(merged.semantics.departureLocationTimeZone).toBe("Asia/Manila");
     expect(merged.semantics.destinationAirportTimeZone).toBe("Asia/Tokyo");

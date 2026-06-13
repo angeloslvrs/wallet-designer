@@ -9,7 +9,7 @@ import {
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 import {
-  applyStatusToTemplateData, deriveIssueSemantics, normalizeStatusBody,
+  applyStatusToTemplateData, normalizeStatusBody,
   transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS
 } from "../template-status.js";
 import { bindingsForTemplate } from "../template-bindings.js";
@@ -94,18 +94,17 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
   }
   const { passJson } = await loadTemplate(templateDir(template));
   applyTemplateData(passJson, data);
-  // Per-passenger data also lands in semantics, translated through the
-  // template's binding map. Designer sample values must never ship on an
-  // issued pass: volatile placeholder semantics (schedule dates,
-  // passengerName, seats) are cleared (null deletes at merge time) unless
-  // re-derived from data or set explicitly — explicit data.semantics wins.
-  const bindings = await bindingsForTemplate(template, passJson);
-  const derived = deriveIssueSemantics(data, bindings, passJson.semantics ?? {});
+  // Semantics-first: the client sends explicit `data.semantics` (filled-only,
+  // typed via SEMANTIC_CATALOG). The server NEVER derives semantics from display
+  // fields — that mis-mapped time fields onto airport codes and shipped non-ISO
+  // dates. Volatile placeholders the user left unset are cleared (null deletes at
+  // merge), so the template's sample values never ship.
+  const explicit = (data.semantics && typeof data.semantics === "object") ? data.semantics : {};
   const clears = {};
   for (const k of VOLATILE_ISSUE_SEMANTICS) {
-    if (passJson.semantics?.[k] !== undefined) clears[k] = null;
+    if (passJson.semantics?.[k] !== undefined && explicit[k] === undefined) clears[k] = null;
   }
-  const semantics = { ...clears, ...derived, ...data.semantics };
+  const semantics = { ...clears, ...explicit };
   const stored = Object.keys(semantics).length ? { ...data, semantics } : data;
   return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
 }
