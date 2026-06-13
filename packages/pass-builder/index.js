@@ -9,6 +9,7 @@ export { loadTemplate, applyTemplateData, templateFieldKeys, buildPkpassFromTemp
 export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 export { discoverBindings, collectFields } from "./bindings.js";
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
+export { migrateFormState } from "./migrate.js";
 
 /**
  * One-shot: FormState → signed .pkpass Buffer.
