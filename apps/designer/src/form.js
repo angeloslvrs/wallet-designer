@@ -1,5 +1,6 @@
 import { setPath, getPath } from "./state.js";
 import { scanBarcode } from "./scan.js";
+import { splitIso, joinIso } from "./inputs.js";
 
 const rgbToHex = (s) => {
   const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
@@ -10,16 +11,6 @@ const hexToRgb = (h) => {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(h || "");
   return m ? `rgb(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)})` : "rgb(0,0,0)";
 };
-
-// ISO-8601 <-> datetime-local. The form stores airport-local times as full ISO-8601
-// strings (e.g. 2026-06-01T07:30:00-07:00). <input type=datetime-local> only edits the
-// wall-clock part, so the UTC offset is edited in a field beside it and preserved —
-// dropping it would corrupt Apple's date semantics. A blank offset emits a naive time.
-const splitIso = (v) => {
-  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/.exec(v || "");
-  return m ? { local: m[1], offset: m[2] || "" } : { local: "", offset: "" };
-};
-const joinIso = (local, offset) => (local ? `${local}:00${offset || ""}` : "");
 
 const sections = [
   ["Meta", [
