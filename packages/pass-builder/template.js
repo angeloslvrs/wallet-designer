@@ -183,10 +183,48 @@ export async function buildPkpassFromTemplate({ templateDir, data = {}, override
     if (overrides[key] !== undefined) merged[key] = overrides[key];
   }
   merged.formatVersion ??= 1;
-  return signPkpass({ certDir, passphrase, passJson: merged, assets });
+  return signPkpass({ certDir, passphrase, passJson: merged, assets: ensureBaseImageVariants(assets) });
 }
 
 const OVERRIDE_KEYS = ["serialNumber", "passTypeIdentifier", "teamIdentifier", "authenticationToken", "webServiceURL"];
+
+// Apple's pass image slots. Pass Designer (macOS) exports only the @2x/@3x
+// scale variants of these — never the 1x base. iOS rejects "Add to Wallet"
+// when the bundle has no base icon.png (the canonical icon PassKit loads at
+// install), so an imported template that only carries icon@2x/@3x cannot be
+// installed. FormState passes always ship a base icon.png from assets/, which
+// is why designer-built passes install and raw template passes did not.
+const PASS_IMAGE_SLOTS = new Set(["icon", "logo", "thumbnail", "strip", "background", "footer"]);
+const SCALE_VARIANT_RE = /^(.*?)([^/]+)@[23]x\.png$/i;
+
+/**
+ * Pure: for each standard pass image slot that exists only as a @2x/@3x
+ * variant, synthesize the missing 1x base file by aliasing the @2x bytes
+ * (falling back to @3x). Returns a new assets map; the input is untouched and
+ * the on-disk template bundle stays faithful to Designer's export — this is an
+ * emit-time normalization, like {@link stripInternalIds}.
+ *
+ * Dimensions are not downscaled: iOS scales the icon to fit, and no Apple
+ * validator enforces image dimensions — the install requirement is only that
+ * the base file is present. Localized variants (e.g. `en.lproj/icon@2x.png`)
+ * get the same treatment. Non-standard slots (Pass Designer's `primaryLogo`,
+ * which iOS never renders) are left alone.
+ * @param {Record<string, Buffer>} assets
+ * @returns {Record<string, Buffer>}
+ */
+export function ensureBaseImageVariants(assets) {
+  const out = { ...assets };
+  for (const path of Object.keys(assets)) {
+    const m = path.match(SCALE_VARIANT_RE);
+    if (!m) continue;
+    const [, dir, slot] = m;
+    if (!PASS_IMAGE_SLOTS.has(slot.toLowerCase())) continue;
+    const base = `${dir}${slot}.png`;
+    if (out[base] !== undefined) continue; // template already provides a 1x base
+    out[base] = assets[`${dir}${slot}@2x.png`] ?? assets[`${dir}${slot}@3x.png`];
+  }
+  return out;
+}
 
 /**
  * Pure: ensure BOTH time-zone key spellings carry the same IANA value on the

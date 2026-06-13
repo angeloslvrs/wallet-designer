@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AdmZip from "adm-zip";
-import { loadTemplate, buildPkpassFromTemplate } from "../packages/pass-builder/template.js";
+import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants } from "../packages/pass-builder/template.js";
 import { computeManifest } from "../packages/pass-builder/manifest.js";
 
 const certDir = "certs/dev";
@@ -40,6 +40,19 @@ async function makeTemplateDir() {
   await writeFile(join(dir, ".DS_Store"), "junk");
   await writeFile(join(dir, "manifest.json"), "{}");
   await writeFile(join(dir, "signature"), "stale");
+  return dir;
+}
+
+/** A Pass Designer-style export: only @2x/@3x scale variants, no 1x base
+ *  files — exactly what macOS Pass Designer writes. Includes a non-standard
+ *  `primaryLogo` slot (Pass Designer emits one) that iOS does not render. */
+async function makeRetinaOnlyTemplateDir() {
+  const dir = await mkdtemp(join(tmpdir(), "wpd-retina-"));
+  await writeFile(join(dir, "pass.json"), JSON.stringify(skeletonPassJson(), null, 2));
+  await writeFile(join(dir, "icon@2x.png"), await readFile("assets/icon@2x.png"));
+  await writeFile(join(dir, "icon@3x.png"), await readFile("assets/icon@3x.png"));
+  await writeFile(join(dir, "logo@2x.png"), await readFile("assets/logo@2x.png"));
+  await writeFile(join(dir, "primaryLogo@2x.png"), await readFile("assets/logo@2x.png"));
   return dir;
 }
 
@@ -119,5 +132,59 @@ describe("buildPkpassFromTemplate", () => {
     await expect(
       buildPkpassFromTemplate({ templateDir, data: { seat: "14A" }, overrides, certDir })
     ).rejects.toThrow(/seat/);
+  });
+
+  it("emits a 1x base icon.png for a retina-only Pass Designer export", async () => {
+    // Pass Designer exports only icon@2x/@3x; iOS rejects "Add to Wallet" when
+    // the bundle has no base icon.png, so the build must synthesize one.
+    const retinaDir = await makeRetinaOnlyTemplateDir();
+    const buf = await buildPkpassFromTemplate({ templateDir: retinaDir, data: { gate: "B12" }, overrides, certDir });
+    const zip = new AdmZip(buf);
+    const names = zip.getEntries().map(e => e.entryName);
+    expect(names).toContain("icon.png");
+    // the synthesized base is the @2x bytes, byte-for-byte
+    const baseIcon = zip.getEntry("icon.png").getData();
+    const at2x = await readFile("assets/icon@2x.png");
+    expect(Buffer.compare(baseIcon, at2x)).toBe(0);
+    // and the manifest stays consistent with the added file
+    const manifest = JSON.parse(zip.getEntry("manifest.json").getData().toString("utf8"));
+    expect(manifest["icon.png"]).toBeDefined();
+  });
+});
+
+describe("ensureBaseImageVariants", () => {
+  const png = name => Buffer.from(`fake-png:${name}`);
+
+  it("synthesizes a 1x base from the @2x variant when no base exists", () => {
+    const out = ensureBaseImageVariants({ "icon@2x.png": png("i2"), "icon@3x.png": png("i3") });
+    expect(out["icon.png"]).toEqual(png("i2"));
+  });
+
+  it("falls back to the @3x variant when only @3x exists", () => {
+    const out = ensureBaseImageVariants({ "logo@3x.png": png("l3") });
+    expect(out["logo.png"]).toEqual(png("l3"));
+  });
+
+  it("never overwrites a base file the template already provides", () => {
+    const out = ensureBaseImageVariants({ "icon.png": png("real"), "icon@2x.png": png("i2") });
+    expect(out["icon.png"]).toEqual(png("real"));
+  });
+
+  it("ignores non-standard slot names like primaryLogo", () => {
+    const out = ensureBaseImageVariants({ "primaryLogo@2x.png": png("p2") });
+    expect(out["primaryLogo.png"]).toBeUndefined();
+  });
+
+  it("leaves non-image and base files untouched and does not mutate the input", () => {
+    const input = { "pass.json": png("pj"), "en.lproj/pass.strings": png("s"), "icon@2x.png": png("i2") };
+    const out = ensureBaseImageVariants(input);
+    expect(out["pass.json"]).toEqual(png("pj"));
+    expect(out["en.lproj/pass.strings"]).toEqual(png("s"));
+    expect(input["icon.png"]).toBeUndefined(); // input not mutated
+  });
+
+  it("synthesizes localized base variants inside .lproj folders", () => {
+    const out = ensureBaseImageVariants({ "fr.lproj/strip@2x.png": png("s2") });
+    expect(out["fr.lproj/strip.png"]).toEqual(png("s2"));
   });
 });
