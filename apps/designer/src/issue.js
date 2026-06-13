@@ -57,6 +57,41 @@ export function describeIssueResult(ok, j) {
   return ok ? "✓ issued" : `✗ ${j?.error ?? "error"}`;
 }
 
+// Semantics that naturally vary per passenger. Used only to pre-select which
+// template fields START "per-passenger" in the trip editor — read from the
+// template's discovered bindings, never by guessing field-key names (polarity
+// rule: field keys are the template's arbitrary vocabulary).
+const PER_PASSENGER_SEMANTICS = ["passengerName", "seats", "boardingSequenceNumber"];
+
+/**
+ * Field keys that should default to per-passenger for a template, derived from
+ * its semanticKey→{fieldKey} bindings. Everything else defaults to shared.
+ * @returns {string[]}
+ */
+export function defaultIndividualKeys(bindings) {
+  const out = [];
+  for (const sem of PER_PASSENGER_SEMANTICS) {
+    const fk = bindings?.[sem]?.fieldKey;
+    if (fk) out.push(fk);
+  }
+  return out;
+}
+
+/**
+ * Compose one passenger row's issue values: the trip's shared field values,
+ * overlaid with this row's values for the keys marked individual. A shared
+ * value for a key that is individual is dropped — it belongs to the row, not
+ * the trip — so re-sharing never leaks a stale per-passenger value.
+ * @returns {Record<string,string>}
+ */
+export function mergeTripValues(sharedValues = {}, rowValues = {}, individualKeys = []) {
+  const ind = individualKeys instanceof Set ? individualKeys : new Set(individualKeys);
+  const out = {};
+  for (const [k, v] of Object.entries(sharedValues)) if (!ind.has(k)) out[k] = v;
+  for (const k of ind) if (rowValues[k] !== undefined) out[k] = rowValues[k];
+  return out;
+}
+
 export function mountIssue(root, showManage) {
   // Re-mounted on every tab visit — drop the previous mount's listeners or
   // one click would fire issueAll() once per visit (duplicate POSTs).
@@ -70,6 +105,11 @@ export function mountIssue(root, showManage) {
   // Per-template unsaved binding edits: { tplId: { semanticKey: fieldKey } }.
   // Seeded from the server's discovered/stored map on load; PUT on save.
   let bindingDrafts = {};
+  // Trip individualization: which template field keys vary per passenger (the
+  // rest are shared and entered once). `shared` holds the shared field values.
+  let individualKeys = new Set();
+  let shared = {};
+  let fieldsInitFor = null;    // template id whose shared/individual split is seeded
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -78,19 +118,31 @@ export function mountIssue(root, showManage) {
     rows = rows.map((r, i) => r.serialEdited ? r : { ...r, serial: suggestSerial(groupId, i + 1) });
   }
 
+  // Seed the shared/individual split once per template (from its bindings), so
+  // re-renders and reloads (upload/delete/save-bindings) keep the user's toggles.
+  function ensureFieldDefaults() {
+    if (fieldsInitFor === selected) return;
+    individualKeys = new Set(defaultIndividualKeys(current()?.bindings));
+    shared = {};
+    fieldsInitFor = selected;
+  }
+
   function syncFromInputs() {
     groupId = $("#iss-group")?.value ?? groupId;
+    const nextShared = { ...shared };
+    for (const inp of root.querySelectorAll("input[data-shared-key]")) nextShared[inp.dataset.sharedKey] = inp.value;
+    shared = nextShared;
     rows = rows.map((r, i) => {
       const rowEl = root.querySelector(`.iss-row[data-i="${i}"]`);
       if (!rowEl) return r;
-      const values = {};
+      const values = { ...r.values };   // preserve values for keys not shown (toggled to shared)
       for (const inp of rowEl.querySelectorAll("input[data-key]")) values[inp.dataset.key] = inp.value;
       return { ...r, values, serial: rowEl.querySelector("input[data-serial]")?.value ?? r.serial };
     });
   }
 
   function rowHtml(r, i) {
-    const fields = (current()?.fieldKeys ?? []).map(k =>
+    const fields = (current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)).map(k =>
       `<input data-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`).join("");
     return `
       <div class="iss-row mg-row" data-i="${i}">
@@ -171,6 +223,26 @@ export function mountIssue(root, showManage) {
 
   function render() {
     const tpl = current();
+    ensureFieldDefaults();
+    const sharedKeys = (tpl?.fieldKeys ?? []).filter(k => !individualKeys.has(k));
+    const indKeys = (tpl?.fieldKeys ?? []).filter(k => individualKeys.has(k));
+    const sharedCard = tpl && !tpl.error ? `
+        <div class="mg-card">
+          <div class="mg-card-head">
+            <div class="mg-trip"><span class="mg-trip-id">Shared across the trip</span><span class="mg-badge">${sharedKeys.length} field(s)</span></div>
+          </div>
+          <div class="mg-list">
+            ${sharedKeys.map(k => `
+              <div class="iss-shared-row">
+                <label title="${esc(k)}">${esc(k)}</label>
+                <input data-shared-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />
+                <button data-act="to-individual" data-key="${esc(k)}" class="iss-toggle" title="vary this per passenger">individualize →</button>
+              </div>`).join("") || `<p class="hint">No shared fields — every field is per-passenger.</p>`}
+          </div>
+        </div>` : "";
+    const indHeader = indKeys.length
+      ? `<div class="iss-colhead">${indKeys.map(k => `<span class="iss-col"><code>${esc(k)}</code> <button data-act="to-shared" data-key="${esc(k)}" class="iss-toggle" title="same for the whole trip">← share</button></span>`).join("")}</div>`
+      : `<p class="hint">All fields are shared — click <b>individualize →</b> above to vary a field per passenger (otherwise every passenger is identical except for the serial).</p>`;
     const options = templates.map(t =>
       `<option value="${esc(t.id)}" ${t.id === selected ? "selected" : ""} ${t.error ? "disabled" : ""}>` +
       `${esc(t.id)}${t.error ? " (broken)" : ""}</option>`).join("");
@@ -197,12 +269,13 @@ export function mountIssue(root, showManage) {
             <button data-act="compose">→ Trip id</button>
           </div>
         </div>
+        ${sharedCard}
         <div class="mg-card">
           <div class="mg-card-head">
             <div class="mg-trip"><span class="mg-trip-id">Passengers</span><span class="mg-badge">${rows.length} row(s)</span></div>
             <div class="mg-grp-acts"><button data-act="add">+ Add passenger</button></div>
           </div>
-          <div class="mg-list">${rows.map(rowHtml).join("")}</div>
+          <div class="mg-list">${indHeader}${rows.map(rowHtml).join("")}</div>
           <div class="mg-editor-acts">
             <button data-act="issue">Issue ${rows.length} pass(es)</button>
             <span class="mg-grp-status" id="iss-status"></span>
@@ -246,7 +319,8 @@ export function mountIssue(root, showManage) {
     status.textContent = "Issuing…";
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
-      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values: rows[i].values });
+      const values = mergeTripValues(shared, rows[i].values, individualKeys);
+      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values });
       if (!body.serialNumber) { setRowStatus(i, "✗ serial is required"); continue; }
       let r, j;
       try {
@@ -294,6 +368,26 @@ export function mountIssue(root, showManage) {
     }
     if (act === "add") { syncFromInputs(); rows = [...rows, { values: {}, serial: suggestSerial(groupId, rows.length + 1), serialEdited: false }]; render(); return; }
     if (act === "rm")  { syncFromInputs(); rows = rows.filter((_, i) => i !== Number(e.target.dataset.i)); reSuggestSerials(); render(); return; }
+    if (act === "to-individual") {
+      syncFromInputs();
+      const k = e.target.dataset.key;
+      individualKeys = new Set(individualKeys); individualKeys.add(k);
+      const seed = shared[k] ?? "";                      // start each row from the shared value
+      rows = rows.map(r => (r.values[k] ? r : { ...r, values: { ...r.values, [k]: seed } }));
+      render();
+      return;
+    }
+    if (act === "to-shared") {
+      syncFromInputs();
+      const k = e.target.dataset.key;
+      const next = new Set(individualKeys); next.delete(k); individualKeys = next;
+      if (!shared[k]) {                                  // seed the shared value from the first row that has one
+        const firstVal = rows.map(r => r.values[k]).find(v => v != null && v !== "");
+        if (firstVal != null) shared = { ...shared, [k]: firstVal };
+      }
+      render();
+      return;
+    }
     if (act === "issue") return issueAll();
     if (act === "manage") return showManage?.();
     if (act === "tpl-upload") return uploadTemplate();
