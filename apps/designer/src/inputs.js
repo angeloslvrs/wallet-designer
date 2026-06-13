@@ -9,17 +9,6 @@ export const splitIso = (v) => {
 };
 export const joinIso = (local, offset) => (local ? `${local}:00${offset || ""}` : "");
 
-/** True when a typed value carries nothing worth emitting (drives emit-only-filled). */
-export function isEmptyTyped(type, value) {
-  if (value === undefined || value === null) return true;
-  switch (type) {
-    case "boolean": return false;                       // both true and false are real
-    case "number":  return value === "" || Number.isNaN(value);
-    case "personName": return !value.givenName && !value.familyName;
-    case "seats":
-    case "stringArray": return !Array.isArray(value) || value.length === 0;
-    case "location": return typeof value.latitude !== "number" || typeof value.longitude !== "number";
-    case "currency": return value.amount === undefined || value.amount === "" || !value.currencyCode;
-    default: return String(value).trim() === "";        // text, date, enum
-  }
-}
+// Type-aware emptiness lives in the package so the Suggest engine and the
+// designer share one implementation (drives emit-only-filled).
+export { isEmptyTyped } from "@wpd/pass-builder/suggest-empty.js";
