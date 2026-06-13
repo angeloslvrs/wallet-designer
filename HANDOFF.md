@@ -16,7 +16,7 @@ Ground-truth files to skim before changing anything:
 |---|---|
 | `apps/server/src/routes/wallet.js` | All five PassKit `/v1/*` endpoints, mounted at `/api/wallet` |
 | `apps/server/src/apns.js` | APNs HTTP/2 push; dev profile logs, `prod` pushes for real |
-| `apps/server/src/storage.js` | JSON-file store (`state/passes.json`): passes (FormState- or template-backed), registrations, device log |
+| `apps/server/src/storage.js` | SQLite store (`state/passes.sqlite`, built-in `node:sqlite`; legacy `state/passes.json` imported once on first boot): passes (FormState- or template-backed), registrations, device log |
 | `apps/server/src/routes/admin.js` | Issue + update triggers, incl. `POST /api/groups/:groupId/status` (whole-flight push) |
 | `apps/server/src/routes/templates.js` | Upload/list `.pkpasstemplate` bundles |
 | `apps/server/src/pass-build.js` | Stored record → signed `.pkpass` (branches FormState vs template) |

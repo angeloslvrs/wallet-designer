@@ -57,7 +57,9 @@ any pass (not just the EVA fixture) installs on a device.
 - `certs/prod/{signerCert,signerKey,wwdr}.pem` — Apple Pass Type ID cert (signs passes
   **and** authenticates to APNs). See [`cert-day.md`](./cert-day.md).
 - `.env` — the file above.
-- `state/passes.json` — issued passes + device registrations.
+- `state/passes.sqlite` — issued passes + device registrations (SQLite, via
+  `node:sqlite`). A legacy `state/passes.json` is imported once on first boot
+  (a timestamped `.bak` is written) and then ignored.
 - `node_modules/`, `apps/designer/dist/` — build artifacts.
 
 ## Fast redeploy (from your dev machine)
@@ -152,7 +154,7 @@ app box → `api.push.apple.com`.
 ```bash
 ssh root@10.1.2.237 'pm2 logs boardingpass'                 # watch requests / APNs pushes
 ssh root@10.1.2.237 'pm2 restart boardingpass'              # restart
-ssh root@10.1.2.237 'rm /opt/boardingpass/state/passes.json && pm2 restart boardingpass'   # wipe issued passes
+ssh root@10.1.2.237 'rm /opt/boardingpass/state/passes.sqlite* && pm2 restart boardingpass'   # wipe issued passes
 ```
 
 ## Demo flow

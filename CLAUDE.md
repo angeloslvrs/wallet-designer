@@ -27,7 +27,7 @@ npm start                   # production mode: one Express process serves built 
 npm run cert:inspect        # inspect the active signing cert
 ```
 
-Node >= 20. Everything is ESM (`"type": "module"`) vanilla JavaScript — no TypeScript, no frontend framework.
+Node >= 24 (the store uses built-in `node:sqlite`). Everything is ESM (`"type": "module"`) vanilla JavaScript — no TypeScript, no frontend framework.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ npm-workspaces monorepo (`apps/*`, `packages/*`):
 - **`packages/pass-schema`** — JSON Schema + JSDoc typedefs for `FormState`, the single source of truth for the pass data model shared by designer, server, and builder.
 - **`packages/pass-builder`** — the core pipeline: `form-to-pass.js` (`formStateToPassJson`), `template.js` (load a `.pkpasstemplate` bundle + merge per-pass data by field key), `template-zip.js` (sanitize uploaded template zips), `manifest.js` (SHA1 manifest), `sign.js` (PKCS#7 detached signature via node-forge), zipped into `.pkpass` with archiver. `validate.js` checks FormState against the schema.
 - **`apps/designer`** — Vite SPA with three views wired in `main.js`: **Designer** (form + tabbed preview; `src/preview/wallet/` renders the faithful Wallet-style preview), **Issue** (`issue.js` — issue template passes: picker from `GET /api/templates`, per-passenger rows from field keys, suggested serials, plus the template manager card for browser upload/delete), **Manage** (`manage.js`/`ops.js` — ops console: trip tables, status editor, group push, device log). View mounts abort the previous mount's listeners on re-mount (`root._mountAbort`) — keep that pattern or tab switches stack duplicate handlers.
-- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `templates.js` (upload/list/delete `.pkpasstemplate` bundles; DELETE 409s while any stored pass references the template), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a JSON-file store (`state/passes.json`) for issued passes + device registrations. `pass-build.js` turns a stored record into a signed `.pkpass` (branches FormState vs template). `template-status.js` maps the status-update vocabulary onto template data.
+- **`apps/server`** — Express API. Routes: `build.js` (build/download), `fixtures.js`, `admin.js` (issue passes, trigger pushes), `templates.js` (upload/list/delete `.pkpasstemplate` bundles; DELETE 409s while any stored pass references the template), `wallet.js` (Apple PassKit Web Service `/v1/*`). `apns.js` sends outbound push to `api.push.apple.com`. `storage.js` is a SQLite store (`state/passes.sqlite`, built-in `node:sqlite`; one-time imports a legacy `state/passes.json` on first boot) for issued passes + device registrations. `pass-build.js` turns a stored record into a signed `.pkpass` (branches FormState vs template). `template-status.js` maps the status-update vocabulary onto template data.
 
 ### Two build paths
 
