@@ -11,6 +11,16 @@ const hexToRgb = (h) => {
   return m ? `rgb(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)})` : "rgb(0,0,0)";
 };
 
+// ISO-8601 <-> datetime-local. The form stores airport-local times as full ISO-8601
+// strings (e.g. 2026-06-01T07:30:00-07:00). <input type=datetime-local> only edits the
+// wall-clock part, so the UTC offset is edited in a field beside it and preserved —
+// dropping it would corrupt Apple's date semantics. A blank offset emits a naive time.
+const splitIso = (v) => {
+  const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/.exec(v || "");
+  return m ? { local: m[1], offset: m[2] || "" } : { local: "", offset: "" };
+};
+const joinIso = (local, offset) => (local ? `${local}:00${offset || ""}` : "");
+
 const sections = [
   ["Meta", [
     { path: "meta.passTypeId", label: "Pass Type ID", type: "text" },
@@ -38,15 +48,15 @@ const sections = [
     { path: "flight.departure.city", label: "City", type: "text" },
     { path: "flight.departure.terminal", label: "Terminal", type: "text" },
     { path: "flight.departure.gate", label: "Gate", type: "text" },
-    { path: "flight.departure.boarding", label: "Boarding (ISO 8601)", type: "text" },
-    { path: "flight.departure.depart", label: "Depart (ISO 8601)", type: "text" }
+    { path: "flight.departure.boarding", label: "Boarding", type: "datetime" },
+    { path: "flight.departure.depart", label: "Departure", type: "datetime" }
   ]],
   ["Arrival", [
     { path: "flight.arrival.iata", label: "IATA", type: "text" },
     { path: "flight.arrival.name", label: "Airport Name", type: "text" },
     { path: "flight.arrival.city", label: "City", type: "text" },
     { path: "flight.arrival.terminal", label: "Terminal", type: "text" },
-    { path: "flight.arrival.arrive", label: "Arrive (ISO 8601)", type: "text" }
+    { path: "flight.arrival.arrive", label: "Arrival", type: "datetime" }
   ]],
   ["Passenger", [
     { path: "passenger.name", label: "Name", type: "text" },
@@ -150,6 +160,31 @@ export function renderForm(root) {
           } finally { btn.disabled = false; btn.textContent = "📷 Scan barcode"; }
         });
         fs.appendChild(btn);
+        continue;
+      }
+
+      if (f.type === "datetime") {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = "display:flex;gap:6px;align-items:center";
+        const { local, offset } = splitIso(getPath(f.path));
+        const dt = document.createElement("input");
+        dt.type = "datetime-local";
+        dt.step = "60";
+        dt.value = local;
+        dt.dataset.path = f.path;
+        dt.style.cssText = "flex:1";
+        const off = document.createElement("input");
+        off.type = "text";
+        off.value = offset;
+        off.placeholder = "-07:00";
+        off.title = "UTC offset at the airport, e.g. -07:00 or Z (blank = no offset)";
+        off.style.cssText = "width:78px;flex:none";
+        const sync = () => setPath(f.path, joinIso(dt.value, off.value.trim()));
+        dt.addEventListener("input", sync);
+        off.addEventListener("input", sync);
+        wrap.appendChild(dt);
+        wrap.appendChild(off);
+        fs.appendChild(wrap);
         continue;
       }
 
