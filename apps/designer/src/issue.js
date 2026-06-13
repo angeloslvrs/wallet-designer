@@ -1,7 +1,8 @@
 import bwipjs from "bwip-js";
 import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
-import { harvestSemantics } from "./semantics-editor.js";
+import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
+import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
@@ -104,7 +105,7 @@ export function mountIssue(root, showManage) {
   let templates = [];        // [{ id, fieldKeys, bindings, assets, error? }]
   let selected = null;       // template id
   let groupId = "";
-  let rows = [{ values: {}, serial: "", serialEdited: false }];
+  let rows = [{ values: {}, serial: "", serialEdited: false, semantics: {} }];
   // Per-template unsaved binding edits: { tplId: { semanticKey: fieldKey } }.
   // Seeded from the server's discovered/stored map on load; PUT on save.
   let bindingDrafts = {};
@@ -113,6 +114,7 @@ export function mountIssue(root, showManage) {
   let individualKeys = new Set();
   let shared = {};
   let fieldsInitFor = null;    // template id whose shared/individual split is seeded
+  let baseSemantics = {};      // the selected template's baked semantics (editor seed)
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -127,6 +129,10 @@ export function mountIssue(root, showManage) {
     if (fieldsInitFor === selected) return;
     individualKeys = new Set(defaultIndividualKeys(current()?.bindings));
     shared = {};
+    baseSemantics = current()?.semantics ?? {};
+    // Seed each row's semantics editor from the template's baked block (a row the
+    // user has already edited keeps its own).
+    rows = rows.map(r => (Object.keys(r.semantics ?? {}).length ? r : { ...r, semantics: { ...baseSemantics } }));
     fieldsInitFor = selected;
   }
 
@@ -149,6 +155,10 @@ export function mountIssue(root, showManage) {
       `<input data-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`).join("");
     return `
       <div class="iss-row mg-row" data-i="${i}">
+        <div class="iss-sem-wrap">
+          <div class="iss-sem" data-sem-row="${i}"></div>
+          <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
+        </div>
         <div class="iss-fields">
           ${fields}
           <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id)" />
@@ -286,6 +296,20 @@ export function mountIssue(root, showManage) {
         </div>
         ${templatesCard()}
       </div>`;
+    mountSemanticsEditors();
+  }
+
+  // The semantics editor is a DOM component (typed inputs), so it is mounted into
+  // each row's placeholder after render() sets innerHTML — same pattern as drawQrCodes.
+  function mountSemanticsEditors() {
+    for (const c of root.querySelectorAll("[data-sem-row]")) {
+      const i = Number(c.dataset.semRow);
+      if (!rows[i]) continue;
+      c.replaceChildren(renderSemanticsEditor({
+        values: rows[i].semantics ?? {},
+        onChange: (next) => { rows = rows.map((r, n) => n === i ? { ...r, semantics: next } : r); }
+      }));
+    }
   }
 
   function renderEmpty() {
@@ -323,7 +347,7 @@ export function mountIssue(root, showManage) {
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
       const values = mergeTripValues(shared, rows[i].values, individualKeys);
-      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values });
+      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values, semantics: rows[i].semantics });
       if (!body.serialNumber) { setRowStatus(i, "✗ serial is required"); continue; }
       let r, j;
       try {
@@ -369,7 +393,7 @@ export function mountIssue(root, showManage) {
       render();
       return;
     }
-    if (act === "add") { syncFromInputs(); rows = [...rows, { values: {}, serial: suggestSerial(groupId, rows.length + 1), serialEdited: false }]; render(); return; }
+    if (act === "add") { syncFromInputs(); rows = [...rows, { values: {}, serial: suggestSerial(groupId, rows.length + 1), serialEdited: false, semantics: { ...baseSemantics } }]; render(); return; }
     if (act === "rm")  { syncFromInputs(); rows = rows.filter((_, i) => i !== Number(e.target.dataset.i)); reSuggestSerials(); render(); return; }
     if (act === "to-individual") {
       syncFromInputs();
@@ -388,6 +412,14 @@ export function mountIssue(root, showManage) {
         const firstVal = rows.map(r => r.values[k]).find(v => v != null && v !== "");
         if (firstVal != null) shared = { ...shared, [k]: firstVal };
       }
+      render();
+      return;
+    }
+    if (act === "suggest") {
+      syncFromInputs();
+      const i = Number(e.target.dataset.i);
+      const map = Object.fromEntries(Object.entries(current()?.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]));
+      rows = rows.map((r, n) => n === i ? { ...r, values: { ...r.values, ...suggestDisplayValues(r.semantics, map) } } : r);
       render();
       return;
     }

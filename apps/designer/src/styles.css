@@ -102,6 +102,13 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .iss-toggle:hover { background: #e2e6f3; }
 .iss-colhead { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 6px; font-size: 11px; color: #666; }
 .iss-col { display: inline-flex; align-items: center; gap: 4px; }
+.iss-sem-wrap { margin: 6px 0 4px; }
+.sem-editor { border: 1px solid #ececf2; border-radius: 8px; padding: 8px; background: #fafbff; }
+.sem-row { display: flex; gap: 8px; align-items: center; margin: 3px 0; }
+.sem-row label { flex: 0 0 180px; font-size: 12px; color: #444; }
+.sem-row .typed-input { flex: 1; display: flex; gap: 6px; }
+.sem-row .typed-input input, .sem-row .typed-input select { flex: 1; min-width: 0; font-size: 12px; }
+.sem-editor > select { margin-top: 6px; font-size: 12px; }
 #issue-pane .mg-editor-acts { padding: 12px 18px; border-top: 1px solid #ececf2; }
 
 fieldset { border: 1px solid #e5e5e8; border-radius: 6px; margin-bottom: 12px; padding: 8px 12px; }

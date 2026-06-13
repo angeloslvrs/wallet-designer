@@ -1,4 +1,4 @@
-import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS } from "@wpd/pass-builder";
+import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { renderTypedInput, isEmptyTyped } from "./inputs.js";
 
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
