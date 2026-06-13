@@ -134,8 +134,11 @@ Proxy Host:
 | Forward Port | `4317` |
 | SSL | request Let's Encrypt cert · Force SSL · HTTP/2 |
 
-No custom config needed: nginx forwards the `Authorization` header (required by the
-PassKit callbacks) and `DELETE` by default. Ports: public **80** (ACME) + **443**
+One bit of custom config is **required**: open the proxy host → **Advanced → Custom Nginx
+Configuration** and set `proxy_buffering off;`, or the SPA bundle is truncated over the
+domain (see the `proxy_buffering` entry under "Hard-won gotchas"). Otherwise defaults are
+fine: nginx forwards the `Authorization` header (required by the PassKit callbacks) and
+`DELETE` by default. Ports: public **80** (ACME) + **443**
 forward to the NPM LXC; NPM → `10.1.2.237:4317` internally; outbound **443** from the
 app box → `api.push.apple.com`.
 
@@ -153,8 +156,22 @@ app box → `api.push.apple.com`.
   it had before.
 - **gzip is mandatory.** `app.use(compression())` — without it nginx buffers the ~1.4 MB
   JS bundle to a temp file that fails, delivering a **0-byte body** with the full
-  `Content-Length` → the SPA shows only a skeleton over the domain. Compression makes
-  nginx stream it.
+  `Content-Length` → the SPA shows only a skeleton over the domain. Compression shrinks the
+  body, but is **not** sufficient on its own — the proxy still buffers (see next gotcha).
+- **`proxy_buffering off;` on the NPM proxy host is mandatory** (proxy host → **Advanced →
+  Custom Nginx Configuration**). Even with gzip on, nginx buffers the proxied bundle; once it
+  overflows the in-memory proxy buffers it spills to a temp file, and when that write fails the
+  response is truncated mid-stream. The browser logs `ERR_INCOMPLETE_CHUNKED_ENCODING`, the SPA
+  module never finishes parsing, and you get the static HTML shell with a **blank form**. `curl`
+  and the direct `:4317` path look fine — nothing buffers them, and a fast reader drains the
+  socket before the spill — which makes this easy to misdiagnose. Config:
+  ```nginx
+  proxy_buffering off;
+  proxy_request_buffering off;   # optional — also lets large .pkpasstemplate uploads stream
+  ```
+  **Do NOT add `proxy_http_version 1.1;` here.** NPM already emits it per proxy host, so a second
+  copy is a duplicate directive → `nginx: [emerg] "proxy_http_version" directive is duplicate` →
+  `nginx -t` fails → *none* of the custom config loads and the site stays broken until removed.
 - **`index.html` must be `no-cache`; hashed assets `immutable`.** And the SPA fallback
   must **404 missing assets** (not return `index.html`) — otherwise a stale cached
   `index.html` requesting an old bundle hash gets HTML back, runs it as JS, and the app
