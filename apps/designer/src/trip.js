@@ -1,36 +1,54 @@
 import { state } from "./state.js";
 import { esc } from "./esc.js";
+import { seatSemantics, splitPersonName } from "@wpd/pass-builder/semantics.js";
 
 // Trip panel: build one pass per passenger on the shared flight, then push
 // status updates (gate / delay / boarding) to the whole group at once.
 
 function seedPassengers() {
-  const p = state.passenger ?? {};
-  const s = p.seats?.[0] ?? {};
+  const sem = state.semantics ?? {};
+  const pn = sem.passengerName ?? {};
+  const seat = sem.seats?.[0];
   return [{
-    name: p.name ?? "", seat: s.number ?? "", cabin: s.cabin ?? "economy",
-    group: p.boardingGroup ?? "", seq: p.seqNumber ?? "", ff: p.frequentFlyerNumber ?? ""
+    name: [pn.givenName, pn.familyName].filter(Boolean).join(" "),
+    seat: seat ? `${seat.seatRow ?? ""}${seat.seatNumber ?? ""}` : "",
+    cabin: seat?.seatType ?? "economy",
+    group: sem.boardingGroup ?? "", seq: sem.boardingSequenceNumber ?? "", ff: sem.membershipProgramNumber ?? ""
   }];
+}
+
+// Mirror per-passenger values onto any display field whose key matches.
+function setDisplayValues(displayFields, byKey) {
+  const next = structuredClone(displayFields ?? {});
+  for (const section of Object.values(next)) {
+    if (!Array.isArray(section)) continue;
+    for (const f of section) if (f.key in byKey) f.value = byKey[f.key];
+  }
+  return next;
 }
 
 function buildPassState(p, i) {
   const base = structuredClone(state);
-  const f = base.flight;
+  const sem = base.semantics ?? {};
   const seatId = (p.seat || String(i + 1)).replace(/\s+/g, "");
+  const flightCode = sem.flightCode ?? `${sem.airlineCode ?? ""}${sem.flightNumber ?? ""}`;
+  const dep = sem.departureAirportCode ?? "", arr = sem.destinationAirportCode ?? "";
   return {
     ...base,
-    meta: { ...base.meta, serialNumber: `${f.airlineCode}${f.flightNumber}-${seatId}` },
-    passenger: {
-      name: p.name,
-      ...(p.ff ? { frequentFlyerNumber: p.ff } : {}),
-      seats: [{ number: p.seat, cabin: p.cabin || "economy" }],
+    meta: { ...base.meta, serialNumber: `${flightCode}-${seatId}` },
+    semantics: {
+      ...sem,
+      passengerName: splitPersonName(p.name),
+      seats: [seatSemantics(p.seat, sem.seats?.[0]?.seatType ? { seatType: sem.seats[0].seatType } : {})],
       boardingGroup: p.group,
-      seqNumber: p.seq
+      boardingSequenceNumber: p.seq,
+      ...(p.ff ? { membershipProgramNumber: p.ff } : {})
     },
+    displayFields: setDisplayValues(base.displayFields, { passenger: p.name, seat: p.seat, group: p.group, seq: p.seq }),
     barcode: {
       ...base.barcode,
-      message: `${f.airlineCode}${f.flightNumber}${f.departure.iata}${f.arrival.iata}${p.seat}${p.seq}`,
-      altText: `${f.airlineCode}${f.flightNumber} ${p.seat}`
+      message: `${flightCode}${dep}${arr}${p.seat}${p.seq}`,
+      altText: `${flightCode} ${p.seat}`
     }
   };
 }
