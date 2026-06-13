@@ -2,7 +2,7 @@
 // for a single pass or for a whole trip (group of passes on one flight).
 
 import { Router } from "express";
-import { applyTemplateData, loadTemplate, migrateFormState } from "@wpd/pass-builder";
+import { applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
   devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
@@ -170,7 +170,11 @@ async function applyStatusToStoredPass(serial, body) {
       skipped = result.skipped;
       return result.data;
     });
-    return { rec: updated, skipped };
+    // On a semanticBoardingPass, an unbound semantic (e.g. departureGate) still
+    // renders on the device straight from semantics — that's the whole point of
+    // the scheme — so it is NOT "skipped". Only flag unbound semantics for
+    // classic templates whose display comes solely from bound visible fields.
+    return { rec: updated, skipped: isSemanticDriven(passJson) ? [] : skipped };
   }
   return { rec: await updatePassState(serial, state => applyStatus(migrateFormState(state), normalized)), skipped: [] };
 }

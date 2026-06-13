@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AdmZip from "adm-zip";
-import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants, templateFieldDescriptors } from "../packages/pass-builder/template.js";
+import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants, templateFieldDescriptors, isSemanticDriven } from "../packages/pass-builder/template.js";
 import { computeManifest } from "../packages/pass-builder/manifest.js";
 
 const certDir = "certs/dev";
@@ -183,6 +183,19 @@ describe("templateFieldDescriptors", () => {
 
   it("returns [] for a pass.json with no recognised style dict", () => {
     expect(templateFieldDescriptors({ description: "x" })).toEqual([]);
+  });
+});
+
+describe("isSemanticDriven", () => {
+  it("is true when preferredStyleSchemes includes semanticBoardingPass", () => {
+    expect(isSemanticDriven({ preferredStyleSchemes: ["semanticBoardingPass", "boardingPass"] })).toBe(true);
+  });
+  it("is false for a classic boardingPass-only template", () => {
+    expect(isSemanticDriven({ preferredStyleSchemes: ["boardingPass"] })).toBe(false);
+  });
+  it("is false when preferredStyleSchemes is absent", () => {
+    expect(isSemanticDriven({ boardingPass: {} })).toBe(false);
+    expect(isSemanticDriven(null)).toBe(false);
   });
 });
 

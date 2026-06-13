@@ -39,6 +39,19 @@ export function styleKey(passJson) {
 }
 
 /**
+ * Whether iOS renders this pass from semantics (the iOS 26 `semanticBoardingPass`
+ * scheme) rather than only from bound visible fields. When true, a semantic
+ * update (e.g. `departureGate`) renders on the device with NO bound display
+ * field — so unbound semantics are expected, not a deficiency to flag.
+ * @param {object} passJson
+ * @returns {boolean}
+ */
+export function isSemanticDriven(passJson) {
+  return Array.isArray(passJson?.preferredStyleSchemes) &&
+    passJson.preferredStyleSchemes.includes("semanticBoardingPass");
+}
+
+/**
  * Every field `key` the template declares, across all zones of its style dict.
  * These keys are the merge API surface of the template.
  * @param {object} passJson
