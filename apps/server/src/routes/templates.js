@@ -6,7 +6,7 @@
 import { raw, Router } from "express";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import { discoverBindings, loadTemplate, templateFieldKeys } from "@wpd/pass-builder";
+import { discoverBindings, loadTemplate, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
@@ -32,6 +32,7 @@ export async function handleTemplateList(_req, res) {
         description: passJson.description,
         organizationName: passJson.organizationName,
         fieldKeys: templateFieldKeys(passJson),
+        fields: templateFieldDescriptors(passJson),
         bindings: await bindingsForTemplate(id, passJson),
         semantics: passJson.semantics ?? {},
         assets: Object.keys(assets)

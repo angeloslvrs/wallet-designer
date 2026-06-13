@@ -3,6 +3,7 @@ import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
 import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
+import { renderTypedInput } from "./inputs.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
@@ -118,6 +119,10 @@ export function mountIssue(root, showManage) {
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
+  // A field's expected input type, from the template's declared field metadata
+  // (server-derived in templateFieldDescriptors): "date" fields hold ISO-8601 and
+  // get a datetime picker so a mistyped value can't ship a pass iOS won't install.
+  const fieldKind = (k) => current()?.fields?.find(f => f.key === k)?.kind ?? "text";
 
   function reSuggestSerials() {
     rows = rows.map((r, i) => r.serialEdited ? r : { ...r, serial: suggestSerial(groupId, i + 1) });
@@ -152,7 +157,9 @@ export function mountIssue(root, showManage) {
 
   function rowHtml(r, i) {
     const fields = (current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)).map(k =>
-      `<input data-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`).join("");
+      fieldKind(k) === "date"
+        ? `<div class="iss-typed" data-typed-key="${esc(k)}" data-i="${i}" title="${esc(k)} (ISO-8601)"></div>`
+        : `<input data-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`).join("");
     return `
       <div class="iss-row mg-row" data-i="${i}">
         <div class="iss-sem-wrap">
@@ -248,7 +255,9 @@ export function mountIssue(root, showManage) {
             ${sharedKeys.map(k => `
               <div class="iss-shared-row">
                 <label title="${esc(k)}">${esc(k)}</label>
-                <input data-shared-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />
+                ${fieldKind(k) === "date"
+                  ? `<div class="iss-typed" data-typed-shared="${esc(k)}" title="${esc(k)} (ISO-8601)"></div>`
+                  : `<input data-shared-key="${esc(k)}" placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />`}
                 <button data-act="to-individual" data-key="${esc(k)}" class="iss-toggle" title="vary this per passenger">individualize →</button>
               </div>`).join("") || `<p class="hint">No shared fields — every field is per-passenger.</p>`}
           </div>
@@ -297,6 +306,29 @@ export function mountIssue(root, showManage) {
         ${templatesCard()}
       </div>`;
     mountSemanticsEditors();
+    mountTypedFields();
+  }
+
+  // Mount typed inputs (currently ISO-8601 date pickers) into their placeholders
+  // after render() sets innerHTML — same pattern as mountSemanticsEditors. The
+  // picker reports a correctly-formatted value via onChange straight into state,
+  // so syncFromInputs (which only reads plain text inputs) leaves them intact.
+  function mountTypedFields() {
+    for (const ph of root.querySelectorAll("[data-typed-shared]")) {
+      const k = ph.dataset.typedShared;
+      ph.replaceChildren(renderTypedInput({
+        type: "date", value: shared[k],
+        onChange: (v) => { shared = { ...shared, [k]: v }; }
+      }));
+    }
+    for (const ph of root.querySelectorAll("[data-typed-key]")) {
+      const k = ph.dataset.typedKey, i = Number(ph.dataset.i);
+      if (!rows[i]) continue;
+      ph.replaceChildren(renderTypedInput({
+        type: "date", value: rows[i].values[k],
+        onChange: (v) => { rows = rows.map((r, n) => n === i ? { ...r, values: { ...r.values, [k]: v } } : r); }
+      }));
+    }
   }
 
   // The semantics editor is a DOM component (typed inputs), so it is mounted into

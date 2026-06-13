@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AdmZip from "adm-zip";
-import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants } from "../packages/pass-builder/template.js";
+import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants, templateFieldDescriptors } from "../packages/pass-builder/template.js";
 import { computeManifest } from "../packages/pass-builder/manifest.js";
 
 const certDir = "certs/dev";
@@ -149,6 +149,40 @@ describe("buildPkpassFromTemplate", () => {
     // and the manifest stays consistent with the added file
     const manifest = JSON.parse(zip.getEntry("manifest.json").getData().toString("utf8"));
     expect(manifest["icon.png"]).toBeDefined();
+  });
+});
+
+describe("templateFieldDescriptors", () => {
+  const passJson = {
+    boardingPass: {
+      headerFields: [{ key: "gate", label: "Gate", value: "12" }],
+      auxiliaryFields: [
+        { key: "boardingTime", label: "Boarding", value: "2026-06-12T15:30:09Z", timeStyle: "PKDateStyleShort" },
+        { key: "seq", label: "SEQ", value: "78" }
+      ],
+      primaryFields: [
+        { key: "date", label: "Date", value: "2026-06-12T04:15:09Z", dateStyle: "PKDateStyleFull" }
+      ]
+    }
+  };
+
+  it("classifies fields with dateStyle/timeStyle as date, others as text", () => {
+    const byKey = Object.fromEntries(templateFieldDescriptors(passJson).map(d => [d.key, d.kind]));
+    expect(byKey.date).toBe("date");          // dateStyle present
+    expect(byKey.boardingTime).toBe("date");  // timeStyle present
+    expect(byKey.gate).toBe("text");
+    expect(byKey.seq).toBe("text");
+  });
+
+  it("carries the field key and label, in declaration order across zones", () => {
+    const descriptors = templateFieldDescriptors(passJson);
+    // zone order: headerFields → primaryFields → auxiliaryFields
+    expect(descriptors.map(d => d.key)).toEqual(["gate", "date", "boardingTime", "seq"]);
+    expect(descriptors.find(d => d.key === "date").label).toBe("Date");
+  });
+
+  it("returns [] for a pass.json with no recognised style dict", () => {
+    expect(templateFieldDescriptors({ description: "x" })).toEqual([]);
   });
 });
 

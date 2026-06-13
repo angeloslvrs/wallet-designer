@@ -98,6 +98,11 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .iss-shared-row { display: flex; gap: 8px; align-items: center; margin: 4px 0; }
 .iss-shared-row label { flex: 0 0 150px; font-size: 12px; color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iss-shared-row input { flex: 1 1 auto; min-width: 0; font-size: 12px; }
+/* Typed-field placeholders (ISO-8601 date pickers) sit where their text input would. */
+.iss-fields .iss-typed { flex: 1 1 220px; min-width: 0; }
+.iss-shared-row .iss-typed { flex: 1 1 auto; min-width: 0; }
+.iss-typed .typed-input { width: 100%; }
+.iss-typed input { font-size: 12px; }
 .iss-toggle { font-size: 11px; padding: 3px 8px; background: #eef0f7; border: 1px solid #d6d9e6; border-radius: 6px; cursor: pointer; color: #1a2150; white-space: nowrap; }
 .iss-toggle:hover { background: #e2e6f3; }
 .iss-colhead { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 6px; font-size: 11px; color: #666; }

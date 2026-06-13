@@ -57,6 +57,30 @@ export function templateFieldKeys(passJson) {
 }
 
 /**
+ * Per-field type descriptors for the template's declared fields, across all
+ * zones of its style dict. `kind` tells the issue UI which input to render so
+ * values come out in the format the field expects: a field carrying
+ * `dateStyle`/`timeStyle` holds an ISO-8601 timestamp (iOS rejects the pass at
+ * install if it is not valid ISO-8601), so it gets a date picker; everything
+ * else is free text.
+ * @param {object} passJson
+ * @returns {{key: string, label?: string, kind: "date"|"text"}[]}
+ */
+export function templateFieldDescriptors(passJson) {
+  const style = styleKey(passJson);
+  if (!style) return [];
+  const out = [];
+  for (const zone of FIELD_ZONES) {
+    for (const field of passJson[style][zone] ?? []) {
+      if (field?.key === undefined) continue;
+      const isDate = field.dateStyle !== undefined || field.timeStyle !== undefined;
+      out.push({ key: field.key, label: field.label, kind: isDate ? "date" : "text" });
+    }
+  }
+  return out;
+}
+
+/**
  * Pure: merge per-pass data onto a template pass.json by field key.
  * Returns a new object; the input is never mutated.
  * @param {object} passJson
