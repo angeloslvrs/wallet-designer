@@ -66,9 +66,68 @@ export const BOARDING_SEMANTICS = Object.freeze({
   securityScreening: "string"
 });
 
-/** The six schedule-date semantic keys (original/current × departure/boarding/arrival). */
+// Richer typed catalog for the semantics-first editor. Built from
+// BOARDING_SEMANTICS (its "string" maps to the "text" widget) plus the
+// remaining boarding-relevant keys with their richer widget types. Rail- and
+// event-only keys are intentionally excluded (see spec non-goals).
+const CATALOG_TYPE = { string: "text", date: "date", number: "number", personName: "personName", seats: "seats" };
+
+const EXTRA_SEMANTICS = {
+  eventType:                 { type: "enum",        group: "flight",    label: "Event type",
+                               enumOptions: ["PKEventTypeGeneric", "PKEventTypeBoarding"] },
+  departureLocation:         { type: "location",    group: "route",     label: "Departure location" },
+  destinationLocation:       { type: "location",    group: "route",     label: "Destination location" },
+  duration:                  { type: "number",      group: "schedule",  label: "Duration (seconds)" },
+  silenceRequested:          { type: "boolean",     group: "status",    label: "Silence requested" },
+  internationalDocumentsAreVerified: { type: "boolean", group: "passenger", label: "Intl. documents verified" },
+  internationalDocumentsVerifiedDeclarationName: { type: "text", group: "passenger", label: "Docs declaration name" },
+  passengerCapabilities:     { type: "stringArray", group: "passenger", label: "Passenger capabilities" },
+  passengerEligibleSecurityPrograms:   { type: "stringArray", group: "passenger", label: "Eligible security programs" },
+  departureAirportSecurityPrograms:    { type: "stringArray", group: "route",     label: "Departure security programs" },
+  destinationAirportSecurityPrograms:  { type: "stringArray", group: "route",     label: "Destination security programs" },
+  totalPrice:                { type: "currency",    group: "pricing",   label: "Total price" },
+  balance:                   { type: "currency",    group: "pricing",   label: "Balance" }
+};
+
+const SEMANTIC_GROUP = {
+  airlineCode: "flight", flightCode: "flight", flightNumber: "flight",
+  originalDepartureDate: "schedule", currentDepartureDate: "schedule",
+  originalBoardingDate: "schedule", currentBoardingDate: "schedule",
+  originalArrivalDate: "schedule", currentArrivalDate: "schedule",
+  boardingGroup: "passenger", boardingZone: "passenger", boardingSequenceNumber: "passenger",
+  passengerName: "passenger", seats: "passenger", confirmationNumber: "passenger",
+  ticketFareClass: "passenger", priorityStatus: "passenger",
+  membershipProgramName: "passenger", membershipProgramNumber: "passenger",
+  transitStatus: "status", transitStatusReason: "status", transitProvider: "status", securityScreening: "status"
+  // everything else (departure*/destination*) falls through to "route"
+};
+
+const humanize = (k) => k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
+
+// The required boarding set. SEED — pinned precisely against the validator in
+// Phase 2/3; see spec "Required vs optional".
+export const REQUIRED_SEMANTICS = Object.freeze([
+  "airlineCode", "flightCode", "flightNumber",
+  "departureAirportCode", "destinationAirportCode",
+  "originalDepartureDate", "currentDepartureDate",
+  "originalBoardingDate", "currentBoardingDate",
+  "passengerName", "seats"
+]);
+const REQUIRED_SET = new Set(REQUIRED_SEMANTICS);
+
+export const SEMANTIC_CATALOG = Object.freeze({
+  ...Object.fromEntries(Object.entries(BOARDING_SEMANTICS).map(([k, t]) => [k, {
+    type: CATALOG_TYPE[t] ?? "text",
+    group: SEMANTIC_GROUP[k] ?? "route",
+    label: humanize(k),
+    required: REQUIRED_SET.has(k)
+  }])),
+  ...Object.fromEntries(Object.entries(EXTRA_SEMANTICS).map(([k, e]) => [k, { ...e, required: REQUIRED_SET.has(k) }]))
+});
+
+/** The schedule-date semantic keys, derived from the catalog (single source of truth). */
 export const SEMANTIC_DATE_KEYS = Object.freeze(
-  Object.keys(BOARDING_SEMANTICS).filter(k => BOARDING_SEMANTICS[k] === "date")
+  Object.keys(SEMANTIC_CATALOG).filter(k => SEMANTIC_CATALOG[k].type === "date")
 );
 
 /**

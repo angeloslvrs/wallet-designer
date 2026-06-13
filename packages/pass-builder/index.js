@@ -6,7 +6,7 @@ import { validate } from "./validate.js";
 
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, buildPkpassFromTemplate, stripInternalIds, mirrorTimeZoneAliases } from "./template.js";
-export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
+export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 export { discoverBindings, collectFields } from "./bindings.js";
 
 /**
