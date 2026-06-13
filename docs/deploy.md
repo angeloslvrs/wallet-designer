@@ -71,8 +71,15 @@ production deps only (no Vite), so **always rebuild the bundle on the dev machin
 # from the repo root
 npm run build:designer                                   # → apps/designer/dist (hashed bundle)
 
-rsync -az --exclude '.env' apps/server/ \
+rsync -az --exclude '.env' --exclude node_modules apps/server/ \
   root@10.1.2.237:/opt/boardingpass/apps/server/          # server code (never overwrites .env)
+# Workspace packages: the server imports @wpd/pass-builder + @wpd/pass-schema through
+# node_modules symlinks into packages/, so changes there MUST ship too — a server-only
+# rsync leaves the builder/schema code stale on the box.
+rsync -az --delete --exclude node_modules packages/pass-builder/ \
+  root@10.1.2.237:/opt/boardingpass/packages/pass-builder/
+rsync -az --delete --exclude node_modules packages/pass-schema/ \
+  root@10.1.2.237:/opt/boardingpass/packages/pass-schema/
 rsync -az --delete apps/designer/dist/ \
   root@10.1.2.237:/opt/boardingpass/apps/designer/dist/    # built SPA
 
@@ -82,15 +89,16 @@ ssh root@10.1.2.237 'cd /opt/boardingpass && npm install --omit=dev'
 ssh root@10.1.2.237 'pm2 restart boardingpass'
 ```
 
-> If you only changed server code, the `dist` rsync is optional. If you changed the SPA,
-> rebuild + rsync `dist`. Static files are served from disk — no restart needed for
-> dist-only changes, but a restart is harmless.
+> Ship every layer you touched: `apps/server/` for API code, `packages/` for builder/schema
+> changes (the server runs that code via workspace symlinks), and rebuilt `dist/` for the SPA.
+> Static files are served from disk — no restart needed for dist-only changes, but a restart
+> is harmless.
 
 ## From scratch (fresh box)
 
 ```bash
-# 1. Node 20 + tooling
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs rsync
+# 1. Node 24 + tooling  (the store uses built-in node:sqlite — needs Node >= 24)
+curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt-get install -y nodejs rsync
 npm install -g pm2
 
 # 2. Get the code
@@ -133,6 +141,16 @@ app box → `api.push.apple.com`.
 
 ## Hard-won gotchas (don't regress these)
 
+- **The box must be on Node >= 24.** The pass store uses built-in `node:sqlite`, absent on
+  Node <= 22 — the server crash-loops on boot there. Upgrade a live box with no downtime
+  (the running app keeps its in-memory binary through the apt step):
+  ```bash
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && apt-get install -y nodejs
+  pm2 update          # respawns the pm2 daemon under the new Node, then restarts the app
+  ```
+  On first boot under the SQLite store, the legacy `state/passes.json` is imported once
+  (a timestamped `.bak` is written) — `GET /api/passes` should return the same record count
+  it had before.
 - **gzip is mandatory.** `app.use(compression())` — without it nginx buffers the ~1.4 MB
   JS bundle to a temp file that fails, delivering a **0-byte body** with the full
   `Content-Length` → the SPA shows only a skeleton over the domain. Compression makes
