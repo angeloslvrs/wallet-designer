@@ -1,27 +1,29 @@
-import { seatSemantics, splitPersonName } from "./semantics.js";
+import { isEmptyTyped } from "./suggest-empty.js";
+import { SEMANTIC_CATALOG, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 
 /**
- * Pure: FormState → Apple pass.json with full iOS 26 opt-in.
- *
- * Emits:
- *  - preferredStyleSchemes: ["semanticBoardingPass"]
- *  - semantics block (correct Apple field names)
- *  - boardingPass.additionalInfoFields
- *  - relevantDates[] (paired date+relevantDate for iOS 18+26 compat)
- *  - event-guide URLs (bagPolicyURL, orderFoodURL, transferURL, …)
- *  - upcomingPassInformation[] (lock-screen pre-boarding content)
- *  - webServiceURL + authenticationToken (passes web service / Live Activities)
- *
+ * Pure: new-shape FormState -> Apple pass.json with full iOS 26 opt-in.
+ * boardingPass.*Fields come verbatim from displayFields; semantics are spread
+ * filled-only (both time-zone spellings mirrored, wifiAccess derived from the
+ * iOS26.wifi bucket); the 5 iOS26 structural extras pass through.
  * @param {import("@wpd/pass-schema").FormState} s
  */
 export function formStateToPassJson(s) {
-  const { meta, branding, flight, passenger, barcode } = s;
-  const dep = flight.departure;
-  const arr = flight.arrival;
+  const { meta, branding, barcode } = s;
+  const df = s.displayFields ?? {};
   const ios = s.iOS26 ?? {};
 
-  /** @type any */
-  const pass = {
+  const boardingPass = {
+    transitType: "PKTransitTypeAir",
+    headerFields: (df.header ?? []).map(f => ({ ...f })),
+    primaryFields: (df.primary ?? []).map(f => ({ ...f })),
+    secondaryFields: (df.secondary ?? []).map(f => ({ ...f })),
+    auxiliaryFields: (df.auxiliary ?? []).map(f => ({ ...f })),
+    backFields: (df.back ?? []).map(f => ({ ...f })),
+    ...(ios.additionalInfoFields?.length && { additionalInfoFields: ios.additionalInfoFields })
+  };
+
+  return {
     formatVersion: 1,
     passTypeIdentifier: meta.passTypeId,
     teamIdentifier: meta.teamId,
@@ -33,110 +35,34 @@ export function formStateToPassJson(s) {
     backgroundColor: branding.backgroundColor,
     labelColor: branding.labelColor,
     preferredStyleSchemes: ["semanticBoardingPass"],
-    barcodes: [{
-      format: barcode.format,
-      message: barcode.message,
-      messageEncoding: "iso-8859-1",
-      altText: barcode.altText
-    }],
-    boardingPass: {
-      transitType: "PKTransitTypeAir",
-      headerFields: [
-        { key: "gate", label: "GATE", value: dep.gate ?? "—" },
-        { key: "seat", label: "SEAT", value: passenger.seats.map(x => x.number).join(",") }
-      ],
-      primaryFields: [
-        { key: "depart", label: dep.city, value: dep.iata },
-        { key: "arrive", label: arr.city, value: arr.iata }
-      ],
-      secondaryFields: [
-        { key: "passenger", label: "PASSENGER", value: passenger.name },
-        { key: "flight", label: "FLIGHT", value: `${flight.airlineCode}${flight.flightNumber}` }
-      ],
-      auxiliaryFields: [
-        ...(dep.boarding ? [{ key: "boarding", label: "BOARDING", value: dep.boarding, dateStyle: "PKDateStyleNone", timeStyle: "PKDateStyleShort" }] : []),
-        ...(dep.depart ? [{ key: "depart-time", label: "DEPART", value: dep.depart, dateStyle: "PKDateStyleNone", timeStyle: "PKDateStyleShort" }] : []),
-        { key: "group", label: "GROUP", value: passenger.boardingGroup },
-        { key: "seq", label: "SEQ", value: passenger.seqNumber }
-      ],
-      backFields: [
-        { key: "ff", label: "FREQUENT FLYER", value: passenger.frequentFlyerNumber ?? "—" },
-        { key: "terminal-dep", label: "DEPARTURE TERMINAL", value: dep.terminal ?? "—" },
-        { key: "terminal-arr", label: "ARRIVAL TERMINAL", value: arr.terminal ?? "—" }
-      ],
-      ...(ios.additionalInfoFields?.length && { additionalInfoFields: ios.additionalInfoFields })
-    },
-    semantics: {
-      airlineCode: flight.airlineCode,
-      flightCode: `${flight.airlineCode}${flight.flightNumber}`,
-      flightNumber: Number(flight.flightNumber),
-      departureAirportCode: dep.iata,
-      departureAirportName: dep.name,
-      departureCityName: dep.city,
-      departureLocationDescription: dep.city,
-      destinationAirportCode: arr.iata,
-      destinationAirportName: arr.name,
-      destinationCityName: arr.city,
-      destinationLocationDescription: arr.city,
-      ...(dep.terminal && { departureTerminal: dep.terminal }),
-      ...(dep.gate && { departureGate: dep.gate }),
-      ...(arr.terminal && { destinationTerminal: arr.terminal }),
-      ...(arr.gate && { destinationGate: arr.gate }),
-      // Both time-zone key spellings, same IANA value: Apple's docs list only
-      // *LocationTimeZone; Pass Designer + the protos emit *AirportTimeZone.
-      // Emit both, rename nothing — see docs/field-coverage.md.
-      ...(dep.timeZone && { departureLocationTimeZone: dep.timeZone, departureAirportTimeZone: dep.timeZone }),
-      ...(arr.timeZone && { destinationLocationTimeZone: arr.timeZone, destinationAirportTimeZone: arr.timeZone }),
-      ...(hasGeo(dep) && { departureLocation: { latitude: dep.latitude, longitude: dep.longitude } }),
-      ...(hasGeo(arr) && { destinationLocation: { latitude: arr.latitude, longitude: arr.longitude } }),
-      ...(dep.depart && { originalDepartureDate: dep.depart, currentDepartureDate: dep.depart }),
-      ...(arr.arrive && { originalArrivalDate: arr.arrive, currentArrivalDate: arr.arrive }),
-      ...(dep.boarding && { originalBoardingDate: dep.boarding, currentBoardingDate: dep.boarding }),
-      passengerName: splitPersonName(passenger.name),
-      boardingGroup: passenger.boardingGroup,
-      boardingSequenceNumber: passenger.seqNumber,
-      ...(passenger.boardingZone && { boardingZone: passenger.boardingZone }),
-      ...(passenger.confirmationNumber && { confirmationNumber: passenger.confirmationNumber }),
-      ...(passenger.ticketFareClass && { ticketFareClass: passenger.ticketFareClass }),
-      ...(passenger.priorityStatus && { priorityStatus: passenger.priorityStatus }),
-      ...(passenger.membershipProgramName && { membershipProgramName: passenger.membershipProgramName }),
-      ...(passenger.frequentFlyerNumber && { membershipProgramNumber: passenger.frequentFlyerNumber }),
-      ...(typeof passenger.documentsVerified === "boolean" && { internationalDocumentsAreVerified: passenger.documentsVerified }),
-      // seatRow/seatSection are derived from the seat number inside
-      // seatSemantics — never taken from FormState's row/letter, which can go
-      // stale and used to render as a doubled seat on iOS (e.g. "3838").
-      seats: passenger.seats.map(x => seatSemantics(x.number, {
-        seatType: x.cabin,
-        ...(x.description && { seatDescription: x.description })
-      })),
-      ...(ios.duration && { duration: ios.duration }),
-      ...(ios.securityScreening && { securityScreening: ios.securityScreening }),
-      ...(ios.transitInfo && { transitProvider: ios.transitInfo }),
-      ...(ios.transitStatus && { transitStatus: ios.transitStatus }),
-      ...(ios.transitStatusReason && { transitStatusReason: ios.transitStatusReason }),
-      ...(typeof ios.silenceRequested === "boolean" && { silenceRequested: ios.silenceRequested }),
-      ...(ios.wifi?.length && { wifiAccess: ios.wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) })) })
-    },
-    ...(ios.relevantDates?.length && {
-      relevantDates: ios.relevantDates.map(d => ({ date: d, relevantDate: d }))
-    }),
+    barcodes: [{ format: barcode.format, message: barcode.message, messageEncoding: "iso-8859-1", altText: barcode.altText }],
+    boardingPass,
+    semantics: emitSemantics(s.semantics, ios.wifi),
+    ...(ios.relevantDates?.length && { relevantDates: ios.relevantDates.map(d => ({ date: d, relevantDate: d })) }),
     ...(ios.eventGuide && stripUndef(ios.eventGuide)),
     ...(ios.upcomingPassInformation?.length && {
-      upcomingPassInformation: ios.upcomingPassInformation.map(e => ({
-        identifier: e.identifier,
-        name: e.name,
-        type: "event",
-        dateInformation: { date: e.date }
-      }))
+      upcomingPassInformation: ios.upcomingPassInformation.map(e => ({ identifier: e.identifier, name: e.name, type: "event", dateInformation: { date: e.date } }))
     }),
     ...(meta.webServiceURL && { webServiceURL: meta.webServiceURL }),
     ...(meta.authenticationToken && { authenticationToken: meta.authenticationToken })
   };
-
-  return pass;
 }
 
-function hasGeo(p) { return typeof p.latitude === "number" && typeof p.longitude === "number"; }
+/** Filled-only semantics (per catalog type), with both tz spellings + wifiAccess. */
+function emitSemantics(semantics = {}, wifi) {
+  const out = {};
+  for (const [k, v] of Object.entries(semantics)) {
+    const type = SEMANTIC_CATALOG[k]?.type ?? "text";
+    if (!isEmptyTyped(type, v)) out[k] = v;
+  }
+  for (const [docKey, airportKey] of Object.entries(TIMEZONE_KEY_ALIASES)) {
+    if (out[docKey] && !out[airportKey]) out[airportKey] = out[docKey];
+    else if (out[airportKey] && !out[docKey]) out[docKey] = out[airportKey];
+  }
+  if (wifi?.length) out.wifiAccess = wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) }));
+  return out;
+}
+
 function stripUndef(o) {
   const out = {};
   for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== "") out[k] = v;

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "wpd/form-state",
   "type": "object",
-  "required": ["meta", "branding", "flight", "passenger", "barcode"],
+  "required": ["meta", "branding", "barcode", "semantics", "displayFields"],
   "additionalProperties": false,
   "properties": {
     "meta": {
@@ -27,49 +27,8 @@
         "logoText": { "type": "string" },
         "foregroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
         "backgroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
-        "labelColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" }
-      }
-    },
-    "flight": {
-      "type": "object",
-      "required": ["airlineCode", "flightNumber", "departure", "arrival"],
-      "additionalProperties": false,
-      "properties": {
-        "airlineCode": { "type": "string", "minLength": 2, "maxLength": 3 },
-        "flightNumber": { "type": "string" },
-        "departure": { "$ref": "#/definitions/endpoint" },
-        "arrival":   { "$ref": "#/definitions/endpoint" }
-      }
-    },
-    "passenger": {
-      "type": "object",
-      "required": ["name", "seats", "boardingGroup", "seqNumber"],
-      "additionalProperties": false,
-      "properties": {
-        "name": { "type": "string" },
-        "frequentFlyerNumber": { "type": "string" },
-        "membershipProgramName": { "type": "string" },
-        "confirmationNumber": { "type": "string" },
-        "ticketFareClass": { "type": "string" },
-        "priorityStatus": { "type": "string" },
-        "boardingZone": { "type": "string" },
-        "documentsVerified": { "type": "boolean" },
-        "seats": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["number", "cabin"],
-            "properties": {
-              "number": { "type": "string" },
-              "cabin": { "type": "string" },
-              "row": { "type": "string" },
-              "letter": { "type": "string" },
-              "description": { "type": "string" }
-            }
-          }
-        },
-        "boardingGroup": { "type": "string" },
-        "seqNumber": { "type": "string" }
+        "labelColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
+        "logoDataUrl": { "type": "string" }
       }
     },
     "barcode": {
@@ -81,27 +40,22 @@
         "altText": { "type": "string" }
       }
     },
+    "semantics": { "type": "object" },
+    "displayFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "header": { "$ref": "#/definitions/fieldList" },
+        "primary": { "$ref": "#/definitions/fieldList" },
+        "secondary": { "$ref": "#/definitions/fieldList" },
+        "auxiliary": { "$ref": "#/definitions/fieldList" },
+        "back": { "$ref": "#/definitions/fieldList" }
+      }
+    },
     "iOS26": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "duration": { "type": "number" },
-        "securityScreening": { "type": "string" },
-        "transitInfo": { "type": "string" },
-        "transitStatus": { "type": "string" },
-        "transitStatusReason": { "type": "string" },
-        "silenceRequested": { "type": "boolean" },
-        "wifi": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["ssid"],
-            "properties": {
-              "ssid": { "type": "string" },
-              "password": { "type": "string" }
-            }
-          }
-        },
         "additionalInfoFields": {
           "type": "array",
           "items": {
@@ -115,10 +69,7 @@
             }
           }
         },
-        "relevantDates": {
-          "type": "array",
-          "items": { "type": "string", "format": "date-time" }
-        },
+        "relevantDates": { "type": "array", "items": { "type": "string", "format": "date-time" } },
         "eventGuide": {
           "type": "object",
           "additionalProperties": false,
@@ -142,27 +93,35 @@
               "date": { "type": "string", "format": "date-time" }
             }
           }
+        },
+        "wifi": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["ssid"],
+            "properties": {
+              "ssid": { "type": "string" },
+              "password": { "type": "string" }
+            }
+          }
         }
       }
     }
   },
   "definitions": {
-    "endpoint": {
-      "type": "object",
-      "required": ["iata", "name", "city"],
-      "properties": {
-        "iata": { "type": "string", "minLength": 3, "maxLength": 3 },
-        "name": { "type": "string" },
-        "city": { "type": "string" },
-        "terminal": { "type": "string" },
-        "gate": { "type": "string" },
-        "gateOpen": { "type": "string", "format": "date-time" },
-        "boarding": { "type": "string", "format": "date-time" },
-        "depart":   { "type": "string", "format": "date-time" },
-        "arrive":   { "type": "string", "format": "date-time" },
-        "timeZone": { "type": "string" },
-        "latitude": { "type": "number" },
-        "longitude": { "type": "number" }
+    "fieldList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "label", "value"],
+        "properties": {
+          "key": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": "string" },
+          "dateStyle": { "type": "string" },
+          "timeStyle": { "type": "string" },
+          "changeMessage": { "type": "string" }
+        }
       }
     }
   }

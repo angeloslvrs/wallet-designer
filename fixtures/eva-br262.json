@@ -6,43 +6,176 @@
     "serialNumber": "BR262-001",
     "description": "EVA Air boarding pass"
   },
-  "branding": { "logoText": "EVA Air", "foregroundColor": "rgb(255,255,255)", "backgroundColor": "rgb(0,104,71)", "labelColor": "rgb(244,168,32)" },
-  "flight": {
+  "branding": {
+    "logoText": "EVA Air",
+    "foregroundColor": "rgb(255,255,255)",
+    "backgroundColor": "rgb(0,104,71)",
+    "labelColor": "rgb(244,168,32)"
+  },
+  "barcode": {
+    "format": "PKBarcodeFormatPDF417",
+    "message": "BR262MNLTPE38K0073",
+    "altText": "BR262 38K"
+  },
+  "semantics": {
     "airlineCode": "BR",
-    "flightNumber": "262",
-    "departure": {
-      "iata": "MNL", "name": "Ninoy Aquino International", "city": "Manila",
-      "terminal": "1", "gate": "5",
-      "gateOpen": "2026-06-06T04:45:00+08:00", "boarding": "2026-06-06T05:05:00+08:00", "depart": "2026-06-06T05:45:00+08:00",
-      "timeZone": "Asia/Manila", "latitude": 14.5086, "longitude": 121.0194
+    "flightCode": "BR262",
+    "flightNumber": 262,
+    "departureAirportCode": "MNL",
+    "departureAirportName": "Ninoy Aquino International",
+    "departureCityName": "Manila",
+    "departureLocationDescription": "Manila",
+    "destinationAirportCode": "TPE",
+    "destinationAirportName": "Taiwan Taoyuan International",
+    "destinationCityName": "Taipei",
+    "destinationLocationDescription": "Taipei",
+    "departureTerminal": "1",
+    "departureGate": "5",
+    "destinationTerminal": "2",
+    "destinationGate": "A6",
+    "departureLocationTimeZone": "Asia/Manila",
+    "departureAirportTimeZone": "Asia/Manila",
+    "destinationLocationTimeZone": "Asia/Taipei",
+    "destinationAirportTimeZone": "Asia/Taipei",
+    "departureLocation": {
+      "latitude": 14.5086,
+      "longitude": 121.0194
     },
-    "arrival": {
-      "iata": "TPE", "name": "Taiwan Taoyuan International", "city": "Taipei",
-      "terminal": "2", "gate": "A6",
-      "arrive": "2026-06-06T08:05:00+08:00",
-      "timeZone": "Asia/Taipei", "latitude": 25.0797, "longitude": 121.2342
-    }
-  },
-  "passenger": {
-    "name": "ANGELO SOLIVERES",
-    "frequentFlyerNumber": "BR-INFINITY-7788990",
-    "seats": [{ "number": "38K", "cabin": "economy", "row": "38", "letter": "K" }],
+    "destinationLocation": {
+      "latitude": 25.0797,
+      "longitude": 121.2342
+    },
+    "originalDepartureDate": "2026-06-06T05:45:00+08:00",
+    "currentDepartureDate": "2026-06-06T05:45:00+08:00",
+    "originalArrivalDate": "2026-06-06T08:05:00+08:00",
+    "currentArrivalDate": "2026-06-06T08:05:00+08:00",
+    "originalBoardingDate": "2026-06-06T05:05:00+08:00",
+    "currentBoardingDate": "2026-06-06T05:05:00+08:00",
+    "passengerName": {
+      "givenName": "ANGELO",
+      "familyName": "SOLIVERES"
+    },
     "boardingGroup": "4",
-    "seqNumber": "0073"
-  },
-  "barcode": { "format": "PKBarcodeFormatPDF417", "message": "BR262MNLTPE38K0073", "altText": "BR262 38K" },
-  "iOS26": {
+    "boardingSequenceNumber": "0073",
+    "membershipProgramNumber": "BR-INFINITY-7788990",
+    "seats": [
+      {
+        "seatRow": "38",
+        "seatNumber": "K",
+        "seatType": "economy"
+      }
+    ],
     "duration": 8400,
     "securityScreening": "Regular",
-    "transitInfo": "Proceed to Gate 5 — NAIA Terminal 1",
-    "wifi": [{ "ssid": "EVA-WiFi", "password": "BR262" }],
-    "additionalInfoFields": [
-      { "key": "fare-class", "label": "FARE", "value": "Economy Basic" },
-      { "key": "baggage", "label": "BAGGAGE", "value": "1 x 23kg checked" },
-      { "key": "meal", "label": "MEAL", "value": "Hot meal + beverage" },
-      { "key": "aircraft", "label": "AIRCRAFT", "value": "Boeing 787-9" }
+    "transitProvider": "Proceed to Gate 5 — NAIA Terminal 1"
+  },
+  "displayFields": {
+    "header": [
+      {
+        "key": "gate",
+        "label": "GATE",
+        "value": "5"
+      },
+      {
+        "key": "seat",
+        "label": "SEAT",
+        "value": "38K"
+      }
     ],
-    "relevantDates": ["2026-06-06T04:45:00+08:00"],
+    "primary": [
+      {
+        "key": "depart",
+        "label": "Manila",
+        "value": "MNL"
+      },
+      {
+        "key": "arrive",
+        "label": "Taipei",
+        "value": "TPE"
+      }
+    ],
+    "secondary": [
+      {
+        "key": "passenger",
+        "label": "PASSENGER",
+        "value": "ANGELO SOLIVERES"
+      },
+      {
+        "key": "flight",
+        "label": "FLIGHT",
+        "value": "BR262"
+      }
+    ],
+    "auxiliary": [
+      {
+        "key": "boarding",
+        "label": "BOARDING",
+        "value": "2026-06-06T05:05:00+08:00",
+        "dateStyle": "PKDateStyleNone",
+        "timeStyle": "PKDateStyleShort"
+      },
+      {
+        "key": "depart-time",
+        "label": "DEPART",
+        "value": "2026-06-06T05:45:00+08:00",
+        "dateStyle": "PKDateStyleNone",
+        "timeStyle": "PKDateStyleShort"
+      },
+      {
+        "key": "group",
+        "label": "GROUP",
+        "value": "4"
+      },
+      {
+        "key": "seq",
+        "label": "SEQ",
+        "value": "0073"
+      }
+    ],
+    "back": [
+      {
+        "key": "ff",
+        "label": "FREQUENT FLYER",
+        "value": "BR-INFINITY-7788990"
+      },
+      {
+        "key": "terminal-dep",
+        "label": "DEPARTURE TERMINAL",
+        "value": "1"
+      },
+      {
+        "key": "terminal-arr",
+        "label": "ARRIVAL TERMINAL",
+        "value": "2"
+      }
+    ]
+  },
+  "iOS26": {
+    "additionalInfoFields": [
+      {
+        "key": "fare-class",
+        "label": "FARE",
+        "value": "Economy Basic"
+      },
+      {
+        "key": "baggage",
+        "label": "BAGGAGE",
+        "value": "1 x 23kg checked"
+      },
+      {
+        "key": "meal",
+        "label": "MEAL",
+        "value": "Hot meal + beverage"
+      },
+      {
+        "key": "aircraft",
+        "label": "AIRCRAFT",
+        "value": "Boeing 787-9"
+      }
+    ],
+    "relevantDates": [
+      "2026-06-06T04:45:00+08:00"
+    ],
     "eventGuide": {
       "bagPolicyURL": "https://www.evaair.com/en-global/fly-prepare/baggage/",
       "orderFoodURL": "https://www.evaair.com/en-global/fly-prepare/onboard-dining/",
@@ -50,8 +183,22 @@
       "transitInformationURL": "https://www.taoyuan-airport.com/english/transportation"
     },
     "upcomingPassInformation": [
-      { "identifier": "checkin-open", "name": "Online check-in opens", "date": "2026-06-04T05:45:00+08:00" },
-      { "identifier": "boarding-open", "name": "Boarding begins", "date": "2026-06-06T05:05:00+08:00" }
+      {
+        "identifier": "checkin-open",
+        "name": "Online check-in opens",
+        "date": "2026-06-04T05:45:00+08:00"
+      },
+      {
+        "identifier": "boarding-open",
+        "name": "Boarding begins",
+        "date": "2026-06-06T05:05:00+08:00"
+      }
+    ],
+    "wifi": [
+      {
+        "ssid": "EVA-WiFi",
+        "password": "BR262"
+      }
     ]
   }
 }

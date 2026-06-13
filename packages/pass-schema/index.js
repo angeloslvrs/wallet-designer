@@ -2,24 +2,21 @@ import schema from "./schema.json" with { type: "json" };
 export { schema };
 
 /**
- * @typedef {Object} Endpoint
- * @property {string} iata
- * @property {string} name
- * @property {string} city
- * @property {string} [terminal]
- * @property {string} [gate]
- * @property {string} [gateOpen]
- * @property {string} [boarding]
- * @property {string} [depart]
- * @property {string} [arrive]
+ * @typedef {Object} DisplayField
+ * @property {string} key
+ * @property {string} label
+ * @property {string} value
+ * @property {string} [dateStyle]
+ * @property {string} [timeStyle]
+ * @property {string} [changeMessage]
  */
 
 /**
- * @typedef {Object} FormState
- * @property {{passTypeId:string, teamId:string, organizationName:string, serialNumber:string, description:string}} meta
- * @property {{logoText:string, foregroundColor:string, backgroundColor:string, labelColor:string}} branding
- * @property {{airlineCode:string, flightNumber:string, departure:Endpoint, arrival:Endpoint}} flight
- * @property {{name:string, frequentFlyerNumber?:string, seats:Array<{number:string,cabin:string,row?:string,letter?:string}>, boardingGroup:string, seqNumber:string}} passenger
+ * @typedef {Object} FormState  semantics-first boarding-pass design
+ * @property {{passTypeId:string, teamId:string, organizationName:string, serialNumber:string, description:string, webServiceURL?:string, authenticationToken?:string}} meta
+ * @property {{logoText:string, foregroundColor:string, backgroundColor:string, labelColor:string, logoDataUrl?:string}} branding
  * @property {{format:string, message:string, altText:string}} barcode
- * @property {Object} [iOS26]
+ * @property {Record<string, *>} semantics  Apple semantic keys (SEMANTIC_CATALOG), filled-only; wifiAccess lives in iOS26.wifi
+ * @property {{header:DisplayField[], primary:DisplayField[], secondary:DisplayField[], auxiliary:DisplayField[], back:DisplayField[]}} displayFields
+ * @property {Object} [iOS26]  structural extras: additionalInfoFields, relevantDates, eventGuide, upcomingPassInformation, wifi
  */
