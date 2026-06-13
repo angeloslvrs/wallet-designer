@@ -5,7 +5,7 @@
 // bytes either way.
 
 import { join } from "node:path";
-import { buildPkpass, buildPkpassFromTemplate } from "@wpd/pass-builder";
+import { buildPkpass, buildPkpassFromTemplate, migrateFormState } from "@wpd/pass-builder";
 import { env } from "./env.js";
 
 export const TEMPLATE_ID_RE = /^[a-z0-9][a-z0-9-]*$/i;
@@ -44,7 +44,7 @@ export async function buildStoredPass(rec, serial) {
     });
   }
   return buildPkpass({
-    state: rec.state,
+    state: migrateFormState(rec.state),
     certDir: env.certDir,
     passphrase: env.passphrase,
     // Same server-controlled identity the template path forces. Without it a

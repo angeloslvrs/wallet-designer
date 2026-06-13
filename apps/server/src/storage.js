@@ -14,6 +14,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomBytes } from "node:crypto";
+import { migrateFormState } from "@wpd/pass-builder";
 
 // node:sqlite resolved at runtime via process.getBuiltinModule: vitest's Vite
 // pipeline (v1.x) predates this builtin and cannot resolve the static import.
@@ -210,9 +211,9 @@ export async function saveTemplatePass({ serialNumber, template, data = {}, grou
 /** A trip is one flight on one day; every passenger's pass shares this id. */
 export function deriveGroupId(state) {
   if (state.meta?.groupId) return state.meta.groupId;
-  const f = state.flight ?? {};
-  const date = (f.departure?.depart ?? "").slice(0, 10) || "nodate";
-  return `${f.airlineCode ?? "?"}${f.flightNumber ?? "?"}@${date}`;
+  const sem = migrateFormState(state)?.semantics ?? {};
+  const date = (sem.currentDepartureDate ?? sem.originalDepartureDate ?? "").slice(0, 10) || "nodate";
+  return `${sem.airlineCode ?? "?"}${sem.flightNumber ?? "?"}@${date}`;
 }
 
 /** All issued passes belonging to a trip/group. */

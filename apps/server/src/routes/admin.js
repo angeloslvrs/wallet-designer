@@ -2,7 +2,7 @@
 // for a single pass or for a whole trip (group of passes on one flight).
 
 import { Router } from "express";
-import { applyTemplateData, loadTemplate } from "@wpd/pass-builder";
+import { applyTemplateData, loadTemplate, migrateFormState } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
   devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
@@ -22,15 +22,12 @@ const fieldDataValue = v => (v !== null && typeof v === "object" && !Array.isArr
 
 /**
  * Apply a status change to a pass's FormState. Pure: returns a new state.
- * The vocabulary is semantic keys (route layer normalizes the legacy verbs):
- * departureGate, currentBoardingDate, currentDepartureDate,
- * currentArrivalDate, transitProvider, securityScreening, delayed ("" clears
- * the delay), transitStatus + transitStatusReason ("" clears both the
- * semantics and the status row). FormState has fixed structure, so the
- * semantic → state-path mapping is static here — form-to-pass re-derives the
- * pass-level semantics from the state on every rebuild.
- * Object-form values ({value, changeMessage}) are normalized to their value —
- * FormState fields are scalars; only the status row carries a changeMessage.
+ * Semantics-first: the vocabulary is semantic keys (route layer normalizes the
+ * legacy verbs); each maps to a `semantics` entry ("" clears it). The visible
+ * STATUS / DELAY rows live in iOS26.additionalInfoFields. Unlike the old shape
+ * the compact gate/time display fields are NOT re-synced here — iOS 26 renders
+ * the expanded view + Live Activity from semantics (see the phase-3 plan's open
+ * items). Object-form values ({value, changeMessage}) are normalized to .value.
  */
 export function applyStatus(state, body = {}) {
   const {
@@ -38,14 +35,16 @@ export function applyStatus(state, body = {}) {
     transitProvider, securityScreening, delayed, transitStatus, transitStatusReason
   } = body;
   const next = structuredClone(state);
-  if (departureGate !== undefined)        next.flight.departure.gate = fieldDataValue(departureGate);
-  if (currentBoardingDate !== undefined)  next.flight.departure.boarding = fieldDataValue(currentBoardingDate);
-  if (currentDepartureDate !== undefined) next.flight.departure.depart = fieldDataValue(currentDepartureDate);
-  if (currentArrivalDate !== undefined)   next.flight.arrival.arrive = fieldDataValue(currentArrivalDate);
-  next.iOS26 ??= {};
-  if (transitProvider !== undefined)   next.iOS26.transitInfo = fieldDataValue(transitProvider);
-  if (securityScreening !== undefined) next.iOS26.securityScreening = fieldDataValue(securityScreening);
+  const sem = { ...(next.semantics ?? {}) };
+  const set = (key, raw) => { const v = fieldDataValue(raw); if (v) sem[key] = v; else delete sem[key]; };
+  if (departureGate !== undefined)        set("departureGate", departureGate);
+  if (currentBoardingDate !== undefined)  set("currentBoardingDate", currentBoardingDate);
+  if (currentDepartureDate !== undefined) set("currentDepartureDate", currentDepartureDate);
+  if (currentArrivalDate !== undefined)   set("currentArrivalDate", currentArrivalDate);
+  if (transitProvider !== undefined)      set("transitProvider", transitProvider);
+  if (securityScreening !== undefined)    set("securityScreening", securityScreening);
 
+  next.iOS26 ??= {};
   const upsertInfoRow = (key, row) => {
     next.iOS26.additionalInfoFields = (next.iOS26.additionalInfoFields ?? []).filter(f => f.key !== key);
     if (row) next.iOS26.additionalInfoFields.push(row);
@@ -57,17 +56,12 @@ export function applyStatus(state, body = {}) {
   // Mirror of the template path: semantic status + a visible "status" row whose
   // changeMessage makes the push banner carry the why ("Delayed — crew availability").
   if (transitStatus !== undefined || transitStatusReason !== undefined) {
-    if (transitStatus !== undefined) {
-      const v = fieldDataValue(transitStatus);
-      if (v) next.iOS26.transitStatus = v; else delete next.iOS26.transitStatus;
-    }
-    if (transitStatusReason !== undefined) {
-      const v = fieldDataValue(transitStatusReason);
-      if (v) next.iOS26.transitStatusReason = v; else delete next.iOS26.transitStatusReason;
-    }
-    const display = transitStatusDisplay(next.iOS26.transitStatus, next.iOS26.transitStatusReason);
+    if (transitStatus !== undefined) { const v = fieldDataValue(transitStatus); if (v) sem.transitStatus = v; else delete sem.transitStatus; }
+    if (transitStatusReason !== undefined) { const v = fieldDataValue(transitStatusReason); if (v) sem.transitStatusReason = v; else delete sem.transitStatusReason; }
+    const display = transitStatusDisplay(sem.transitStatus, sem.transitStatusReason);
     upsertInfoRow("status", display ? { key: "status", label: "STATUS", value: display, changeMessage: "%@" } : null);
   }
+  next.semantics = sem;
   return next;
 }
 
@@ -128,7 +122,18 @@ adminRouter.post("/passes", async (req, res) => {
   }
 });
 
-const passengerOf = rec => rec.state?.passenger?.name ?? fieldDataValue(rec.data?.passenger);
+// Display readouts for the passes list. FormState rows migrate on the fly so a
+// pre-Phase-3 row (old shape) and a new-shape row both resolve to semantics.
+const passengerOf = (rec) => {
+  if (rec.data) return fieldDataValue(rec.data.passenger);
+  const pn = migrateFormState(rec.state)?.semantics?.passengerName;
+  return pn ? [pn.givenName, pn.familyName].filter(Boolean).join(" ") : undefined;
+};
+const seatOf = (rec) => {
+  if (rec.data) return fieldDataValue(rec.data.seat);
+  const s = migrateFormState(rec.state)?.semantics?.seats?.[0];
+  return s ? (`${s.seatRow ?? ""}${s.seatNumber ?? ""}` || undefined) : undefined;
+};
 
 // GET /api/passes  →  all issued passes, with their group + device count
 adminRouter.get("/passes", async (_req, res) => {
@@ -138,7 +143,7 @@ adminRouter.get("/passes", async (_req, res) => {
     groupId: rec.groupId,
     passTypeIdentifier: rec.passTypeIdentifier,
     passenger: passengerOf(rec),
-    seat: rec.state?.passenger?.seats?.[0]?.number ?? fieldDataValue(rec.data?.seat),
+    seat: seatOf(rec),
     lastModified: rec.lastModified,
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     ...(rec.template && { template: rec.template })
@@ -167,7 +172,7 @@ async function applyStatusToStoredPass(serial, body) {
     });
     return { rec: updated, skipped };
   }
-  return { rec: await updatePassState(serial, state => applyStatus(state, normalized)), skipped: [] };
+  return { rec: await updatePassState(serial, state => applyStatus(migrateFormState(state), normalized)), skipped: [] };
 }
 
 // POST /api/passes/:serial/status  →  update one pass + push its devices

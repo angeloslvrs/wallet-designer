@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyStatusToTemplateData, deriveIssueSemantics } from "../apps/server/src/template-status.js";
+import { applyStatusToTemplateData } from "../apps/server/src/template-status.js";
 
 // A binding map like discovery would produce for a dev-sample-shaped template.
 // Field keys here are arbitrary template vocabulary — the point of the map.
@@ -142,53 +142,5 @@ describe("applyStatusToTemplateData — per-field changeMessage", () => {
     expect(data.gate).toBeUndefined();
     expect(data.semantics.departureGate).toBe("B12");
     expect(skipped).toEqual(["departureGate"]);
-  });
-});
-
-describe("deriveIssueSemantics (map-driven)", () => {
-  it("translates per-passenger field data into pass semantics through the binding map", () => {
-    const out = deriveIssueSemantics({
-      passenger: "Ada Lovelace", seat: "14F", gate: "B7",
-      confirmation: "GHK2X9", "fare-class": "Y", priority: "Gold"
-    }, BINDINGS, { seats: [{ seatNumber: "A", seatRow: "12", seatType: "economy" }] });
-    expect(out).toEqual({
-      passengerName: { givenName: "Ada", familyName: "Lovelace" },
-      seats: [{ seatRow: "14", seatNumber: "F", seatType: "economy" }],
-      departureGate: "B7",
-      confirmationNumber: "GHK2X9",
-      ticketFareClass: "Y",
-      priorityStatus: "Gold"
-    });
-  });
-
-  it("decomposes the seat composite into seatRow + seatNumber, keeping unsplittable composites whole", () => {
-    expect(deriveIssueSemantics({ seat: "UPPER DECK" }, BINDINGS).seats).toEqual([{ seatNumber: "UPPER DECK" }]);
-    expect(deriveIssueSemantics({ seat: "38k" }, BINDINGS).seats).toEqual([{ seatRow: "38", seatNumber: "K" }]);
-  });
-
-  it("splits SURNAME/GIVEN passenger values on the slash", () => {
-    expect(deriveIssueSemantics({ passenger: "DELA CRUZ/JUAN" }, BINDINGS).passengerName)
-      .toEqual({ givenName: "JUAN", familyName: "DELA CRUZ" });
-  });
-
-  it("populates BOTH the current* and original* pair from a bound date input", () => {
-    const out = deriveIssueSemantics({ boarding: "2026-06-20T07:30:00+08:00" }, BINDINGS);
-    expect(out.currentBoardingDate).toBe("2026-06-20T07:30:00+08:00");
-    expect(out.originalBoardingDate).toBe("2026-06-20T07:30:00+08:00");
-  });
-
-  it("rejects a non-ISO value for a date-bound field", () => {
-    expect(() => deriveIssueSemantics({ boarding: "early morning" }, BINDINGS)).toThrow(/ISO 8601/);
-  });
-
-  it("takes the value from object-form data and ignores unbound keys", () => {
-    const out = deriveIssueSemantics({ gate: { value: "C3", changeMessage: "Gate %@" }, ff: "RP-123" }, BINDINGS);
-    expect(out).toEqual({ departureGate: "C3" });
-  });
-
-  it("returns an empty object for empty data or an empty binding map", () => {
-    expect(deriveIssueSemantics({}, BINDINGS)).toEqual({});
-    expect(deriveIssueSemantics({ passenger: "Ada" }, {})).toEqual({});
-    expect(deriveIssueSemantics(undefined, undefined)).toEqual({});
   });
 });

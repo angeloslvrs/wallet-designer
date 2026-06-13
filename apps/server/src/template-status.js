@@ -15,7 +15,7 @@
 // — visible fields keep the whole patch (so a push can carry a lock-screen
 // banner), semantics always take the .value.
 
-import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS, seatSemantics, splitPersonName } from "@wpd/pass-builder";
+import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS } from "@wpd/pass-builder";
 
 const isPatch = (raw) => raw !== null && typeof raw === "object" && !Array.isArray(raw);
 const valueOf = (raw) => (isPatch(raw) ? raw.value : raw);
@@ -131,38 +131,3 @@ export function applyStatusToTemplateData(data, body = {}, bindings = {}) {
  * set explicitly under data.semantics.
  */
 export const VOLATILE_ISSUE_SEMANTICS = Object.freeze([...SEMANTIC_DATE_KEYS, "passengerName", "seats"]);
-
-/**
- * Issue-time twin of the status mapping, map-driven: per-passenger inputs
- * stay keyed by the template's field keys; the binding map translates them
- * into pass semantics. Seat strings decompose into seats[{seatRow,
- * seatNumber}]; a bound date input populates BOTH the current* and original*
- * date pair. Pure; the caller decides precedence (routes/admin.js lets
- * explicit data.semantics win over what is derived here).
- * @param {object} [data]              per-pass template data, by field key
- * @param {Record<string, {fieldKey: string}>} [bindings] the template's binding map
- * @param {object} [templateSemantics] the template's own semantics block
- * @returns {object} derived semantics (empty when nothing is derivable)
- */
-export function deriveIssueSemantics(data = {}, bindings = {}, templateSemantics = {}) {
-  const out = {};
-  for (const [semKey, binding] of Object.entries(bindings)) {
-    const v = valueOf(data?.[binding.fieldKey]);
-    if (!v) continue;
-    const type = BOARDING_SEMANTICS[semKey];
-    if (semKey === "seats") {
-      const seatType = templateSemantics?.seats?.[0]?.seatType;
-      out.seats = [seatSemantics(v, seatType ? { seatType } : {})];
-    } else if (semKey === "passengerName") {
-      out.passengerName = splitPersonName(v);
-    } else if (type === "date") {
-      assertIsoDate(`${binding.fieldKey} (bound to ${semKey})`, v);
-      out[semKey] = v;
-      const original = semKey.replace(/^current/, "original");
-      if (original !== semKey) out[original] = v;
-    } else if (type === "string") {
-      out[semKey] = v;
-    }
-  }
-  return out;
-}
