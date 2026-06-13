@@ -1,6 +1,7 @@
 import bwipjs from "bwip-js";
 import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
+import { harvestSemantics } from "./semantics-editor.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
@@ -39,12 +40,14 @@ export function suggestSerial(groupId, n) {
  * Values are plain strings at issue time (the {value, changeMessage} object
  * form is for updates); empty inputs are left out so template defaults apply.
  */
-export function buildIssueRequest({ template, groupId, serial, values }) {
+export function buildIssueRequest({ template, groupId, serial, values, semantics }) {
   const data = {};
   for (const [key, raw] of Object.entries(values ?? {})) {
     const v = (raw ?? "").trim();
     if (v) data[key] = v;
   }
+  const sem = harvestSemantics(semantics ?? {});
+  if (Object.keys(sem).length) data.semantics = sem;
   return { template, serialNumber: (serial ?? "").trim(), groupId: (groupId ?? "").trim(), data };
 }
 

@@ -56,6 +56,18 @@ describe("buildIssueRequest", () => {
     const req = buildIssueRequest({ template: "dev-sample", groupId: "G", serial: "G-001", values: {} });
     expect(req.data).toEqual({});
   });
+
+  it("includes a filled semantics object and drops empty semantic values", () => {
+    const req = buildIssueRequest({
+      template: "cebpac", groupId: "5J@2026-06-13", serial: "X-1",
+      values: { gate: "B7", term: "" },
+      semantics: { airlineCode: "5J", departureGate: "" }
+    });
+    expect(req).toEqual({
+      template: "cebpac", serialNumber: "X-1", groupId: "5J@2026-06-13",
+      data: { gate: "B7", semantics: { airlineCode: "5J" } }
+    });
+  });
 });
 
 describe("describeIssueResult", () => {
