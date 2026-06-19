@@ -94,7 +94,48 @@ Neither tool serves passes, tracks registrations, or pushes updates. Those exist
 
 - [x] Issue-time (and status-edit) input validation — typed inputs, inline errors, submit gate, server 400s *(2026-06-13: every issue/status input now validates against the type the template implies. Field validation derives from **bindings → semantics → kind**, NOT from hardcoded field-key names: `packages/pass-builder/field-kinds.js` maps each Apple semantic to a validation kind (`date`/`number`/`iata`/`name`/`seat`/`text` — airport-code semantics → `iata`, `boardingSequenceNumber` → `number` even though Apple types it a string), and `templateFieldDescriptors(passJson, bindings)` resolves each visible field's kind through the template's discovered binding map (style attrs `dateStyle`/`timeStyle`/`numberStyle` are the fallback when unbound). `GET /api/templates` now ships these descriptors. Issue UI (`issue.js`) renders the right input per kind (IATA uppercases + maxlength 3, sequence `inputmode=numeric`, dates keep the picker), shows an inline error on blur/submit, and disables **Issue** with a reason until valid; the Manage status editor (`ops.js: validateStatusValues` + `manage.js`) mirrors the same guardrails. Defense in depth: `issueTemplatePass` rejects malformed provided values (→ 400, per-field message) and uppercases IATA before storage; the status routes pre-validate via `template-status.js: validateStatusBody` (→ 400). Empty optional fields fall back to the template default; required-by-binding empties block the UI submit but the server only format-checks PROVIDED values. **IA:** the SPA now lands on **Issue** (template→issue→manage is the front door); the hand-designer is the secondary "Design (advanced)" tab, unchanged. Tests: `field-kinds`, `field-descriptors` (cebpac + dev-sample through their own bindings), `issue-validation`, `issue-validation-server`, `status-validation`, `ops` additions — 243 green; verified live against the real cebpac export.)*
 
+## 2026-06-20 session — designer UX + early-expiry fix (main @ e09fa54, deployed + pushed)
+
+Shipped (each has a plan in `docs/superpowers/plans/`):
+- **Designer image uploads** (`2026-06-19-designer-image-uploads.md`): fixed uploaded
+  images being silently dropped before signing. `packages/pass-builder/form-assets.js`
+  (`imageAssetsFromBranding` + `BRANDING_IMAGE_SLOTS`) decodes data-URL uploads into
+  bundle bytes; `buildPkpass` overlays them. Slots: logo/icon/footer/primaryLogo (iOS 26),
+  PNG-only; Designer shows an upload + thumbnail per slot.
+- **Scan → BCBP autofill** (`2026-06-19-scan-bcbp-autofill.md`):
+  `packages/pass-builder/bcbp.js` (`parseBCBP` + `bcbpToSemantics`) parses IATA BCBP;
+  `apps/designer/src/scan.js` is paste-first (paste→photo→camera);
+  `apps/designer/src/bcbp-preview.js` is a shared preview-confirm modal; wired into BOTH
+  Designer (`form.js`) and per-passenger Issue (`issue.js`) → autofill semantics + display
+  fields and set the barcode message (reuses the existing `data.barcodeMessage` reserved key).
+- **Pass expiry + relevantDate fix** (`2026-06-20-pass-expiry-relevant-date.md`): root cause
+  of "pass expired months early" = stale hand-entered `relevantDate` + no `expirationDate`.
+  `packages/pass-builder/expiry.js` (`applyPassDates`), applied in BOTH build paths, derives
+  `relevantDate` from `currentBoardingDate ?? currentDepartureDate`, ALWAYS drops the legacy
+  `relevantDates` array, and sets `expirationDate` = custom (`meta.expirationDate` /
+  issue-time `data.expirationDate` reserved key) or **arrival + 1 day**. Verified live on the
+  broken pass; the installed device copy was pushed.
+
+Notes: no new deps; DOM tests use **happy-dom** (not jsdom). The prod LXC is now on
+**Node v24.16.0** — the long-parked Node>=24 upgrade is DONE. Prod APNs push verified
+end-to-end at the server (`sent:1`, no failures); on-device render confirmation still pending.
+
 ## Start here (next session)
 
-1. Skim the ground-truth files above.
-2. Deploy-day items parked: LXC Node >=24 upgrade, prod e2e push test, Apple PR #4 comment.
+1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
+2. Pick from the open roadmap (nothing in progress):
+   - **Device verification (recommended):** real iOS 26 — `primaryLogo` render + PDF417/Aztec
+     photo/camera decode (only paste + parsing were unit-verified); plus the long-parked prod
+     e2e gate-change + `changeMessage` lock-screen banner check.
+   - **Issue-time barcode FORMAT/altText controls:** spec'd + planned, NOT implemented —
+     branch `feat/issue-barcode-controls`
+     (`docs/superpowers/specs/2026-06-13-issue-time-barcode-controls-design.md` +
+     `docs/superpowers/plans/2026-06-14-issue-time-barcode-controls.md`). `data.barcodeMessage`
+     already works; only `barcodeFormat` is missing.
+   - **Flight lookup (P3): DEFERRED** — no flight API gives gate/terminal/scheduled times by
+     flight# + date on a free tier, and paid keys are ruled out. Add behind a provider seam
+     only if that changes.
+   - **Polish (low priority):** render uploaded icon/footer in the wallet preview (only logo
+     renders today); true hi-dpi @2x/@3x via in-browser canvas downscale; replace the
+     `alert()` in `issue.js`'s scan handler with an inline note.
+3. Apple PR #4 comment still parked (external, unrelated to the above).
