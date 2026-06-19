@@ -5,6 +5,9 @@ import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
 import { kindAttrs, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput } from "./inputs.js";
+import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
+import { showBcbpPreview } from "./bcbp-preview.js";
+import { scanBarcode } from "./scan.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
@@ -43,7 +46,7 @@ export function suggestSerial(groupId, n) {
  * Values are plain strings at issue time (the {value, changeMessage} object
  * form is for updates); empty inputs are left out so template defaults apply.
  */
-export function buildIssueRequest({ template, groupId, serial, values, semantics }) {
+export function buildIssueRequest({ template, groupId, serial, values, semantics, barcodeMessage }) {
   const data = {};
   for (const [key, raw] of Object.entries(values ?? {})) {
     const v = (raw ?? "").trim();
@@ -51,6 +54,8 @@ export function buildIssueRequest({ template, groupId, serial, values, semantics
   }
   const sem = harvestSemantics(semantics ?? {});
   if (Object.keys(sem).length) data.semantics = sem;
+  const bc = (barcodeMessage ?? "").trim();
+  if (bc) data.barcodeMessage = bc;
   return { template, serialNumber: (serial ?? "").trim(), groupId: (groupId ?? "").trim(), data };
 }
 
@@ -280,6 +285,7 @@ export function mountIssue(root, showManage) {
         <div class="iss-sem-wrap">
           <div class="iss-sem" data-sem-row="${i}"></div>
           <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
+          <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">📷 Scan / paste boarding pass</button>
         </div>
         <div class="iss-fields">
           ${fields}
@@ -424,6 +430,26 @@ export function mountIssue(root, showManage) {
     mountTypedFields();
     refreshSerialErrors();   // flag any colliding serials right away
     refreshGate();   // initial button state (required-but-empty fields disable it)
+    root.querySelectorAll("[data-scan-row]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const i = Number(btn.dataset.scanRow);
+        syncFromInputs();
+        const text = await scanBarcode();
+        if (!text) return;
+        let parsed = null;
+        try { parsed = parseBCBP(text); } catch { /* not BCBP */ }
+        if (!parsed) { alert("Not a recognized boarding pass — barcode not autofilled."); return; }
+        if (!(await showBcbpPreview(parsed))) return;
+        rows[i] = {
+          ...rows[i],
+          semantics: { ...(rows[i].semantics ?? {}), ...bcbpToSemantics(parsed) },
+          barcodeMessage: text
+        };
+        const map = Object.fromEntries(Object.entries(current()?.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]));
+        rows[i].values = { ...(rows[i].values ?? {}), ...suggestDisplayValues(rows[i].semantics, map) };
+        render();
+      });
+    });
   }
 
   // Mount typed inputs (currently ISO-8601 date pickers) into their placeholders
@@ -509,7 +535,7 @@ export function mountIssue(root, showManage) {
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
       const values = mergeTripValues(shared, rows[i].values, individualKeys);
-      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values, semantics: rows[i].semantics });
+      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values, semantics: rows[i].semantics, barcodeMessage: rows[i].barcodeMessage });
       if (!body.serialNumber) { setRowStatus(i, "✗ serial is required"); continue; }
       let r, j;
       try {

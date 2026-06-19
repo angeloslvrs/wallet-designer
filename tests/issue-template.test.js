@@ -70,6 +70,22 @@ describe("buildIssueRequest", () => {
   });
 });
 
+describe("buildIssueRequest barcodeMessage", () => {
+  it("includes a non-empty barcodeMessage as a reserved data key", () => {
+    const req = buildIssueRequest({
+      template: "cebpac", groupId: "G1", serial: "S1",
+      values: { gate: "B7" }, semantics: {}, barcodeMessage: "M1DESMARAIS/LUC..."
+    });
+    expect(req.data.barcodeMessage).toBe("M1DESMARAIS/LUC...");
+    expect(req.data.gate).toBe("B7");
+  });
+
+  it("omits barcodeMessage when blank", () => {
+    const req = buildIssueRequest({ template: "t", groupId: "G", serial: "S", values: {}, semantics: {}, barcodeMessage: "  " });
+    expect(req.data.barcodeMessage).toBeUndefined();
+  });
+});
+
 describe("describeIssueResult", () => {
   it("describes a successful issue", () => {
     expect(describeIssueResult(true, { serialNumber: "RP247@2026-06-20-001" }))
