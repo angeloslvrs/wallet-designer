@@ -36,7 +36,8 @@ const sections = [
     { path: "meta.teamId", label: "Team ID", type: "text" },
     { path: "meta.organizationName", label: "Organization", type: "text" },
     { path: "meta.serialNumber", label: "Serial Number", type: "text" },
-    { path: "meta.description", label: "Description", type: "text" }
+    { path: "meta.description", label: "Description", type: "text" },
+    { path: "meta.expirationDate", label: "Pass expiry (ISO; blank = arrival + 1 day)", type: "text" }
   ]],
   ["Branding", [
     { path: "branding.logoText", label: "Logo Text", type: "text" },
