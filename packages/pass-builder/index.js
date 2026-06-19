@@ -9,6 +9,7 @@ export { loadTemplate, applyTemplateData, templateFieldKeys, templateFieldDescri
 export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from "./field-kinds.js";
 export { discoverBindings, collectFields } from "./bindings.js";
+export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS } from "./form-assets.js";
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";
 
