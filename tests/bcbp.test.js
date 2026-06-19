@@ -58,6 +58,20 @@ describe("parseBCBP", () => {
     expect(() => parseBCBP("https://example.com/ticket")).toThrow(/BCBP/i);
     expect(() => parseBCBP("M1tooshort")).toThrow(/BCBP/i);
   });
+
+  it("does not crash on day 366 and resolves to Jan 1 of the next year on non-leap years", () => {
+    const dec20 = new Date(Date.UTC(2026, 11, 20));
+    const s = sampleBCBP().slice(0, 44) + "366" + sampleBCBP().slice(47);
+    expect(parseBCBP(s, { referenceDate: dec20 }).flightDate).toBe("2027-01-01");
+  });
+
+  it("parses the first leg correctly even when more legs follow", () => {
+    const s = "M2" + sampleBCBP().slice(2) + "ZZEXTRALEGDATA";
+    const p = parseBCBP(s, { referenceDate: REF });
+    expect(p.legs).toBe(2);
+    expect(p.flightCode).toBe("AC834");
+    expect(p.passengerName).toEqual({ givenName: "LUC", familyName: "DESMARAIS" });
+  });
 });
 
 describe("bcbpToSemantics", () => {
