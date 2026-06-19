@@ -14,6 +14,15 @@ describe("addDaysPreservingOffset", () => {
   it("returns undefined for junk", () => {
     expect(addDaysPreservingOffset("nope", 1)).toBeUndefined();
   });
+  it("rolls over month boundaries", () => {
+    expect(addDaysPreservingOffset("2026-01-31T08:00:00+08:00", 1)).toBe("2026-02-01T08:00:00+08:00");
+  });
+  it("preserves fractional seconds", () => {
+    expect(addDaysPreservingOffset("2026-08-28T17:55:00.500+08:00", 1)).toBe("2026-08-29T17:55:00.500+08:00");
+  });
+  it("rejects calendar-invalid datetimes", () => {
+    expect(addDaysPreservingOffset("2026-13-01T25:99:00Z", 1)).toBeUndefined();
+  });
 });
 
 describe("applyPassDates", () => {
@@ -52,5 +61,12 @@ describe("applyPassDates", () => {
     expect(out.expirationDate).toBeUndefined();
     expect(out.relevantDate).toBeUndefined();
     expect(input).toEqual({ semantics: {} });
+  });
+  it("falls back to arrival+1 when custom expiry is calendar-invalid", () => {
+    expect(applyPassDates(base(), { expirationDate: "2026-13-40T99:99:00Z" }).expirationDate).toBe("2026-08-29T17:55:00+08:00");
+  });
+  it("derives expiry from departure when no arrival date is present", () => {
+    const p = { semantics: { currentDepartureDate: "2026-08-28T16:35:00+08:00" } };
+    expect(applyPassDates(p).expirationDate).toBe("2026-08-29T16:35:00+08:00");
   });
 });

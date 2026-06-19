@@ -4,7 +4,7 @@
 // so we ALWAYS derive relevantDate from the flight (dropping any stale
 // relevantDates) and emit an expirationDate (custom, or arrival + 1 day).
 
-const ISO_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}:\d{2}(?::\d{2})?)(\.\d+)?([+-]\d{2}:\d{2}|Z)?$/;
+const ISO_RE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T(([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?)(\.\d+)?([+-]\d{2}:\d{2}|Z)?$/;
 const pad = (n) => String(n).padStart(2, "0");
 
 /**
@@ -17,12 +17,12 @@ const pad = (n) => String(n).padStart(2, "0");
 export function addDaysPreservingOffset(iso, days) {
   const m = ISO_RE.exec(String(iso ?? "").trim());
   if (!m) return undefined;
-  const [, y, mo, d, time, , offset] = m;
+  const [, y, mo, d, time, , frac, offset] = m;
   const base = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
   base.setUTCDate(base.getUTCDate() + days);
   const date = `${base.getUTCFullYear()}-${pad(base.getUTCMonth() + 1)}-${pad(base.getUTCDate())}`;
   const hms = time.length === 5 ? `${time}:00` : time;
-  return `${date}T${hms}${offset ?? ""}`;
+  return `${date}T${hms}${frac ?? ""}${offset ?? ""}`;
 }
 
 const isIso = (v) => typeof v === "string" && ISO_RE.test(v.trim());
