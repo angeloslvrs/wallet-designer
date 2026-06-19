@@ -3,6 +3,8 @@ import { scanBarcode } from "./scan.js";
 import { renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
 import { BRANDING_IMAGE_SLOTS } from "@wpd/pass-builder/form-assets.js";
+import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
+import { showBcbpPreview } from "./bcbp-preview.js";
 
 const rgbToHex = (s) => {
   const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
@@ -46,7 +48,7 @@ const sections = [
   ["Barcode", [
     { path: "barcode.format", label: "Format", type: "select", options: ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
     { path: "barcode.message", label: "Message", type: "text" },
-    { type: "scan", forPath: "barcode.message", label: "Scan barcode (camera / photo) → fills Message" },
+    { type: "scan", forPath: "barcode.message", label: "📷 Scan / paste boarding pass → autofill flight details" },
     { path: "barcode.altText", label: "Alt Text", type: "text" }
   ]]
 ];
@@ -113,20 +115,34 @@ function renderStaticSection(title, fields, root) {
     }
     if (f.type === "scan") {
       const btn = document.createElement("button");
-      btn.type = "button"; btn.textContent = "📷 Scan barcode";
+      btn.type = "button"; btn.textContent = "📷 Scan / paste boarding pass";
       btn.style.cssText = "background:#1a2150;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer";
+      const note = document.createElement("div");
+      note.style.cssText = "font-size:11px;color:#888;margin-top:4px";
       btn.addEventListener("click", async () => {
         btn.disabled = true; btn.textContent = "Scanning…";
         try {
           const text = await scanBarcode();
-          if (text) {
-            setPath(f.forPath, text);
-            const inp = root.querySelector(`[data-path="${f.forPath}"]`);
-            if (inp) inp.value = text;
+          if (!text) return;
+          setPath(f.forPath, text); // raw barcode is always the message
+          let parsed = null;
+          try { parsed = parseBCBP(text); } catch { /* not a BCBP barcode */ }
+          if (!parsed) { note.textContent = "Set as barcode message (not a recognized boarding pass — fields not autofilled)."; renderForm(root); return; }
+          const ok = await showBcbpPreview(parsed);
+          if (!ok) { note.textContent = "Barcode message set; autofill cancelled."; renderForm(root); return; }
+          const sem = { ...(state.semantics ?? {}), ...bcbpToSemantics(parsed) };
+          setPath("semantics", sem);
+          const filled = suggestDisplayValues(sem, DESIGNER_SUGGEST_MAP);
+          const df = structuredClone(state.displayFields ?? {});
+          for (const section of SECTIONS) for (const fld of df[section] ?? []) {
+            if (fld.key in filled) { fld.value = filled[fld.key]; delete fld.dateStyle; delete fld.timeStyle; }
           }
-        } finally { btn.disabled = false; btn.textContent = "📷 Scan barcode"; }
+          setPath("displayFields", df);
+          renderForm(root);
+        } finally { btn.disabled = false; btn.textContent = "📷 Scan / paste boarding pass"; }
       });
       fs.appendChild(btn);
+      fs.appendChild(note);
       continue;
     }
     let input;
