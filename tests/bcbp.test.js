@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseBCBP } from "../packages/pass-builder/bcbp.js";
+import { parseBCBP, bcbpToSemantics } from "../packages/pass-builder/bcbp.js";
 
 // Build a single-leg BCBP "M" string from fixed-width fields so positions are
 // guaranteed correct (no hand-counting). Layout: header(23) + leg1 mandatory(37).
@@ -57,5 +57,29 @@ describe("parseBCBP", () => {
   it("throws on a non-BCBP string", () => {
     expect(() => parseBCBP("https://example.com/ticket")).toThrow(/BCBP/i);
     expect(() => parseBCBP("M1tooshort")).toThrow(/BCBP/i);
+  });
+});
+
+describe("bcbpToSemantics", () => {
+  it("maps confident BCBP fields to Apple semantic keys, omitting date/time", () => {
+    const parsed = parseBCBP(sampleBCBP(), { referenceDate: REF });
+    const sem = bcbpToSemantics(parsed);
+    expect(sem.passengerName).toEqual({ givenName: "LUC", familyName: "DESMARAIS" });
+    expect(sem.confirmationNumber).toBe("ABC123");
+    expect(sem.departureAirportCode).toBe("YUL");
+    expect(sem.destinationAirportCode).toBe("FRA");
+    expect(sem.airlineCode).toBe("AC");
+    expect(sem.flightCode).toBe("AC834");
+    expect(sem.flightNumber).toBe(834);
+    expect(sem.seats).toEqual([{ seatRow: "1", seatNumber: "A" }]);
+    expect(sem.boardingSequenceNumber).toBe("25");
+    // no timestamped departure — BCBP has no clock time
+    expect(sem.currentDepartureDate).toBeUndefined();
+    expect(sem.originalDepartureDate).toBeUndefined();
+  });
+
+  it("omits keys with empty values", () => {
+    const sem = bcbpToSemantics({ airlineCode: "", seats: [], flightNumber: undefined });
+    expect(sem).toEqual({});
   });
 });

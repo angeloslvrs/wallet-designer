@@ -80,3 +80,25 @@ export function parseBCBP(raw, opts = {}) {
     passengerStatus: passengerStatus || undefined
   };
 }
+
+/**
+ * Map parsed BCBP fields onto Apple boarding semantic keys, keeping only the
+ * fields BCBP carries confidently. The flight date is omitted on purpose: BCBP
+ * has no clock time, so we never write a (wrong) timestamped departure.
+ * @param {object} parsed  output of {@link parseBCBP}
+ * @returns {Record<string, any>}
+ */
+export function bcbpToSemantics(parsed = {}) {
+  const out = {};
+  const name = parsed.passengerName;
+  if (name && (name.givenName || name.familyName)) out.passengerName = name;
+  if (parsed.confirmationNumber) out.confirmationNumber = parsed.confirmationNumber;
+  if (parsed.departureAirportCode) out.departureAirportCode = parsed.departureAirportCode;
+  if (parsed.destinationAirportCode) out.destinationAirportCode = parsed.destinationAirportCode;
+  if (parsed.airlineCode) out.airlineCode = parsed.airlineCode;
+  if (parsed.flightCode) out.flightCode = parsed.flightCode;
+  if (Number.isFinite(parsed.flightNumber)) out.flightNumber = parsed.flightNumber;
+  if (Array.isArray(parsed.seats) && parsed.seats.length) out.seats = parsed.seats;
+  if (parsed.boardingSequenceNumber) out.boardingSequenceNumber = parsed.boardingSequenceNumber;
+  return out;
+}
