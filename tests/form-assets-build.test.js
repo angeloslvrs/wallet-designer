@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import AdmZip from "adm-zip";
 import { buildPkpass } from "../packages/pass-builder/index.js";
 import { migrateFormState } from "../packages/pass-builder/migrate.js";
@@ -34,7 +35,10 @@ describe("buildPkpass image uploads", () => {
 
   it("falls back to disk assets when no upload is present", async () => {
     const pkpass = await buildPkpass({ state, certDir });
-    const names = new AdmZip(pkpass).getEntries().map(e => e.entryName);
+    const zip = new AdmZip(pkpass);
+    const names = zip.getEntries().map(e => e.entryName);
     expect(names).toContain("icon.png"); // from assets/
+    const diskBytes = readFileSync(join("assets", "icon.png"));
+    expect(zip.getEntry("icon.png").getData().equals(diskBytes)).toBe(true);
   });
 });

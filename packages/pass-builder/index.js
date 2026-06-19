@@ -3,14 +3,14 @@ import { join } from "node:path";
 import { formStateToPassJson } from "./form-to-pass.js";
 import { signPkpass } from "./sign.js";
 import { validate } from "./validate.js";
-import { imageAssetsFromBranding } from "./form-assets.js";
+import { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS } from "./form-assets.js";
 
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, templateFieldDescriptors, buildPkpassFromTemplate, stripInternalIds, mirrorTimeZoneAliases, ensureBaseImageVariants, isSemanticDriven } from "./template.js";
 export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from "./field-kinds.js";
 export { discoverBindings, collectFields } from "./bindings.js";
-export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS } from "./form-assets.js";
+export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS };
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";
 
