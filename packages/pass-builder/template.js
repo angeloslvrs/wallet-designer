@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { TIMEZONE_KEY_ALIASES, REQUIRED_SEMANTICS } from "./semantics.js";
 import { semanticKind, kindAttrs } from "./field-kinds.js";
 import { signPkpass } from "./sign.js";
+import { applyPassDates } from "./expiry.js";
 
 const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
 
@@ -27,6 +28,8 @@ const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
  *  - `additionalInfoFields`: array — appended to the template's; a data entry
  *    whose key already exists in the template replaces the template's entry.
  *  - `barcodeMessage` / `barcodeAltText`: string — applied to every barcode.
+ *  - `expirationDate`: ISO string — custom pass expiry; when omitted the pass
+ *    expires at arrival + 1 day (derived from the flight semantics).
  * Unknown keys throw (fail fast: a typo must not silently leave a placeholder
  * value on a real pass).
  * @typedef {Record<string, any>} TemplateData
@@ -34,7 +37,7 @@ const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
 
 const STYLE_KEYS = ["boardingPass", "coupon", "eventTicket", "generic", "storeCard"];
 export const FIELD_ZONES = ["headerFields", "primaryFields", "secondaryFields", "auxiliaryFields", "backFields", "additionalInfoFields"];
-const RESERVED_KEYS = new Set(["semantics", "additionalInfoFields", "barcodeMessage", "barcodeAltText"]);
+const RESERVED_KEYS = new Set(["semantics", "additionalInfoFields", "barcodeMessage", "barcodeAltText", "expirationDate"]);
 
 /** The style dict key ("boardingPass", …) of a pass.json, or undefined. */
 export function styleKey(passJson) {
@@ -243,7 +246,10 @@ async function collectAssets(root, rel, out) {
  */
 export async function buildPkpassFromTemplate({ templateDir, data = {}, overrides = {}, certDir, passphrase }) {
   const { passJson, assets } = await loadTemplate(templateDir);
-  const merged = mirrorTimeZoneAliases(stripInternalIds(applyTemplateData(passJson, data)));
+  const merged = applyPassDates(
+    mirrorTimeZoneAliases(stripInternalIds(applyTemplateData(passJson, data))),
+    { expirationDate: data.expirationDate }
+  );
   for (const key of OVERRIDE_KEYS) {
     if (overrides[key] !== undefined) merged[key] = overrides[key];
   }

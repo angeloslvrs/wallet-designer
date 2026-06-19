@@ -122,3 +122,10 @@ describe("applyTemplateData", () => {
     expect(applyTemplateData(skeleton(), {})).toEqual(skeleton());
   });
 });
+
+describe("template expiry reserved key", () => {
+  it("accepts expirationDate as a reserved key (does not throw as unknown)", () => {
+    const passJson = { boardingPass: { primaryFields: [{ key: "depart", value: "MNL" }] }, semantics: {} };
+    expect(() => applyTemplateData(passJson, { expirationDate: "2026-09-01T00:00:00+08:00" })).not.toThrow();
+  });
+});
