@@ -78,9 +78,16 @@ const oldRich = {
 };
 
 describe("round-trip: new emitter on migrated state == frozen legacy emitter", () => {
-  it("reproduces legacy pass.json byte-for-byte", () => {
+  // The new emitter deliberately derives expirationDate + a single relevantDate
+  // from the flight semantics (and drops the legacy relevantDates array) for
+  // ALL passes — see expiry.js / tests/expiry.test.js. Those derived date fields
+  // are intentionally different from the frozen legacy output and orthogonal to
+  // migration, so they're excluded here; migration faithfulness is still
+  // asserted byte-for-byte for everything else.
+  const stripDerivedDates = ({ expirationDate, relevantDate, relevantDates, ...rest }) => rest;
+  it("reproduces legacy pass.json byte-for-byte (excluding derived expiry/relevance)", () => {
     for (const old of [oldBase, oldRich]) {
-      expect(formStateToPassJson(migrateFormState(old))).toEqual(legacyFormStateToPassJson(old));
+      expect(stripDerivedDates(formStateToPassJson(migrateFormState(old)))).toEqual(stripDerivedDates(legacyFormStateToPassJson(old)));
     }
   });
 });
