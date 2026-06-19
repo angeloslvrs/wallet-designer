@@ -2,6 +2,7 @@ import { setPath, getPath, state } from "./state.js";
 import { scanBarcode } from "./scan.js";
 import { renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
+import { BRANDING_IMAGE_SLOTS } from "@wpd/pass-builder/form-assets.js";
 
 const rgbToHex = (s) => {
   const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
@@ -41,9 +42,7 @@ const sections = [
     { path: "branding.backgroundColor", label: "Background", type: "color" },
     { path: "branding.labelColor", label: "Label", type: "color" }
   ]],
-  ["Assets", [
-    { path: "branding.logoDataUrl", label: "Logo image (PNG/SVG)", type: "file" }
-  ]],
+  ["Assets", BRANDING_IMAGE_SLOTS.map(s => ({ path: `branding.${s.key}`, label: s.label, type: "file" }))],
   ["Barcode", [
     { path: "barcode.format", label: "Format", type: "select", options: ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
     { path: "barcode.message", label: "Message", type: "text" },
@@ -71,7 +70,7 @@ function renderStaticSection(title, fields, root) {
 
     if (f.type === "file") {
       const input = document.createElement("input");
-      input.type = "file"; input.accept = "image/*";
+      input.type = "file"; input.accept = "image/png";
       input.addEventListener("change", e => {
         const file = e.target.files?.[0];
         if (!file) { setPath(f.path, ""); return; }
@@ -80,10 +79,19 @@ function renderStaticSection(title, fields, root) {
         reader.readAsDataURL(file);
       });
       fs.appendChild(input);
-      if (getPath(f.path)) {
+      const cur = getPath(f.path);
+      if (cur) {
         const note = document.createElement("div");
-        note.style.cssText = "font-size:11px;color:#888;margin-top:2px";
-        note.textContent = "✓ logo set (clear by choosing a new file)";
+        note.style.cssText = "font-size:11px;color:#888;margin-top:2px;display:flex;align-items:center;gap:8px";
+        if (typeof cur === "string" && cur.startsWith("data:image/")) {
+          const img = document.createElement("img");
+          img.src = cur; img.alt = f.label;
+          img.style.cssText = "height:28px;max-width:120px;object-fit:contain;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px";
+          note.appendChild(img);
+        }
+        const span = document.createElement("span");
+        span.textContent = "✓ set (choose a new file to replace)";
+        note.appendChild(span);
         fs.appendChild(note);
       }
       continue;
