@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { formStateToPassJson } from "./form-to-pass.js";
 import { signPkpass } from "./sign.js";
 import { validate } from "./validate.js";
+import { imageAssetsFromBranding } from "./form-assets.js";
 
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, templateFieldDescriptors, buildPkpassFromTemplate, stripInternalIds, mirrorTimeZoneAliases, ensureBaseImageVariants, isSemanticDriven } from "./template.js";
@@ -42,5 +43,8 @@ export async function buildPkpass({ state, certDir, passphrase, assetsDir = "ass
   for (const name of assetNames) {
     try { assets[name] = await readFile(join(assetsDir, name)); } catch { /* optional */ }
   }
+  // Uploaded branding images (logo/icon/footer/primaryLogo) win over the disk
+  // defaults — without this the designer's uploaded logo was silently dropped.
+  Object.assign(assets, imageAssetsFromBranding(state.branding));
   return signPkpass({ certDir, passphrase, passJson, assets });
 }
