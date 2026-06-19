@@ -28,7 +28,10 @@
         "foregroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
         "backgroundColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
         "labelColor": { "type": "string", "pattern": "^rgb\\(\\d+,\\s*\\d+,\\s*\\d+\\)$" },
-        "logoDataUrl": { "type": "string" }
+        "logoDataUrl": { "type": "string" },
+        "iconDataUrl": { "type": "string" },
+        "footerDataUrl": { "type": "string" },
+        "primaryLogoDataUrl": { "type": "string" }
       }
     },
     "barcode": {
