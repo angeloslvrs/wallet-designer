@@ -1,33 +1,31 @@
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
-// Decode a barcode (QR / PDF417 / Aztec / Code128 …) from the device camera or
-// an uploaded photo. Resolves with the decoded text, or null if cancelled.
-// Camera needs a secure origin (https or localhost); photo upload works anywhere.
+// Get a barcode's text by paste (primary), photo upload, or camera (on demand).
+// Resolves with the text, or null if cancelled. Camera needs a secure origin.
 export function scanBarcode() {
   return new Promise((resolve) => {
     const reader = new BrowserMultiFormatReader();
-    let controls = null;
-    let done = false;
+    let controls = null, done = false;
 
     const overlay = document.createElement("div");
+    overlay.className = "scan-overlay";
     overlay.style.cssText =
-      "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;" +
-      "flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px";
+      "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px";
     overlay.innerHTML = `
-      <div style="color:#fff;font:14px system-ui;text-align:center">Point the camera at the barcode, or upload a photo of it</div>
-      <video playsinline style="width:min(92vw,520px);max-height:60vh;border-radius:12px;background:#000"></video>
-      <div style="display:flex;gap:10px">
-        <label style="background:#fff;color:#111;padding:9px 16px;border-radius:8px;cursor:pointer;font:600 13px system-ui">
-          Upload photo<input type="file" accept="image/*" style="display:none">
-        </label>
+      <div style="color:#fff;font:14px system-ui;text-align:center;max-width:520px">Paste the barcode text below, or upload a photo / use the camera.</div>
+      <textarea id="scan-paste" placeholder="Paste boarding-pass barcode text here" style="width:min(92vw,520px);height:84px;border-radius:8px;padding:8px;font:12px monospace"></textarea>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button id="scan-use-paste" style="background:#1a2150;color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font:600 13px system-ui">Use pasted text</button>
+        <label style="background:#fff;color:#111;padding:9px 16px;border-radius:8px;cursor:pointer;font:600 13px system-ui">Upload photo<input type="file" accept="image/*" style="display:none"></label>
+        <button id="scan-use-cam" style="background:#444;color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font:600 13px system-ui">Use camera</button>
         <button id="scan-cancel" style="background:#444;color:#fff;border:none;padding:9px 16px;border-radius:8px;cursor:pointer;font:600 13px system-ui">Cancel</button>
       </div>
+      <video playsinline style="display:none;width:min(92vw,520px);max-height:46vh;border-radius:12px;background:#000"></video>
       <div id="scan-msg" style="color:#ffd2d2;font:12px system-ui;min-height:15px;text-align:center"></div>`;
     document.body.appendChild(overlay);
 
-    const video = overlay.querySelector("video");
-    const fileInput = overlay.querySelector("input[type=file]");
-    const msg = overlay.querySelector("#scan-msg");
+    const $ = (sel) => overlay.querySelector(sel);
+    const video = $("video"), fileInput = $("input[type=file]"), msg = $("#scan-msg");
 
     const finish = (text) => {
       if (done) return;
@@ -37,15 +35,22 @@ export function scanBarcode() {
       resolve(text ?? null);
     };
 
-    overlay.querySelector("#scan-cancel").addEventListener("click", () => finish(null));
+    $("#scan-cancel").addEventListener("click", () => finish(null));
+    $("#scan-use-paste").addEventListener("click", () => {
+      const v = $("#scan-paste").value.trim();
+      if (v) finish(v); else msg.textContent = "Paste the barcode text first, or use a photo / camera.";
+    });
 
-    // Camera (best-effort; fails silently to upload on insecure origins)
-    reader.decodeFromVideoDevice(undefined, video, (result, _err, ctl) => {
-      controls = ctl;
-      if (result) finish(result.getText());
-    }).catch((e) => { msg.textContent = "Camera unavailable — use Upload photo. " + (e?.message ?? ""); });
+    $("#scan-use-cam").addEventListener("click", () => {
+      video.style.display = "block";
+      msg.textContent = "Starting camera…";
+      reader.decodeFromVideoDevice(undefined, video, (result, _err, ctl) => {
+        controls = ctl;
+        if (result) finish(result.getText());
+      }).then(() => { msg.textContent = ""; })
+        .catch((e) => { msg.textContent = "Camera unavailable — paste the text or upload a photo. " + (e?.message ?? ""); });
+    });
 
-    // Photo upload
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
