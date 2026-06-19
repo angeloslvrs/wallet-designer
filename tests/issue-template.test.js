@@ -86,6 +86,17 @@ describe("buildIssueRequest barcodeMessage", () => {
   });
 });
 
+describe("buildIssueRequest expirationDate", () => {
+  it("includes a non-empty expirationDate as a reserved data key", () => {
+    const req = buildIssueRequest({ template: "t", groupId: "G", serial: "S", values: {}, semantics: {}, expirationDate: "2026-09-01T00:00:00+08:00" });
+    expect(req.data.expirationDate).toBe("2026-09-01T00:00:00+08:00");
+  });
+  it("omits expirationDate when blank", () => {
+    const req = buildIssueRequest({ template: "t", groupId: "G", serial: "S", values: {}, semantics: {}, expirationDate: "  " });
+    expect(req.data.expirationDate).toBeUndefined();
+  });
+});
+
 describe("describeIssueResult", () => {
   it("describes a successful issue", () => {
     expect(describeIssueResult(true, { serialNumber: "RP247@2026-06-20-001" }))

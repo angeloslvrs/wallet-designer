@@ -46,7 +46,7 @@ export function suggestSerial(groupId, n) {
  * Values are plain strings at issue time (the {value, changeMessage} object
  * form is for updates); empty inputs are left out so template defaults apply.
  */
-export function buildIssueRequest({ template, groupId, serial, values, semantics, barcodeMessage }) {
+export function buildIssueRequest({ template, groupId, serial, values, semantics, barcodeMessage, expirationDate }) {
   const data = {};
   for (const [key, raw] of Object.entries(values ?? {})) {
     const v = (raw ?? "").trim();
@@ -56,6 +56,8 @@ export function buildIssueRequest({ template, groupId, serial, values, semantics
   if (Object.keys(sem).length) data.semantics = sem;
   const bc = (barcodeMessage ?? "").trim();
   if (bc) data.barcodeMessage = bc;
+  const exp = (expirationDate ?? "").trim();
+  if (exp) data.expirationDate = exp;
   return { template, serialNumber: (serial ?? "").trim(), groupId: (groupId ?? "").trim(), data };
 }
 
@@ -126,6 +128,7 @@ export function mountIssue(root, showManage) {
   // unique per pass type — re-posting one UPDATES that pass rather than creating
   // a new one, so we warn before an issue would silently overwrite an existing one.
   let existingSerials = new Set();
+  let tripExpiry = "";   // optional ISO-8601 expiry override — blank = server derives arrival + 1
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -266,6 +269,7 @@ export function mountIssue(root, showManage) {
 
   function syncFromInputs() {
     groupId = $("#iss-group")?.value ?? groupId;
+    tripExpiry = $("#iss-expiry")?.value ?? tripExpiry;
     const nextShared = { ...shared };
     for (const inp of root.querySelectorAll("input[data-shared-key]")) nextShared[inp.dataset.sharedKey] = inp.value;
     shared = nextShared;
@@ -410,6 +414,10 @@ export function mountIssue(root, showManage) {
             <input id="iss-date" type="date" />
             <button data-act="compose">→ Trip id</button>
           </div>
+          <div class="live-row">
+            <label>Pass expiry</label>
+            <input id="iss-expiry" placeholder="blank = arrival + 1 day" value="${esc(tripExpiry)}" style="flex:1" />
+          </div>
         </div>
         ${sharedCard}
         <div class="mg-card">
@@ -535,7 +543,7 @@ export function mountIssue(root, showManage) {
     let okCount = 0;
     for (let i = 0; i < rows.length; i++) {
       const values = mergeTripValues(shared, rows[i].values, individualKeys);
-      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values, semantics: rows[i].semantics, barcodeMessage: rows[i].barcodeMessage });
+      const body = buildIssueRequest({ template: selected, groupId, serial: rows[i].serial, values, semantics: rows[i].semantics, barcodeMessage: rows[i].barcodeMessage, expirationDate: tripExpiry });
       if (!body.serialNumber) { setRowStatus(i, "✗ serial is required"); continue; }
       let r, j;
       try {
