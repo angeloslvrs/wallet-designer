@@ -16,7 +16,8 @@
         "serialNumber": { "type": "string" },
         "description": { "type": "string" },
         "webServiceURL": { "type": "string" },
-        "authenticationToken": { "type": "string", "minLength": 16 }
+        "authenticationToken": { "type": "string", "minLength": 16 },
+        "expirationDate": { "type": "string" }
       }
     },
     "branding": {

@@ -1,5 +1,6 @@
 import { isEmptyTyped } from "./suggest-empty.js";
 import { SEMANTIC_CATALOG, TIMEZONE_KEY_ALIASES } from "./semantics.js";
+import { applyPassDates } from "./expiry.js";
 
 /**
  * Pure: new-shape FormState -> Apple pass.json with full iOS 26 opt-in.
@@ -23,7 +24,7 @@ export function formStateToPassJson(s) {
     ...(ios.additionalInfoFields?.length && { additionalInfoFields: ios.additionalInfoFields })
   };
 
-  return {
+  const passJson = {
     formatVersion: 1,
     passTypeIdentifier: meta.passTypeId,
     teamIdentifier: meta.teamId,
@@ -46,6 +47,8 @@ export function formStateToPassJson(s) {
     ...(meta.webServiceURL && { webServiceURL: meta.webServiceURL }),
     ...(meta.authenticationToken && { authenticationToken: meta.authenticationToken })
   };
+
+  return applyPassDates(passJson, { expirationDate: meta.expirationDate });
 }
 
 /** Filled-only semantics (per catalog type), with both tz spellings + wifiAccess. */

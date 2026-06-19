@@ -67,7 +67,7 @@ describe("formStateToPassJson (new shape)", () => {
         eventGuide: { bagPolicyURL: "https://x/bags" },
         upcomingPassInformation: [{ identifier: "b", name: "Boarding", date: "2026-06-01T07:30:00-07:00" }] } });
     expect(p.boardingPass.additionalInfoFields[0].key).toBe("loyalty");
-    expect(p.relevantDates).toEqual([{ date: "2026-06-01T07:00:00-07:00", relevantDate: "2026-06-01T07:00:00-07:00" }]);
+    expect(p.relevantDates).toBeUndefined(); // stale relevantDates dropped when flight dates exist
     expect(p.bagPolicyURL).toBe("https://x/bags");
     expect(p.upcomingPassInformation[0]).toEqual({ identifier: "b", name: "Boarding", type: "event", dateInformation: { date: "2026-06-01T07:30:00-07:00" } });
     expect(p.webServiceURL).toBe("http://localhost:4317/api/wallet");
@@ -81,5 +81,35 @@ describe("formStateToPassJson (new shape)", () => {
     expect(p.upcomingPassInformation).toBeUndefined();
     expect(p.bagPolicyURL).toBeUndefined();
     expect(p.webServiceURL).toBeUndefined();
+  });
+});
+
+describe("formStateToPassJson expiry/relevance", () => {
+  const state = () => ({
+    meta: { passTypeId: "p", teamId: "t", organizationName: "PAL", serialNumber: "PAL", description: "d" },
+    branding: { logoText: "", foregroundColor: "rgb(0,0,0)", backgroundColor: "rgb(0,0,0)", labelColor: "rgb(0,0,0)" },
+    barcode: { format: "PKBarcodeFormatQR", message: "x", altText: "" },
+    semantics: {
+      currentBoardingDate: "2026-08-28T15:50:00+08:00",
+      currentDepartureDate: "2026-08-28T16:35:00+08:00",
+      currentArrivalDate: "2026-08-28T17:55:00+08:00"
+    },
+    displayFields: {},
+    iOS26: { relevantDates: ["2026-06-15T05:00:00+08:00"] } // stale — must NOT leak
+  });
+
+  it("derives relevantDate from the flight and drops the stale relevantDates", () => {
+    const p = formStateToPassJson(state());
+    expect(p.relevantDate).toBe("2026-08-28T15:50:00+08:00");
+    expect(p.relevantDates).toBeUndefined();
+  });
+
+  it("defaults expirationDate to arrival + 1 day", () => {
+    expect(formStateToPassJson(state()).expirationDate).toBe("2026-08-29T17:55:00+08:00");
+  });
+
+  it("uses a custom meta.expirationDate when set", () => {
+    const s = state(); s.meta.expirationDate = "2026-09-05T12:00:00+08:00";
+    expect(formStateToPassJson(s).expirationDate).toBe("2026-09-05T12:00:00+08:00");
   });
 });
