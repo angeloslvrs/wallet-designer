@@ -62,6 +62,12 @@ describe("applyPassDates", () => {
     expect(out.relevantDate).toBeUndefined();
     expect(input).toEqual({ semantics: {} });
   });
+  it("drops a stale relevantDates even when there are no flight semantics", () => {
+    const out = applyPassDates({ semantics: {}, relevantDates: [{ date: "2026-06-15T05:00:00+08:00", relevantDate: "2026-06-15T05:00:00+08:00" }] });
+    expect(out.relevantDates).toBeUndefined();
+    expect(out.relevantDate).toBeUndefined();
+    expect(out.expirationDate).toBeUndefined();
+  });
   it("falls back to arrival+1 when custom expiry is calendar-invalid", () => {
     expect(applyPassDates(base(), { expirationDate: "2026-13-40T99:99:00Z" }).expirationDate).toBe("2026-08-29T17:55:00+08:00");
   });

@@ -40,10 +40,8 @@ export function applyPassDates(passJson, opts = {}) {
   const out = { ...passJson };
 
   const rel = sem.currentBoardingDate ?? sem.currentDepartureDate ?? sem.originalBoardingDate ?? sem.originalDepartureDate;
-  if (isIso(rel)) {
-    out.relevantDate = rel.trim();
-    delete out.relevantDates; // derive, never trust a hand-entered relevant date
-  }
+  delete out.relevantDates; // legacy plural array is never trusted — relevantDate is derived from semantics
+  if (isIso(rel)) out.relevantDate = rel.trim();
 
   const custom = opts.expirationDate;
   const arrival = sem.currentArrivalDate ?? sem.originalArrivalDate ?? sem.currentDepartureDate ?? sem.originalDepartureDate;
