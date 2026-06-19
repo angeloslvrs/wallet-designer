@@ -33,6 +33,11 @@ describe("imageAssetsFromBranding", () => {
     expect(imageAssetsFromBranding({ logoDataUrl: "https://x/y.png" })).toEqual({});
   });
 
+  it("ignores a non-PNG image data URL (Apple passes require PNG)", () => {
+    const jpeg = `data:image/jpeg;base64,${Buffer.from([0xff, 0xd8, 0xff]).toString("base64")}`;
+    expect(imageAssetsFromBranding({ logoDataUrl: jpeg })).toEqual({});
+  });
+
   it("returns {} for missing / non-object branding", () => {
     expect(imageAssetsFromBranding(undefined)).toEqual({});
     expect(imageAssetsFromBranding({})).toEqual({});

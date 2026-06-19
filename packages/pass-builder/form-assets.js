@@ -14,7 +14,7 @@ export const BRANDING_IMAGE_SLOTS = [
   { key: "primaryLogoDataUrl", slot: "primaryLogo", label: "Primary logo (iOS 26 expanded view)" }
 ];
 
-const DATA_URL_RE = /^data:image\/[a-z0-9.+-]+;base64,([a-z0-9+/=\s]+)$/i;
+const DATA_URL_RE = /^data:image\/png;base64,([a-z0-9+/=\s]+)$/i;
 
 /**
  * Decode every uploaded branding image into PNG bundle entries.
