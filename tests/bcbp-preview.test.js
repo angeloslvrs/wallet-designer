@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { showBcbpPreview } from "../apps/designer/src/bcbp-preview.js";
 
