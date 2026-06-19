@@ -27,4 +27,12 @@ describe("showBcbpPreview", () => {
     document.querySelector("[data-bcbp-cancel]").click();
     await expect(p).resolves.toBe(false);
   });
+
+  it("escapes scanned values to prevent HTML injection", () => {
+    showBcbpPreview({ passengerName: { givenName: "<img src=x onerror=alert(1)>", familyName: "X" } });
+    const overlay = document.querySelector(".bcbp-preview");
+    expect(overlay.querySelector("img")).toBeNull();      // not parsed as real markup
+    expect(overlay.textContent).toContain("<img");        // shown as literal text
+    overlay.querySelector("[data-bcbp-cancel]").click();
+  });
 });
