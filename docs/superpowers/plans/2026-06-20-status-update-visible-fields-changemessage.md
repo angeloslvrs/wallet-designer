@@ -1,8 +1,25 @@
 # Plan — status updates must change the visible field + carry a changeMessage (lock-screen banners)
 
 **Date:** 2026-06-20
-**Status:** in progress
+**Status:** done — implemented, 332 tests green, deployed to `10.1.2.237`; on-device
+banner confirmation pending the user.
 **Branch:** `feat/status-change-banners`
+
+## Verified on the box (deployed code, no stored-pass mutation)
+
+- **cebpac template (real Pass Designer export):** a boarding/departure-time
+  change renders `value` + `changeMessage` on the bound field —
+  `boardingTime: {value, changeMessage: "Boarding now %@", timeStyle}`,
+  `date: {value, changeMessage: "Departure now %@"}` — and the delay row carries
+  `%@`. `departureGate` is **unbound** on cebpac (its sample value didn't
+  uniquely match a field), so gate stays semantics-only and is reported
+  ("not on pass face: departureGate"); bind it in the Templates card to get a
+  gate banner.
+- **FormState:** the PAL gate bug is fixed — a gate status update yields
+  `{key:"gate", value:"B4", changeMessage:"Gate changed to %@"}` via
+  `formStateToPassJson`. FormState flight times remain unbindable (pre-formatted
+  strings) → semantics-only + reported. Already-desynced passes (PAL) need a
+  re-issue.
 
 ## Problem (diagnosed from prod logs + the live signed pass)
 
