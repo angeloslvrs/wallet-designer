@@ -104,25 +104,36 @@ const SEMANTIC_GROUP = {
 
 const humanize = (k) => k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
 
-// The required boarding set. SEED — pinned precisely against the validator in
-// Phase 2/3; see spec "Required vs optional".
+// The required + recommended boarding sets, pinned to apple/pass-builder
+// Validation/Validators/BoardingPassValidator.swift + SeatValidator.swift @ SHA
+// 170f2a11 (the CI PASS_BUILDER_SHA in .github/workflows/apple-validate.yml):
+// validator ERRORS -> required, validator WARNINGS -> recommended. Bump these
+// together with that SHA (see tests/boarding-compliance.test.js).
 export const REQUIRED_SEMANTICS = Object.freeze([
-  "airlineCode", "flightCode", "flightNumber",
-  "departureAirportCode", "destinationAirportCode",
-  "originalDepartureDate", "currentDepartureDate",
-  "originalBoardingDate", "currentBoardingDate",
-  "passengerName", "seats"
+  "airlineCode", "flightNumber",
+  "originalDepartureDate", "originalBoardingDate", "originalArrivalDate",
+  "departureAirportCode", "departureAirportTimeZone",
+  "destinationAirportCode",
+  "passengerName"
 ]);
 const REQUIRED_SET = new Set(REQUIRED_SEMANTICS);
+
+// Validator-warning boarding fields: strongly recommended for a complete pass,
+// but not hard-required (a pass without them still validates).
+export const RECOMMENDED_SEMANTICS = Object.freeze([
+  "departureCityName", "destinationCityName", "destinationAirportTimeZone", "seats"
+]);
+const RECOMMENDED_SET = new Set(RECOMMENDED_SEMANTICS);
 
 export const SEMANTIC_CATALOG = Object.freeze({
   ...Object.fromEntries(Object.entries(BOARDING_SEMANTICS).map(([k, t]) => [k, {
     type: CATALOG_TYPE[t] ?? "text",
     group: SEMANTIC_GROUP[k] ?? "route",
     label: humanize(k),
-    required: REQUIRED_SET.has(k)
+    required: REQUIRED_SET.has(k),
+    recommended: RECOMMENDED_SET.has(k)
   }])),
-  ...Object.fromEntries(Object.entries(EXTRA_SEMANTICS).map(([k, e]) => [k, { ...e, required: REQUIRED_SET.has(k) }]))
+  ...Object.fromEntries(Object.entries(EXTRA_SEMANTICS).map(([k, e]) => [k, { ...e, required: REQUIRED_SET.has(k), recommended: RECOMMENDED_SET.has(k) }]))
 });
 
 /** The schedule-date semantic keys, derived from the catalog (single source of truth). */

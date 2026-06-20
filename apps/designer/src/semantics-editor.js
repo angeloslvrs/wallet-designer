@@ -1,4 +1,4 @@
-import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS } from "@wpd/pass-builder/semantics.js";
+import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { renderTypedInput, isEmptyTyped } from "./inputs.js";
 
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
@@ -21,13 +21,13 @@ export function harvestSemantics(values = {}) {
 export function renderSemanticsEditor({ values = {}, onChange }) {
   const wrap = el("div", { className: "sem-editor" });
   const state = { ...values };
-  const shown = new Set([...REQUIRED_SEMANTICS, ...Object.keys(values)]);
+  const shown = new Set([...REQUIRED_SEMANTICS, ...RECOMMENDED_SEMANTICS, ...Object.keys(values)]);
 
   const fieldRow = (key) => {
-    const { type, label, required, enumOptions } = SEMANTIC_CATALOG[key];
+    const { type, label, required, recommended, enumOptions } = SEMANTIC_CATALOG[key];
     const row = el("div", { className: "sem-row" });
     row.dataset.sem = key;
-    const lbl = el("label", { textContent: label + (required ? " *" : "") });
+    const lbl = el("label", { textContent: label + (required ? " *" : recommended ? " (recommended)" : "") });
     const input = renderTypedInput({
       type, value: state[key], enumOptions,
       onChange: (v) => { state[key] = v; onChange?.({ ...state }); }
