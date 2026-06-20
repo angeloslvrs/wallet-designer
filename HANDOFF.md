@@ -120,13 +120,62 @@ Notes: no new deps; DOM tests use **happy-dom** (not jsdom). The prod LXC is now
 **Node v24.16.0** — the long-parked Node>=24 upgrade is DONE. Prod APNs push verified
 end-to-end at the server (`sent:1`, no failures); on-device render confirmation still pending.
 
+## 2026-06-20 session (cont.) — UI/UX polish (main @ 0341eb1, merged + deployed; CI green)
+
+Full UI/UX pass — Apple semantic compliance, push reliability, typed/labeled fields.
+Plan: `docs/superpowers/plans/2026-06-20-ui-ux-polish-semantics-push.md`. 5 phases, 327
+tests, fixtures + SPA build green, `apple-validate` green on the merge. No new deps.
+
+- **P0 compliance** (`packages/pass-builder/semantics.js`): `REQUIRED_SEMANTICS` was a SEED,
+  never reconciled. Pinned it to Apple's `BoardingPassValidator.swift` @ `170f2a11` (the CI
+  SHA): validator ERRORS → required, WARNINGS → new `RECOMMENDED_SEMANTICS`. **Correctness
+  fix:** we were missing two hard-requirements (`originalArrivalDate`,
+  `departureAirportTimeZone`) — a "minimal" pass would've failed Apple's validator — and
+  over-requiring `flightCode`/`current{Departure,Boarding}Date`/`seats`. Drives BOTH the
+  Designer editor's default-shown set AND the Issue form's required-by-binding markers
+  (`template.js`). `tests/boarding-compliance.test.js` pins both sets to the SHA.
+- **P1 push reliability** (`apps/server/src/apns.js` + `routes/admin.js` + `ops.js`): the web
+  service was already spec-correct (lastModified RFC1123, 304, passesUpdatedSince) — the
+  flakiness was APNs. Now: ping-check + reconnect on dead/GOAWAY session, retry-once,
+  **410 "Unregistered" → unregister the device**, `apns-expiration` (24h) + `apns-collapse-id`
+  (= serial). `pushUpdates` returns `{sent, failures, unregistered}`; `describePushResult`
+  surfaces sent/failed/pruned in the Manage console. `deliver()` is factored to unit-test
+  without mocking node:http2 (`tests/apns-deliver.test.js`).
+- **P2 Designer editor** (`semantics-editor.js`, `inputs.js`): grouped sections
+  (Flight/Route/Schedule/Passenger/Status/Pricing), required-first + required(*)/recommended
+  markers, optionals via a grouped picker, inline validation, per-field hints, and
+  expected-value widgets — new IANA **timezone picker** (datalist) for `*TimeZone` keys,
+  `kindAttrs` affordances on text/number. Edits only the required `*AirportTimeZone` and
+  mirrors to the hidden `*LocationTimeZone` twin (both spellings still emit). New pure
+  helpers `widgetFor`/`fieldHint` in inputs.js (reused by Issue).
+- **P3 Issue form** (`issue.js`): template display fields gained typed/timezone widgets,
+  hints (from the bound semantic), required-first ordering, and friendly labels; each
+  passenger's full semantics editor (inherits all P2 polish) is tucked into a collapsed
+  **"Advanced — semantic tags"** disclosure.
+- **P4 Manage** (`manage.js`): replaced the per-pass `prompt()` Gate/Delay/Status actions
+  with the **same typed+validated inline editor** the trip level uses, scoped per serial
+  behind an "Update this pass…" disclosure. One shared `statusEditorHtml(kind,id,acts)`;
+  editorValues namespaced by scope (`grp:`/`pass:`).
+
+Deferred deliberately: a fully unified field-row renderer across the three views (layouts
+differ enough that sharing markup adds risk without user-visible gain — typed-input +
+validation + hint logic is already shared via inputs.js/field-kinds.js). `AGENTS.md`
+(Codex guidance mirror of CLAUDE.md, hook-generated) was committed on the branch — kept.
+
+**Still device-pending (only you can confirm):** push reliability on a real iOS 26 device
+(gate change + delay/status banner within ~minutes; 410-prune after uninstall); a
+minimal-required pass installs + shows the semantic expanded view; the timezone picker.
+
 ## Start here (next session)
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
 2. Pick from the open roadmap (nothing in progress):
-   - **Device verification (recommended):** real iOS 26 — `primaryLogo` render + PDF417/Aztec
-     photo/camera decode (only paste + parsing were unit-verified); plus the long-parked prod
-     e2e gate-change + `changeMessage` lock-screen banner check.
+   - **Device verification (recommended):** real iOS 26 — (a) **push reliability** from the
+     2026-06-20 polish: gate change + delay/status banner land within ~minutes, 410-prune
+     after uninstall, Manage shows sent/failed/pruned; (b) a **minimal-required** pass installs
+     + shows the semantic expanded view; (c) the new **timezone picker**; (d) carried over:
+     `primaryLogo` render + PDF417/Aztec photo/camera decode (paste + parsing were
+     unit-verified) and the prod e2e `changeMessage` lock-screen banner check.
    - **Issue-time barcode FORMAT/altText controls:** spec'd + planned, NOT implemented —
      branch `feat/issue-barcode-controls`
      (`docs/superpowers/specs/2026-06-13-issue-time-barcode-controls-design.md` +
