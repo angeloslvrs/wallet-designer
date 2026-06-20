@@ -31,8 +31,8 @@ describe("templateFieldDescriptors — kind resolved via bindings (cebpac)", () 
   it("carries the bound semantic and required flag", async () => {
     const d = await descriptorsFor("cebpac");
     expect(d.depart.boundSemantic).toBe("departureAirportCode");
-    expect(d.depart.required).toBe(true);       // airport codes are required
-    expect(d.seat.required).toBe(true);         // seats required
+    expect(d.depart.required).toBe(true);       // airport codes are required (validator error)
+    expect(d.seat.required).toBe(false);        // seats — recommended (validator warning), not required
     expect(d.passenger.required).toBe(true);    // passengerName required
     expect(d.sequence.required).toBe(false);    // boardingSequenceNumber not required
     expect(d.gate.boundSemantic).toBeNull();    // unbound
@@ -62,12 +62,16 @@ describe("templateFieldDescriptors — kind resolved via bindings (dev-sample)",
     expect(d.confirmation.kind).toBe("text");    // confirmationNumber (string)
   });
 
-  it("marks the required schedule/route/identity semantics required", async () => {
+  it("marks the route/identity semantics required, recommended ones not", async () => {
     const d = await descriptorsFor("dev-sample");
-    expect(d.flight.required).toBe(true);        // flightCode required
-    expect(d["depart-time"].required).toBe(true);
-    expect(d.boarding.required).toBe(true);
-    expect(d.gate.required).toBe(false);         // departureGate not required
+    expect(d.depart.required).toBe(true);          // departureAirportCode (validator error)
+    expect(d.arrive.required).toBe(true);          // destinationAirportCode (validator error)
+    expect(d.passenger.required).toBe(true);       // passengerName (validator error)
+    expect(d.flight.required).toBe(false);         // flightCode — recommended, not required
+    expect(d["depart-time"].required).toBe(false); // currentDepartureDate — validator requires original*, not current*
+    expect(d.boarding.required).toBe(false);       // currentBoardingDate — not required
+    expect(d.seat.required).toBe(false);           // seats — recommended (validator warning)
+    expect(d.gate.required).toBe(false);           // departureGate not required
     expect(d.seq.required).toBe(false);
   });
 });

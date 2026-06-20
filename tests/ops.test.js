@@ -51,8 +51,24 @@ describe("describePushResult", () => {
   });
 
   it("describes a group push with no skips", () => {
-    expect(describePushResult({ ok: true, count: 2, sent: 4, results: [] }))
-      .toBe("✓ 2 pass(es), 4 device(s)");
+    expect(describePushResult({ ok: true, count: 2, results: [
+      { serial: "A", push: { sent: 2 } },
+      { serial: "B", push: { sent: 2 } }
+    ] })).toBe("✓ 2 pass(es), 4 device(s)");
+  });
+
+  it("surfaces failed and 410-pruned devices for a single pass", () => {
+    expect(describePushResult({
+      ok: true,
+      push: { sent: 1, failures: [{ token: "x", status: 400 }], unregistered: [{ pushToken: "y" }] }
+    })).toBe("✓ pushed 1 device(s) · ⚠ 1 failed · pruned 1 stale");
+  });
+
+  it("aggregates failed/pruned across a group push", () => {
+    expect(describePushResult({ ok: true, count: 2, results: [
+      { serial: "A", push: { sent: 1, failures: [{ token: "x" }], unregistered: [] } },
+      { serial: "B", push: { sent: 0, failures: [], unregistered: [{ pushToken: "y" }] } }
+    ] })).toBe("✓ 2 pass(es), 1 device(s) · ⚠ 1 failed · pruned 1 stale");
   });
 });
 

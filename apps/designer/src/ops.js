@@ -39,8 +39,9 @@ export function buildStatusBody(values) {
 /**
  * One-line summary of a status-push response — single-pass
  * ({ok, push, skippedFields?}) or group ({ok, count, sent, results[]}).
- * Template passes report field keys their template doesn't declare; surface
- * them so a convention mismatch is visible from the console, not just logs.
+ * Surfaces delivery health (devices reached, failures, and 410-pruned stale
+ * devices) so a silent APNs problem is visible from the console, plus any
+ * template field keys the template doesn't declare.
  * @param {object} j
  * @returns {string}
  */
@@ -51,8 +52,18 @@ export function describePushResult(j) {
   for (const r of j.results ?? []) for (const k of r.skippedFields ?? []) skipped.add(k);
   const skippedNote = skipped.size ? ` · template lacks: ${[...skipped].join(", ")}` : "";
 
-  const summary = j.results
-    ? `✓ ${j.count} pass(es), ${j.sent} device(s)`
-    : `✓ pushed ${j.push?.sent ?? 0} device(s)`;
-  return summary + skippedNote;
+  // Aggregate delivery counts across single-pass (j.push) or group (j.results[].push).
+  const pushes = j.results ? j.results.map(r => r.push) : [j.push];
+  let sent = 0, failed = 0, pruned = 0;
+  for (const p of pushes) {
+    if (!p) continue;
+    sent += p.sent ?? 0;
+    failed += p.failures?.length ?? 0;
+    pruned += p.unregistered?.length ?? 0;
+  }
+
+  const head = j.results ? `✓ ${j.count} pass(es), ${sent} device(s)` : `✓ pushed ${sent} device(s)`;
+  const failNote = failed ? ` · ⚠ ${failed} failed` : "";
+  const pruneNote = pruned ? ` · pruned ${pruned} stale` : "";
+  return head + failNote + pruneNote + skippedNote;
 }

@@ -28,8 +28,8 @@ describe("REQUIRED_SEMANTICS", () => {
     const flagged = Object.entries(SEMANTIC_CATALOG).filter(([, e]) => e.required).map(([k]) => k).sort();
     expect(flagged).toEqual([...REQUIRED_SEMANTICS].sort());
   });
-  it("includes the core boarding fields", () => {
-    for (const k of ["airlineCode", "departureAirportCode", "destinationAirportCode", "originalBoardingDate", "passengerName", "seats"]) {
+  it("includes the core boarding fields the validator errors on", () => {
+    for (const k of ["airlineCode", "flightNumber", "departureAirportCode", "departureAirportTimeZone", "destinationAirportCode", "originalDepartureDate", "originalBoardingDate", "originalArrivalDate", "passengerName"]) {
       expect(REQUIRED_SEMANTICS).toContain(k);
     }
   });

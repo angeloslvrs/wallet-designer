@@ -8,7 +8,7 @@ import {
 } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
-  devicesFor, snapshot, passesInGroup, deletePass, deleteGroup
+  devicesFor, unregisterDevice, snapshot, passesInGroup, deletePass, deleteGroup
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 import {
@@ -70,7 +70,14 @@ export function applyStatus(state, body = {}) {
 
 async function pushPass(rec, serial) {
   const devices = await devicesFor(rec.passTypeIdentifier, serial);
-  return pushUpdates({ passTypeId: rec.passTypeIdentifier, devices });
+  // collapseId = serial so a burst of updates to one pass coalesces on-device.
+  const result = await pushUpdates({ passTypeId: rec.passTypeIdentifier, devices, collapseId: serial });
+  // Prune devices APNs reported as 410 "Unregistered" (pass deleted off-device)
+  // so we stop pushing to dead tokens and stop counting them as failures.
+  for (const d of result.unregistered ?? []) {
+    await unregisterDevice({ deviceLibraryIdentifier: d.deviceLibraryIdentifier, serialNumber: serial });
+  }
+  return result;
 }
 
 /**
