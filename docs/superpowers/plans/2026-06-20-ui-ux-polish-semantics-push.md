@@ -1,6 +1,7 @@
 # Plan: UI/UX polish — semantic compliance, push reliability, typed+labeled fields
 
-Date: 2026-06-20 · Status: in progress · Branch(es): one per phase
+Date: 2026-06-20 · Status: P0–P4 implemented (branch feat/semantics-compliance,
+5 commits, 327 tests green) — pending on-device verification + merge/deploy.
 
 ## Goal
 Polish the whole designer UI/UX: (1) verify Apple semantic-tag compliance, (2) make
