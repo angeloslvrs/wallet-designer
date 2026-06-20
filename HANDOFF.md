@@ -199,9 +199,22 @@ unique) → gate stays semantics-only; bind it in the Templates card for a gate
 banner. FormState flight **times** are pre-formatted strings → unbindable, stay
 semantics-only (the "best-effort" scope; full fix = designer emits field-level
 semantics + ISO date fields). Already-desynced FormState passes (`PAL`,
-`5J5056-001`) need a re-issue to pick up the binding. **On-device banner check is
-the only thing left** — add a cebpac pass to the iPhone, change a boarding/depart
-time, confirm the banner.
+`5J5056-001`) need a re-issue to pick up the binding.
+
+**A/B RESULT (real iOS 26 device, 2026-06-20) — the banner mystery, solved:** a
+`changeMessage` banner does NOT fire on a **semantic** pass
+(`preferredStyleSchemes: ["semanticBoardingPass"]`, e.g. PAL): gate/delay changes
+update the pass **silently**. An identical **classic** pass (no
+`preferredStyleSchemes`, gate `changeMessage`) **DID** banner ("Gate changed to
+Z9"). So iOS 26 routes semantic passes to the **Lock Screen Live Activity +
+intelligent notifications** (semantics-driven, time-gated to near departure) and
+suppresses the legacy banner — you can't have BOTH the iOS 26 rich view/Live
+Activity AND classic banners on one pass. The `changeMessage` work is correct (it
+drives classic passes). Test artifacts left on the box: template
+`classic-ab.pkpasstemplate` + pass `CLASSIC-AB-1`; PAL was moved to a near-now
+schedule + delayed during testing. See memory `ios26-semantic-pass-no-banner`.
+Open product choice: add a "classic/banner mode" toggle (omit
+`preferredStyleSchemes`) for users who want anytime banners over the iOS 26 look.
 
 ## Start here (next session)
 
