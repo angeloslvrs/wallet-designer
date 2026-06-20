@@ -216,6 +216,20 @@ schedule + delayed during testing. See memory `ios26-semantic-pass-no-banner`.
 Open product choice: add a "classic/banner mode" toggle (omit
 `preferredStyleSchemes`) for users who want anytime banners over the iOS 26 look.
 
+**LIVE ACTIVITY — RESOLVED on a real iOS 26 device (2026-06-20).** The semantic
+notification path is the Lock Screen **Live Activity / flight tracker**, and it
+**only appears for a REAL flight Apple's flight-data feed recognizes** (airlineCode
++ flightNumber + date), in its near-departure window — a fabricated flight never
+triggers it, even with `relevantDate`/`relevantDates`/`upcomingPassInformation`
+all set. Proof: set the test pass to a genuine **PR2129 (Philippine Airlines
+MNL→BCD)** boarding within the hour, every field populated → the Live Activity
+appeared. Also shipped this session: `applyPassDates` now re-derives a fresh
+`relevantDates` interval (commit `46faf01`, CI-green). Gotcha for sourcing real
+flights: AviationStack `scheduled` times are airport-LOCAL mislabeled `+00:00` —
+reinterpret via the `timezone` field. Test artifacts left on the box: PAL is set
+to PR2129 (Manila early-AM demo), template `classic-ab` + pass `CLASSIC-AB-1`.
+See memory `ios26-semantic-pass-no-banner`.
+
 ## Start here (next session)
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
