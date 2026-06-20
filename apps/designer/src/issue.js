@@ -1,10 +1,10 @@
 import bwipjs from "bwip-js";
-import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
+import { BOARDING_SEMANTICS, SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
 import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
 import { kindAttrs, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
-import { renderTypedInput } from "./inputs.js";
+import { renderTypedInput, widgetFor, fieldHint } from "./inputs.js";
 import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
 import { showBcbpPreview } from "./bcbp-preview.js";
 import { scanBarcode } from "./scan.js";
@@ -141,11 +141,38 @@ export function mountIssue(root, showManage) {
   // iata/number/seat get their own affordance; everything else is free text.
   const fieldKind = (k) => descriptorFor(k).kind;
 
-  // HTML attribute string for a non-date input, from the kind's affordances.
+  // The widget a field renders with: a typed picker for date and (via its bound
+  // semantic) IANA time-zone fields; null means a plain text input.
+  const typedWidgetFor = (k) => {
+    const d = descriptorFor(k);
+    if (/TimeZone$/.test(d.boundSemantic ?? "")) return "timezone";
+    if (d.kind === "date") return "date";
+    return null;
+  };
+  // "What to enter" hint for a field, from its bound semantic (none when unbound).
+  const fieldHintFor = (k) => {
+    const sem = descriptorFor(k).boundSemantic;
+    if (!sem) return "";
+    return fieldHint(sem, widgetFor(sem, SEMANTIC_CATALOG[sem]?.type ?? "text"));
+  };
+  // Friendly display name for a field: its template label, else the bound
+  // semantic's catalog label, else the raw key. Required by-binding gets a *.
+  const friendlyLabel = (k) => {
+    const d = descriptorFor(k);
+    return d.label || (d.boundSemantic && SEMANTIC_CATALOG[d.boundSemantic]?.label) || k;
+  };
+  const requiredMark = (k) => (descriptorFor(k).required ? " *" : "");
+  // Required-by-binding fields first (stable within each tier).
+  const orderByRequired = (keys) =>
+    [...keys].sort((a, b) => (descriptorFor(b).required ? 1 : 0) - (descriptorFor(a).required ? 1 : 0));
+
+  // HTML attribute string for a plain (non-typed-widget) input, from the kind's
+  // affordances.
   function inputAttrs(kind) {
     const a = kindAttrs(kind);
     const out = [`data-kind="${esc(kind)}"`];
     if (a.maxLength) out.push(`maxlength="${a.maxLength}"`);
+    if (a.pattern) out.push(`pattern="${esc(a.pattern)}"`);
     if (a.inputmode) out.push(`inputmode="${esc(a.inputmode)}"`);
     return out.join(" ");
   }
@@ -190,15 +217,19 @@ export function mountIssue(root, showManage) {
   // field keeps the typed picker (mounted post-render); the rest are plain
   // inputs carrying their kind's affordances.
   function sharedFieldHtml(k) {
-    const control = fieldKind(k) === "date"
-      ? `<div class="iss-typed" data-typed-shared="${esc(k)}" title="${esc(k)} (ISO-8601)"></div>`
-      : `<input data-shared-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" />`;
-    return `${control}<span class="field-err" data-err-shared="${esc(k)}"></span>`;
+    const w = typedWidgetFor(k);
+    const hint = fieldHintFor(k);
+    const control = w
+      ? `<div class="iss-typed" data-typed-shared="${esc(k)}" data-tw="${esc(w)}" title="${esc(k)}"></div>`
+      : `<input data-shared-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(shared[k] ?? "")}" title="${esc(hint || k)}" />`;
+    return `${control}${hint ? `<span class="iss-hint">${esc(hint)}</span>` : ""}<span class="field-err" data-err-shared="${esc(k)}"></span>`;
   }
   function rowFieldHtml(k, r, i) {
-    const control = fieldKind(k) === "date"
-      ? `<div class="iss-typed" data-typed-key="${esc(k)}" data-i="${i}" title="${esc(k)} (ISO-8601)"></div>`
-      : `<input data-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" />`;
+    const w = typedWidgetFor(k);
+    const hint = fieldHintFor(k);
+    const control = w
+      ? `<div class="iss-typed" data-typed-key="${esc(k)}" data-i="${i}" data-tw="${esc(w)}" title="${esc(hint || k)}"></div>`
+      : `<input data-key="${esc(k)}" ${inputAttrs(fieldKind(k))} placeholder="${esc(k)}" value="${esc(r.values[k] ?? "")}" title="${esc(hint || k)}" />`;
     return `<span class="iss-field">${control}<span class="field-err" data-err-key="${esc(k)}"></span></span>`;
   }
 
@@ -287,9 +318,14 @@ export function mountIssue(root, showManage) {
     return `
       <div class="iss-row mg-row" data-i="${i}">
         <div class="iss-sem-wrap">
-          <div class="iss-sem" data-sem-row="${i}"></div>
-          <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
-          <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">📷 Scan / paste boarding pass</button>
+          <div class="iss-row-tools">
+            <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">📷 Scan / paste boarding pass</button>
+            <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
+          </div>
+          <details class="iss-adv">
+            <summary>Advanced — semantic tags (Apple)</summary>
+            <div class="iss-sem" data-sem-row="${i}"></div>
+          </details>
         </div>
         <div class="iss-fields">
           ${fields}
@@ -370,8 +406,8 @@ export function mountIssue(root, showManage) {
   function render() {
     const tpl = current();
     ensureFieldDefaults();
-    const sharedKeys = (tpl?.fieldKeys ?? []).filter(k => !individualKeys.has(k));
-    const indKeys = (tpl?.fieldKeys ?? []).filter(k => individualKeys.has(k));
+    const sharedKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => !individualKeys.has(k)));
+    const indKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => individualKeys.has(k)));
     const sharedCard = tpl && !tpl.error ? `
         <div class="mg-card">
           <div class="mg-card-head">
@@ -380,14 +416,14 @@ export function mountIssue(root, showManage) {
           <div class="mg-list">
             ${sharedKeys.map(k => `
               <div class="iss-shared-row">
-                <label title="${esc(k)}">${esc(k)}</label>
+                <label title="${esc(k)}${descriptorFor(k).boundSemantic ? " · " + esc(descriptorFor(k).boundSemantic) : ""}">${esc(friendlyLabel(k))}${requiredMark(k)}</label>
                 ${sharedFieldHtml(k)}
                 <button data-act="to-individual" data-key="${esc(k)}" class="iss-toggle" title="vary this per passenger">individualize →</button>
               </div>`).join("") || `<p class="hint">No shared fields — every field is per-passenger.</p>`}
           </div>
         </div>` : "";
     const indHeader = indKeys.length
-      ? `<div class="iss-colhead">${indKeys.map(k => `<span class="iss-col"><code>${esc(k)}</code> <button data-act="to-shared" data-key="${esc(k)}" class="iss-toggle" title="same for the whole trip">← share</button></span>`).join("")}</div>`
+      ? `<div class="iss-colhead">${indKeys.map(k => `<span class="iss-col"><code title="${esc(friendlyLabel(k))}${fieldHintFor(k) ? " — " + esc(fieldHintFor(k)) : ""}">${esc(k)}${requiredMark(k)}</code> <button data-act="to-shared" data-key="${esc(k)}" class="iss-toggle" title="same for the whole trip">← share</button></span>`).join("")}</div>`
       : `<p class="hint">All fields are shared — click <b>individualize →</b> above to vary a field per passenger (otherwise every passenger is identical except for the serial).</p>`;
     const options = templates.map(t =>
       `<option value="${esc(t.id)}" ${t.id === selected ? "selected" : ""} ${t.error ? "disabled" : ""}>` +
@@ -466,17 +502,17 @@ export function mountIssue(root, showManage) {
   // so syncFromInputs (which only reads plain text inputs) leaves them intact.
   function mountTypedFields() {
     for (const ph of root.querySelectorAll("[data-typed-shared]")) {
-      const k = ph.dataset.typedShared;
+      const k = ph.dataset.typedShared, w = ph.dataset.tw || "date";
       ph.replaceChildren(renderTypedInput({
-        type: "date", value: shared[k],
+        type: w, value: shared[k], attrs: kindAttrs(fieldKind(k)),
         onChange: (v) => { shared = { ...shared, [k]: v }; }
       }));
     }
     for (const ph of root.querySelectorAll("[data-typed-key]")) {
-      const k = ph.dataset.typedKey, i = Number(ph.dataset.i);
+      const k = ph.dataset.typedKey, i = Number(ph.dataset.i), w = ph.dataset.tw || "date";
       if (!rows[i]) continue;
       ph.replaceChildren(renderTypedInput({
-        type: "date", value: rows[i].values[k],
+        type: w, value: rows[i].values[k], attrs: kindAttrs(fieldKind(k)),
         onChange: (v) => { rows = rows.map((r, n) => n === i ? { ...r, values: { ...r.values, [k]: v } } : r); }
       }));
     }

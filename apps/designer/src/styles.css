@@ -127,6 +127,11 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .field-err.show { display: inline-block; }
 .iss-shared-row { flex-wrap: wrap; }
 .iss-shared-row .field-err.show { flex: 1 0 100%; padding-left: 158px; }
+.iss-hint { flex: 1 0 100%; padding-left: 158px; font-size: 10.5px; color: #8a8f9c; }
+.iss-row-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.iss-adv { margin: 2px 0 6px; }
+.iss-adv > summary { font-size: 11px; color: #51607a; cursor: pointer; user-select: none; padding: 2px 0; }
+.iss-adv[open] > summary { margin-bottom: 4px; }
 .iss-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 120px; min-width: 0; }
 .iss-field input { flex: 1 1 120px; min-width: 0; font-size: 12px; }
 .iss-field .field-err.show { flex: 1 0 100%; }
