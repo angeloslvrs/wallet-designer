@@ -4,7 +4,7 @@
 import { Router } from "express";
 import {
   applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven,
-  templateFieldDescriptors, validateFieldValue, normalizeFieldValue
+  templateFieldDescriptors, validateFieldValue, normalizeFieldValue, discoverBindings
 } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
@@ -13,7 +13,7 @@ import {
 import { pushUpdates } from "../apns.js";
 import {
   applyStatusToTemplateData, normalizeStatusBody, validateStatusBody,
-  transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS
+  transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS, changeMessageFor
 } from "../template-status.js";
 import { bindingsForTemplate } from "../template-bindings.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
@@ -23,14 +23,65 @@ export const adminRouter = Router();
 // Template data values may be plain ("B12") or field patches ({value: "B12", …}).
 const fieldDataValue = v => (v !== null && typeof v === "object" && !Array.isArray(v)) ? v.value : v;
 
+// A FormState's compact boardingPass field zones, as the schema stores them
+// (displayFields.{header,…}).
+const DISPLAY_ZONES = ["header", "primary", "secondary", "auxiliary", "back"];
+
 /**
- * Apply a status change to a pass's FormState. Pure: returns a new state.
+ * The minimal pass.json shape {@link discoverBindings} needs to propose
+ * semanticKey → fieldKey bindings for a FormState: its compact fields under the
+ * boardingPass style, plus the current semantics. Built straight from the stored
+ * state (no `meta` required), so a status update can find which visible field
+ * renders a given semantic.
+ */
+function stateDiscoveryJson(state) {
+  const df = state.displayFields ?? {};
+  return {
+    boardingPass: {
+      headerFields: df.header ?? [],
+      primaryFields: df.primary ?? [],
+      secondaryFields: df.secondary ?? [],
+      auxiliaryFields: df.auxiliary ?? [],
+      backFields: df.back ?? []
+    },
+    semantics: state.semantics ?? {}
+  };
+}
+
+/**
+ * Set the visible display field `fieldKey` (in place, on an already-cloned
+ * state): its value, plus — for a non-empty value — a changeMessage so the
+ * update raises a lock-screen banner. Returns true if a field was found.
+ */
+function setDisplayField(next, fieldKey, value, changeMessage) {
+  const df = next.displayFields;
+  if (!df) return false;
+  for (const zone of DISPLAY_ZONES) {
+    const arr = df[zone];
+    if (!Array.isArray(arr)) continue;
+    const idx = arr.findIndex(f => f && f.key === fieldKey);
+    if (idx >= 0) {
+      arr[idx] = { ...arr[idx], value, ...(changeMessage !== undefined && { changeMessage }) };
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Apply a status change to a pass's FormState. Pure: returns { state, skipped }.
  * Semantics-first: the vocabulary is semantic keys (route layer normalizes the
- * legacy verbs); each maps to a `semantics` entry ("" clears it). The visible
- * STATUS / DELAY rows live in iOS26.additionalInfoFields. Unlike the old shape
- * the compact gate/time display fields are NOT re-synced here — iOS 26 renders
- * the expanded view + Live Activity from semantics (see the phase-3 plan's open
- * items). Object-form values ({value, changeMessage}) are normalized to .value.
+ * legacy verbs); each updates a `semantics` entry ("" clears it). A generic
+ * string/date semantic ALSO updates its bound visible display field — discovered
+ * by value-match from the current, in-sync state — with a default changeMessage,
+ * so the change shows on the pass face AND raises a lock-screen banner, and
+ * display↔semantics stay in lockstep for the next update. Semantics whose value
+ * can't be bound to a visible field (FormState times are pre-formatted strings,
+ * unbindable) stay semantics-only and are reported in `skipped`. The visible
+ * STATUS / DELAY rows (always shown, always bannered) live in
+ * iOS26.additionalInfoFields. Object-form values ({value, changeMessage}) set
+ * the semantic from .value and carry their changeMessage onto the bound field.
+ * @returns {{state: object, skipped: string[]}}
  */
 export function applyStatus(state, body = {}) {
   const {
@@ -39,7 +90,19 @@ export function applyStatus(state, body = {}) {
   } = body;
   const next = structuredClone(state);
   const sem = { ...(next.semantics ?? {}) };
-  const set = (key, raw) => { const v = fieldDataValue(raw); if (v) sem[key] = v; else delete sem[key]; };
+  const skipped = [];
+  // Discover bindings from the PRE-change state: the display value still equals
+  // the semantic, so value-match binds; updating both together keeps it bound.
+  const bindings = discoverBindings(stateDiscoveryJson(next));
+
+  const set = (key, raw) => {
+    const v = fieldDataValue(raw);
+    if (v) sem[key] = v; else delete sem[key];
+    const fieldKey = bindings[key]?.fieldKey;
+    if (!fieldKey) { if (v) skipped.push(key); return; }
+    const explicitCM = (raw !== null && typeof raw === "object" && !Array.isArray(raw)) ? raw.changeMessage : undefined;
+    setDisplayField(next, fieldKey, v ?? "", v ? (explicitCM ?? changeMessageFor(key)) : undefined);
+  };
   if (departureGate !== undefined)        set("departureGate", departureGate);
   if (currentBoardingDate !== undefined)  set("currentBoardingDate", currentBoardingDate);
   if (currentDepartureDate !== undefined) set("currentDepartureDate", currentDepartureDate);
@@ -54,7 +117,7 @@ export function applyStatus(state, body = {}) {
   };
   if (delayed !== undefined) {
     const v = fieldDataValue(delayed);
-    upsertInfoRow("delay", v ? { key: "delay", label: "DELAY", value: v } : null);
+    upsertInfoRow("delay", v ? { key: "delay", label: "DELAY", value: v, changeMessage: "%@" } : null);
   }
   // Mirror of the template path: semantic status + a visible "status" row whose
   // changeMessage makes the push banner carry the why ("Delayed — crew availability").
@@ -65,7 +128,7 @@ export function applyStatus(state, body = {}) {
     upsertInfoRow("status", display ? { key: "status", label: "STATUS", value: display, changeMessage: "%@" } : null);
   }
   next.semantics = sem;
-  return next;
+  return { state: next, skipped };
 }
 
 async function pushPass(rec, serial) {
@@ -223,7 +286,16 @@ async function applyStatusToStoredPass(serial, body) {
     // classic templates whose display comes solely from bound visible fields.
     return { rec: updated, skipped: isSemanticDriven(passJson) ? [] : skipped };
   }
-  return { rec: await updatePassState(serial, state => applyStatus(migrateFormState(state), normalized)), skipped: [] };
+  // FormState: applyStatus now updates bound visible fields too and reports the
+  // semantics it could not bind to a visible field (so the console can say
+  // "not on pass face: …" — honest, since FormState times are unbindable).
+  let skipped = [];
+  const updated = await updatePassState(serial, state => {
+    const r = applyStatus(migrateFormState(state), normalized);
+    skipped = r.skipped;
+    return r.state;
+  });
+  return { rec: updated, skipped };
 }
 
 // POST /api/passes/:serial/status  →  update one pass + push its devices

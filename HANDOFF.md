@@ -84,7 +84,7 @@ Neither tool serves passes, tracks registrations, or pushes updates. Those exist
 
 ### Carried over
 - [x] Fix README (wallet service, APNs, admin routes, prod profile, template pipeline) *(2026-06-10)*
-- [ ] Verify prod push end-to-end: real iPhone, gate change via group route, `changeMessage` lock-screen banner *(template path supports per-field `changeMessage` via the object form, e.g. `data.gate = {value, changeMessage}`)*
+- [~] Verify prod push end-to-end: real iPhone, gate change via group route, `changeMessage` lock-screen banner. *(2026-06-20: ROOT-CAUSED + fixed the content side — status updates now update the visible field AND auto-attach a `changeMessage`, on BOTH pass shapes; see the 2026-06-20 "status change banners" session below. Push transport was already proven healthy in the logs. **Only the on-device banner observation is left** — add a registered cebpac pass to the iPhone and change a boarding/departure time.)*
 - [x] `buildpass validate` QA gate (build once in LXC/CI; pin the pass-builder commit) *(2026-06-11: `.github/workflows/apple-validate.yml` — builds a dev-sample pass headlessly (`build:pass --template`), unzips it, and runs `buildpass validate` built from `apple/pass-builder` pinned to `170f2a11` (cached Swift build, `swift:6.3-noble` container). What `validate` checks for us: BoardingPass/EventTicket/FieldFormatting/RequiredImages/Seat validators over the uncompressed bundle — structural + semantic only, NO signature verification, so the self-signed dev cert is irrelevant. Local companion `npm run validate:apple` uses `$BUILDPASS_BIN`/PATH and exits 0 with a "skipped" note when no binary exists.)*
 - [x] Field-coverage diff vs `Protobufs/PassSemantics.proto` + `PassSeat.proto` *(2026-06-11: `scripts/field-coverage.mjs` → `docs/field-coverage.md`, protos read at the same pinned SHA as CI (`170f2a11`; `PASS_BUILDER_DIR` env for offline reruns). Coverage measured by executing the pipeline, not parsing source. Result: 29/103 semantics covered, 33 boarding-relevant missing (top gaps: `transitStatus`/`transitStatusReason`, `confirmationNumber`/`ticketFareClass`/`priorityStatus`, city-name fields), 2/9 PassSeat. Drift found: we emit `departure/destinationLocationTimeZone` which are NOT proto fields — proto names are `departure/destinationAirportTimeZone`; verify on-device before renaming.)*
 - [x] Close the top field-coverage gaps *(2026-06-12: 41/103 semantics covered, 5/9 PassSeat (was 29 + 2). Status vocabulary gained `transitStatus`/`transitStatusReason` on both pass shapes — semantics plus a visible "status" row whose `changeMessage` ("%@") makes the push banner carry the why ("Delayed — crew availability"); status bodies may also pass any field as `{value, changeMessage}` (template path keeps the patch). Ops editor (Manage view) gained a status select + reason input and a per-pass "Status" quick action. Issue path: `deriveIssueSemantics` in `template-status.js` maps per-passenger data (passenger/seat/gate/confirmation/fare-class/priority) into stored semantics at issue time so template placeholder semantics never ship — explicit `data.semantics` wins; dev-sample declares `confirmation`/`fare-class`/`priority` backFields and the Issue view picked the new inputs up with ZERO form-code changes (design intent confirmed). Designer flow now also emits city names, membership program name/number, boardingZone, internationalDocumentsAreVerified, silenceRequested; seats emit `seatRow`/`seatSection` DERIVED from `seatNumber` (cannot disagree with it — the old doubled-seat bug was a stale row) plus optional `seatDescription`; shared helpers live in `packages/pass-builder/semantics.js`. New `fixtures/delayed.json` demos the post-delay state. Timezone drift/rename still parked (device-gated); seatRow/seatSection rendering likewise awaits the first real-iPhone check.)*
@@ -165,6 +165,43 @@ validation + hint logic is already shared via inputs.js/field-kinds.js). `AGENTS
 **Still device-pending (only you can confirm):** push reliability on a real iOS 26 device
 (gate change + delay/status banner within ~minutes; 410-prune after uninstall); a
 minimal-required pass installs + shows the semantic expanded view; the timezone picker.
+
+## 2026-06-20 session — status change banners (main-bound; deployed @ 10.1.2.237)
+
+Plan: `docs/superpowers/plans/2026-06-20-status-update-visible-fields-changemessage.md`.
+Branch `feat/status-change-banners`, 332 tests green, rsynced + `pm2 restart`.
+
+**Diagnosis (from prod logs + the live signed pass):** push pipeline is healthy —
+every `POST …/status` → `[apns] … -> 200` for each device → device re-fetch. The
+bug was the **pass content**: status updates wrote only `semantics` (or fields
+with no `changeMessage`), so changes never showed on the pass face and never
+raised a banner. A Wallet banner requires a **rendered** field carrying a
+`changeMessage` (`%@`) to change value. The live `PAL` pass even had visible
+`gate=132` while `semantics.departureGate=b4` (desynced by the old code).
+
+**Fix (`packages`/server, no schema change):**
+- `apps/server/src/template-status.js` — `STATUS_CHANGE_MESSAGES` + `changeMessageFor`;
+  `setBoundField` now always emits object form and auto-attaches a per-semantic
+  `changeMessage` (unless caller/field already has one); `delay` row gets `%@`.
+- `apps/server/src/routes/admin.js` — `applyStatus` (FormState) now discovers
+  `semantic→field` bindings from the in-sync state, updates the bound visible
+  field + `changeMessage` in lockstep with semantics, and returns `{state, skipped}`
+  (unbindable keys reported). Route surfaces `skipped`.
+- `apps/designer/src/ops.js` — "template lacks:" → "not on pass face:".
+
+**Verified on the box (deployed code):** cebpac `currentBoardingDate`→`boardingTime`
+and `currentDepartureDate`→`date` render value + `changeMessage` ("Boarding now %@"
+/ "Departure now %@"); delay row carries `%@`; FormState gate renders
+`{value:"B4", changeMessage:"Gate changed to %@"}`.
+
+**Known limits / next:** cebpac `departureGate` is **unbound** (sample value not
+unique) → gate stays semantics-only; bind it in the Templates card for a gate
+banner. FormState flight **times** are pre-formatted strings → unbindable, stay
+semantics-only (the "best-effort" scope; full fix = designer emits field-level
+semantics + ISO date fields). Already-desynced FormState passes (`PAL`,
+`5J5056-001`) need a re-issue to pick up the binding. **On-device banner check is
+the only thing left** — add a cebpac pass to the iPhone, change a boarding/depart
+time, confirm the banner.
 
 ## Start here (next session)
 

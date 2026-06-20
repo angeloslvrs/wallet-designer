@@ -41,7 +41,8 @@ export function buildStatusBody(values) {
  * ({ok, push, skippedFields?}) or group ({ok, count, sent, results[]}).
  * Surfaces delivery health (devices reached, failures, and 410-pruned stale
  * devices) so a silent APNs problem is visible from the console, plus any
- * template field keys the template doesn't declare.
+ * semantics that updated but have no visible field on the pass face (a template
+ * with no bound field, or a FormState time with no bindable display field).
  * @param {object} j
  * @returns {string}
  */
@@ -50,7 +51,7 @@ export function describePushResult(j) {
 
   const skipped = new Set(j.skippedFields ?? []);
   for (const r of j.results ?? []) for (const k of r.skippedFields ?? []) skipped.add(k);
-  const skippedNote = skipped.size ? ` · template lacks: ${[...skipped].join(", ")}` : "";
+  const skippedNote = skipped.size ? ` · not on pass face: ${[...skipped].join(", ")}` : "";
 
   // Aggregate delivery counts across single-pass (j.push) or group (j.results[].push).
   const pushes = j.results ? j.results.map(r => r.push) : [j.push];

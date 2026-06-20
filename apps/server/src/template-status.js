@@ -70,6 +70,35 @@ export function transitStatusDisplay(status, reason) {
   return [status, reason].filter(Boolean).join(" — ");
 }
 
+/**
+ * Default lock-screen banner text per status semantic. iOS shows a notification
+ * only when a RENDERED field whose `changeMessage` contains `%@` changes value
+ * (a semantics-only change never notifies). The status paths attach one of these
+ * to the visible field they update, unless the caller (or the field already)
+ * carries its own `changeMessage`. `%@` is replaced by the field's NEW (formatted)
+ * value on the device.
+ * @type {Readonly<Record<string, string>>}
+ */
+export const STATUS_CHANGE_MESSAGES = Object.freeze({
+  departureGate: "Gate changed to %@",
+  destinationGate: "Arrival gate now %@",
+  departureTerminal: "Departure terminal %@",
+  destinationTerminal: "Arrival terminal %@",
+  currentBoardingDate: "Boarding now %@",
+  currentDepartureDate: "Departure now %@",
+  currentArrivalDate: "Arrival now %@",
+  transitProvider: "%@",
+  securityScreening: "%@"
+});
+
+/** The bare placeholder; iOS substitutes the new value. */
+export const DEFAULT_CHANGE_MESSAGE = "%@";
+
+/** Banner text for a status semantic, falling back to the bare `%@`. */
+export function changeMessageFor(semanticKey) {
+  return STATUS_CHANGE_MESSAGES[semanticKey] ?? DEFAULT_CHANGE_MESSAGE;
+}
+
 const assertIsoDate = (key, v) => {
   if (v && Number.isNaN(Date.parse(v))) {
     throw new Error(`${key}: "${v}" is not an ISO 8601 date`);
@@ -96,8 +125,15 @@ export function applyStatusToTemplateData(data, body = {}, bindings = {}) {
     if (!fieldKey) { skipped.push(semKey); return; }
     const patch = isPatch(raw) ? { ...raw } : { value: raw };
     const existing = next[fieldKey];
-    const keepObject = isPatch(existing) || Object.keys(patch).length > 1;
-    next[fieldKey] = keepObject ? { ...(isPatch(existing) ? existing : {}), ...patch } : patch.value;
+    // A rendered field needs a changeMessage to raise a lock-screen banner.
+    // Default one (per-semantic) unless the caller supplied a changeMessage or
+    // the field already carries its own. Always object form so the message
+    // ships alongside the value.
+    const existingCM = isPatch(existing) ? existing.changeMessage : undefined;
+    if (patch.changeMessage === undefined && existingCM === undefined) {
+      patch.changeMessage = changeMessageFor(semKey);
+    }
+    next[fieldKey] = { ...(isPatch(existing) ? existing : {}), ...patch };
   };
 
   const upsertInfoRow = (key, row) => {
@@ -108,7 +144,7 @@ export function applyStatusToTemplateData(data, body = {}, bindings = {}) {
   for (const [key, raw] of Object.entries(body)) {
     if (key === "delayed") {
       const v = valueOf(raw);
-      upsertInfoRow("delay", v ? { key: "delay", label: "DELAY", value: v } : null);
+      upsertInfoRow("delay", v ? { key: "delay", label: "DELAY", value: v, changeMessage: "%@" } : null);
       continue;
     }
     // transitStatus/Reason are handled together below (the status row composes both).
