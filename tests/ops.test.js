@@ -32,9 +32,9 @@ describe("describePushResult", () => {
       .toBe("✓ pushed 2 device(s)");
   });
 
-  it("notes the field keys a template pass skipped", () => {
+  it("notes the semantics that updated but aren't shown on the pass face", () => {
     expect(describePushResult({ ok: true, push: { sent: 1 }, skippedFields: ["gate", "boarding"] }))
-      .toBe("✓ pushed 1 device(s) · template lacks: gate, boarding");
+      .toBe("✓ pushed 1 device(s) · not on pass face: gate, boarding");
   });
 
   it("describes a group push, aggregating skipped keys across members", () => {
@@ -47,7 +47,7 @@ describe("describePushResult", () => {
       ]
     };
     expect(describePushResult(j))
-      .toBe("✓ 3 pass(es), 5 device(s) · template lacks: gate, boarding");
+      .toBe("✓ 3 pass(es), 5 device(s) · not on pass face: gate, boarding");
   });
 
   it("describes a group push with no skips", () => {

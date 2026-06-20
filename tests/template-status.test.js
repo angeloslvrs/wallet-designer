@@ -15,9 +15,9 @@ const BINDINGS = {
 };
 
 describe("applyStatusToTemplateData (semantic vocabulary, map-driven)", () => {
-  it("maps departureGate onto the bound field and semantics", () => {
+  it("maps departureGate onto the bound field (with a default banner) and semantics", () => {
     const { data, skipped } = applyStatusToTemplateData({}, { departureGate: "B12" }, BINDINGS);
-    expect(data.gate).toBe("B12");
+    expect(data.gate).toEqual({ value: "B12", changeMessage: "Gate changed to %@" });
     expect(data.semantics.departureGate).toBe("B12");
     expect(skipped).toEqual([]);
   });
@@ -35,8 +35,8 @@ describe("applyStatusToTemplateData (semantic vocabulary, map-driven)", () => {
       currentDepartureDate: "2026-06-01T08:15:00-07:00",
       currentArrivalDate: "2026-06-01T16:45:00-04:00"
     }, BINDINGS);
-    expect(data.boarding).toBe("2026-06-01T07:30:00-07:00");
-    expect(data["depart-time"]).toBe("2026-06-01T08:15:00-07:00");
+    expect(data.boarding).toEqual({ value: "2026-06-01T07:30:00-07:00", changeMessage: "Boarding now %@" });
+    expect(data["depart-time"]).toEqual({ value: "2026-06-01T08:15:00-07:00", changeMessage: "Departure now %@" });
     expect(data.semantics.currentBoardingDate).toBe("2026-06-01T07:30:00-07:00");
     expect(data.semantics.currentDepartureDate).toBe("2026-06-01T08:15:00-07:00");
     expect(data.semantics.currentArrivalDate).toBe("2026-06-01T16:45:00-04:00");
@@ -62,9 +62,9 @@ describe("applyStatusToTemplateData (semantic vocabulary, map-driven)", () => {
     expect(skipped.sort()).toEqual(["securityScreening", "transitProvider"]);
   });
 
-  it("adds a delay additionalInfoField and clears it again with an empty string", () => {
+  it("adds a delay additionalInfoField (with a banner) and clears it again with an empty string", () => {
     const delayed = applyStatusToTemplateData({}, { delayed: "45 min" }, BINDINGS);
-    expect(delayed.data.additionalInfoFields).toEqual([{ key: "delay", label: "DELAY", value: "45 min" }]);
+    expect(delayed.data.additionalInfoFields).toEqual([{ key: "delay", label: "DELAY", value: "45 min", changeMessage: "%@" }]);
     const cleared = applyStatusToTemplateData(delayed.data, { delayed: "" }, BINDINGS);
     expect(cleared.data.additionalInfoFields).toEqual([]);
   });
@@ -142,5 +142,11 @@ describe("applyStatusToTemplateData — per-field changeMessage", () => {
     expect(data.gate).toBeUndefined();
     expect(data.semantics.departureGate).toBe("B12");
     expect(skipped).toEqual(["departureGate"]);
+  });
+
+  it("falls back to the generic %@ banner for a bound semantic with no specific default", () => {
+    const bindings = { securityScreening: { fieldKey: "screening", source: "value-match", confidence: "medium" } };
+    const { data } = applyStatusToTemplateData({}, { securityScreening: "TSA PreCheck" }, bindings);
+    expect(data.screening).toEqual({ value: "TSA PreCheck", changeMessage: "%@" });
   });
 });
