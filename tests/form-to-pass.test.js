@@ -67,7 +67,7 @@ describe("formStateToPassJson (new shape)", () => {
         eventGuide: { bagPolicyURL: "https://x/bags" },
         upcomingPassInformation: [{ identifier: "b", name: "Boarding", date: "2026-06-01T07:30:00-07:00" }] } });
     expect(p.boardingPass.additionalInfoFields[0].key).toBe("loyalty");
-    expect(p.relevantDates).toBeUndefined(); // stale relevantDates dropped when flight dates exist
+    expect(p.relevantDates).toEqual([{ date: "2026-06-01T07:30:00-07:00" }]); // stale array discarded; re-derived from boarding
     expect(p.bagPolicyURL).toBe("https://x/bags");
     expect(p.upcomingPassInformation[0]).toEqual({ identifier: "b", name: "Boarding", type: "event", dateInformation: { date: "2026-06-01T07:30:00-07:00" } });
     expect(p.webServiceURL).toBe("http://localhost:4317/api/wallet");
@@ -77,7 +77,7 @@ describe("formStateToPassJson (new shape)", () => {
   it("omits all iOS 26 extras when the bucket is absent", () => {
     const p = formStateToPassJson(base);
     expect(p.boardingPass.additionalInfoFields).toBeUndefined();
-    expect(p.relevantDates).toBeUndefined();
+    expect(p.relevantDates).toEqual([{ date: "2026-06-01T07:30:00-07:00" }]); // flight-derived, not a bucket extra
     expect(p.upcomingPassInformation).toBeUndefined();
     expect(p.bagPolicyURL).toBeUndefined();
     expect(p.webServiceURL).toBeUndefined();
@@ -98,10 +98,12 @@ describe("formStateToPassJson expiry/relevance", () => {
     iOS26: { relevantDates: ["2026-06-15T05:00:00+08:00"] } // stale — must NOT leak
   });
 
-  it("derives relevantDate from the flight and drops the stale relevantDates", () => {
+  it("derives relevantDate + a fresh relevantDates interval from the flight (discarding the stale array)", () => {
     const p = formStateToPassJson(state());
     expect(p.relevantDate).toBe("2026-08-28T15:50:00+08:00");
-    expect(p.relevantDates).toBeUndefined();
+    expect(p.relevantDates).toEqual([
+      { startDate: "2026-08-28T15:50:00+08:00", endDate: "2026-08-28T17:55:00+08:00" }
+    ]);
   });
 
   it("defaults expirationDate to arrival + 1 day", () => {

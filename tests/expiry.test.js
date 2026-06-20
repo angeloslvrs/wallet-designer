@@ -36,10 +36,18 @@ describe("applyPassDates", () => {
     relevantDates: [{ date: "2026-06-15T05:00:00+08:00", relevantDate: "2026-06-15T05:00:00+08:00" }] // the stale bug value
   });
 
-  it("derives relevantDate from boarding and DROPS the stale relevantDates", () => {
+  it("derives relevantDate + a fresh relevantDates interval (boarding→arrival), discarding the stale array", () => {
     const out = applyPassDates(base());
     expect(out.relevantDate).toBe("2026-08-28T15:50:00+08:00");
-    expect(out.relevantDates).toBeUndefined();
+    expect(out.relevantDates).toEqual([
+      { startDate: "2026-08-28T15:50:00+08:00", endDate: "2026-08-28T17:55:00+08:00" }
+    ]);
+  });
+
+  it("falls back to a single-point relevantDates when only one usable date exists", () => {
+    const out = applyPassDates({ semantics: { currentDepartureDate: "2026-08-28T16:35:00+08:00" } });
+    expect(out.relevantDate).toBe("2026-08-28T16:35:00+08:00");
+    expect(out.relevantDates).toEqual([{ date: "2026-08-28T16:35:00+08:00" }]);
   });
 
   it("defaults expirationDate to arrival + 1 day", () => {
