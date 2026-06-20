@@ -12,18 +12,86 @@ export const joinIso = (local, offset) => (local ? `${local}:00${offset || ""}` 
 // Type-aware emptiness lives in the package so the Suggest engine and the
 // designer share one implementation (drives emit-only-filled).
 export { isEmptyTyped } from "@wpd/pass-builder/suggest-empty.js";
+import { semanticKind } from "@wpd/pass-builder/field-kinds.js";
 
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 
+// IANA time-zone list for the timezone picker's type-ahead. Intl.supportedValuesOf
+// is available in Node 24 + modern browsers; degrade to a free-text input if not.
+let _zones = null;
+function ianaZones() {
+  if (_zones) return _zones;
+  try { _zones = Intl.supportedValuesOf?.("timeZone") ?? []; }
+  catch { _zones = []; }
+  return _zones;
+}
+let tzSeq = 0;
+
+const applyAttrs = (inp, attrs = {}) => {
+  if (attrs.maxLength != null) inp.maxLength = attrs.maxLength;
+  if (attrs.pattern) inp.pattern = attrs.pattern;
+  if (attrs.inputmode) inp.inputMode = attrs.inputmode;
+};
+
+/**
+ * The widget a semantic key should render with. Defaults to its catalog `type`,
+ * but any `*TimeZone` key gets the IANA timezone picker (presentation refinement
+ * — the catalog still types these as plain strings).
+ * @param {string} key semantic key
+ * @param {string} type catalog widget type
+ * @returns {string}
+ */
+export function widgetFor(key, type) {
+  return /TimeZone$/.test(key) ? "timezone" : type;
+}
+
+/**
+ * A short "what to enter" hint for a semantic field, by widget + validation kind.
+ * Empty string when the control is self-explanatory (boolean/enum/plain text).
+ * @param {string} key semantic key
+ * @param {string} type widget type (from {@link widgetFor})
+ * @returns {string}
+ */
+export function fieldHint(key, type) {
+  switch (type) {
+    case "timezone":    return "IANA time zone, e.g. Asia/Manila";
+    case "date":        return "Local date + time, with UTC offset";
+    case "seats":       return "Seats, e.g. 14A, 14B";
+    case "personName":  return "Given + family name";
+    case "currency":    return "Amount + ISO currency code (USD)";
+    case "location":    return "Latitude, longitude";
+    case "stringArray": return "Comma-separated values";
+    case "boolean":
+    case "enum":        return "";
+  }
+  switch (semanticKind(key)) {
+    case "iata":   return "3-letter IATA code, e.g. MNL";
+    case "number": return "Whole number";
+    default:       return "";
+  }
+}
+
 /**
  * Render one typed input. Returns a wrapper element; reports the typed value via onChange.
- * @param {{type:string, value:*, onChange:(v:*)=>void, enumOptions?:string[]}} opts
+ * @param {{type:string, value:*, onChange:(v:*)=>void, enumOptions?:string[],
+ *          attrs?:{maxLength?:number, pattern?:string, inputmode?:string}}} opts
+ *   `attrs` (from field-kinds kindAttrs) constrain the text/number/timezone input.
  */
-export function renderTypedInput({ type, value, onChange, enumOptions = [] }) {
+export function renderTypedInput({ type, value, onChange, enumOptions = [], attrs = {} }) {
   const wrap = el("div", { className: "typed-input" });
   const fire = (v) => onChange?.(v);
 
   switch (type) {
+    case "timezone": {
+      const listId = `tz-list-${++tzSeq}`;
+      const inp = el("input", { type: "text", value: value ?? "", placeholder: "Asia/Manila" });
+      inp.setAttribute("list", listId);
+      applyAttrs(inp, attrs);
+      const dl = el("datalist", { id: listId });
+      for (const z of ianaZones()) dl.append(el("option", { value: z }));
+      inp.addEventListener("input", () => fire(inp.value));
+      wrap.append(inp, dl); break;
+    }
     case "date": {
       wrap.style.cssText = "display:flex;gap:6px;align-items:center";
       const { local, offset } = splitIso(value);
@@ -36,6 +104,7 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [] }) {
     }
     case "number": {
       const inp = el("input", { type: "number", value: value ?? "" });
+      applyAttrs(inp, attrs);
       inp.addEventListener("input", () => fire(inp.value === "" ? "" : Number(inp.value)));
       wrap.append(inp); break;
     }
@@ -95,6 +164,7 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [] }) {
     }
     default: {
       const inp = el("input", { type: "text", value: value ?? "" });
+      applyAttrs(inp, attrs);
       inp.addEventListener("input", () => fire(inp.value));
       wrap.append(inp);
     }
