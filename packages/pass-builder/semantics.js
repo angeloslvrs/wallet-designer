@@ -72,24 +72,21 @@ export const BOARDING_SEMANTICS = Object.freeze({
 // event-only keys are intentionally excluded (see spec non-goals).
 const CATALOG_TYPE = { string: "text", date: "date", number: "number", personName: "personName", seats: "seats" };
 
-// Options for the passengerCapabilities multi-select. `passengerCapabilities`
-// is a FREE-STRING array — Apple's pass-builder maps it straight to the
-// `airline_passenger_capabilities` protobuf field with NO value validation, and
-// the only value Apple documents is `PKPassengerCapabilityLapInfant`. The
-// carry-on / personal-item entries below mirror what Pass Designer 1.0 bundles
-// emit, with casing normalized to Apple's PassKit convention.
+// Apple's documented allowed values for the `passengerCapabilities` semantic
+// (SemanticTags doc → the `allowedValues` attribute on the key). iOS 26 renders
+// these as baggage / eligibility badges on the semantic boarding pass.
 //
-// IMPORTANT: this tag does NOT control the iOS 26 "carry-on / No carry-on"
-// baggage badge. That row is populated from Apple's LIVE flight data (confirmed
-// on device 2026-06-21: changing these values doesn't move it), and baggage
-// allowance isn't even in Apple's `liveDataConfiguration.excludedSemantics`
-// override list. The picker still earns its place: it lets you SET the real tag
-// and strip the stale placeholder capabilities Pass Designer bakes into every
-// export (the widget surfaces any unrecognized seeded value so it's removable).
+// EXACT CASING MATTERS: the carry-on value is `PKPassengerCapabilityCarryon`
+// with a LOWERCASE "o". A capitalized `CarryOn` is not a recognized value and
+// the pass renders "No carry-on". The widget surfaces any seeded value outside
+// this set as "(unrecognized)" so a typo'd / stale constant is visible and
+// removable.
 export const PASSENGER_CAPABILITY_OPTIONS = Object.freeze([
-  { value: "PKPassengerCapabilityCarryOn",      label: "Carry-on bag" },
-  { value: "PKPassengerCapabilityPersonalItem", label: "Personal item" },
-  { value: "PKPassengerCapabilityLapInfant",    label: "Lap infant" }
+  { value: "PKPassengerCapabilityPreboarding",      label: "Preboarding" },
+  { value: "PKPassengerCapabilityPriorityBoarding", label: "Priority boarding" },
+  { value: "PKPassengerCapabilityCarryon",          label: "Carry-on bag" },
+  { value: "PKPassengerCapabilityPersonalItem",     label: "Personal item" },
+  { value: "PKPassengerCapabilityLapInfant",        label: "Lap infant" }
 ]);
 
 const EXTRA_SEMANTICS = {

@@ -56,8 +56,10 @@ describe("renderTypedInput — timezone + attrs", () => {
 });
 
 describe("renderTypedInput — capabilities (passengerCapabilities)", () => {
+  // Apple's documented values (SemanticTags allowedValues) — note the LOWERCASE
+  // "o" in Carryon; a capitalized CarryOn is not recognized.
   const OPTS = [
-    { value: "PKPassengerCapabilityCarryOn", label: "Carry-on bag" },
+    { value: "PKPassengerCapabilityCarryon", label: "Carry-on bag" },
     { value: "PKPassengerCapabilityPersonalItem", label: "Personal item" }
   ];
 
@@ -66,10 +68,10 @@ describe("renderTypedInput — capabilities (passengerCapabilities)", () => {
   });
 
   it("renders a checkbox per friendly option and pre-checks seeded values", () => {
-    const { el } = mount({ type: "capabilities", value: ["PKPassengerCapabilityCarryOn"], enumOptions: OPTS });
+    const { el } = mount({ type: "capabilities", value: ["PKPassengerCapabilityCarryon"], enumOptions: OPTS });
     const boxes = el.querySelectorAll("input[type=checkbox]");
     expect(boxes.length).toBe(2);
-    expect([...boxes].find(b => b.value === "PKPassengerCapabilityCarryOn").checked).toBe(true);
+    expect([...boxes].find(b => b.value === "PKPassengerCapabilityCarryon").checked).toBe(true);
     expect([...boxes].find(b => b.value === "PKPassengerCapabilityPersonalItem").checked).toBe(false);
   });
 
@@ -80,9 +82,9 @@ describe("renderTypedInput — capabilities (passengerCapabilities)", () => {
     expect(get()).toEqual(["PKPassengerCapabilityPersonalItem"]);
   });
 
-  it("surfaces a stale/unrecognized seeded value as a removable checkbox", () => {
-    const { el } = mount({ type: "capabilities", value: ["PKPassengerCapabilityCarryon"], enumOptions: OPTS });
-    const stale = [...el.querySelectorAll("input[type=checkbox]")].find(b => b.value === "PKPassengerCapabilityCarryon");
+  it("surfaces a stale/unrecognized seeded value (e.g. miscased CarryOn) as a removable checkbox", () => {
+    const { el } = mount({ type: "capabilities", value: ["PKPassengerCapabilityCarryOn"], enumOptions: OPTS });
+    const stale = [...el.querySelectorAll("input[type=checkbox]")].find(b => b.value === "PKPassengerCapabilityCarryOn");
     expect(stale).toBeTruthy();
     expect(stale.checked).toBe(true);
     expect(el.textContent).toMatch(/unrecognized/);
