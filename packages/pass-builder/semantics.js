@@ -72,15 +72,20 @@ export const BOARDING_SEMANTICS = Object.freeze({
 // event-only keys are intentionally excluded (see spec non-goals).
 const CATALOG_TYPE = { string: "text", date: "date", number: "number", personName: "personName", seats: "seats" };
 
-// Friendly options for the passengerCapabilities multi-select. iOS 26 renders
-// these as baggage/eligibility badges on the semantic boarding pass. Apple's
-// published docs only name `PKPassengerCapabilityLapInfant`; the carry-on /
-// personal-item constants are inferred from Pass Designer exports and Apple's
-// PassKit naming convention (compound words are camel-cased — hence `CarryOn`,
-// not the `Carryon` some Pass Designer 1.0 bundles emit, which iOS appears not
-// to recognize and renders as "No carry-on"). VERIFY on a real device before
-// treating these as canonical; the widget also surfaces any unrecognized
-// seeded value so a stale constant is visible and removable.
+// Options for the passengerCapabilities multi-select. `passengerCapabilities`
+// is a FREE-STRING array — Apple's pass-builder maps it straight to the
+// `airline_passenger_capabilities` protobuf field with NO value validation, and
+// the only value Apple documents is `PKPassengerCapabilityLapInfant`. The
+// carry-on / personal-item entries below mirror what Pass Designer 1.0 bundles
+// emit, with casing normalized to Apple's PassKit convention.
+//
+// IMPORTANT: this tag does NOT control the iOS 26 "carry-on / No carry-on"
+// baggage badge. That row is populated from Apple's LIVE flight data (confirmed
+// on device 2026-06-21: changing these values doesn't move it), and baggage
+// allowance isn't even in Apple's `liveDataConfiguration.excludedSemantics`
+// override list. The picker still earns its place: it lets you SET the real tag
+// and strip the stale placeholder capabilities Pass Designer bakes into every
+// export (the widget surfaces any unrecognized seeded value so it's removable).
 export const PASSENGER_CAPABILITY_OPTIONS = Object.freeze([
   { value: "PKPassengerCapabilityCarryOn",      label: "Carry-on bag" },
   { value: "PKPassengerCapabilityPersonalItem", label: "Personal item" },

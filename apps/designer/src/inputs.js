@@ -63,7 +63,7 @@ export function fieldHint(key, type) {
     case "currency":    return "Amount + ISO currency code (USD)";
     case "location":    return "Latitude, longitude";
     case "stringArray": return "Comma-separated values";
-    case "capabilities": return "Renders as baggage / eligibility badges on iOS 26";
+    case "capabilities": return "Apple passengerCapabilities tags — does NOT set the live carry-on/baggage badge";
     case "boolean":
     case "enum":        return "";
   }
