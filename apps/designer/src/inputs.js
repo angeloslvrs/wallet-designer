@@ -42,7 +42,9 @@ const applyAttrs = (inp, attrs = {}) => {
  * @returns {string}
  */
 export function widgetFor(key, type) {
-  return /TimeZone$/.test(key) ? "timezone" : type;
+  if (/TimeZone$/.test(key)) return "timezone";
+  if (key === "passengerCapabilities") return "capabilities";
+  return type;
 }
 
 /**
@@ -61,6 +63,7 @@ export function fieldHint(key, type) {
     case "currency":    return "Amount + ISO currency code (USD)";
     case "location":    return "Latitude, longitude";
     case "stringArray": return "Comma-separated values";
+    case "capabilities": return "Renders as baggage / eligibility badges on iOS 26";
     case "boolean":
     case "enum":        return "";
   }
@@ -145,6 +148,29 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       if (value != null) sel.value = value;
       sel.addEventListener("change", () => fire(sel.value));
       wrap.append(sel); break;
+    }
+    case "capabilities": {
+      // Multi-select checkbox group over known capability constants. Value is
+      // an array of selected constant strings. Any seeded value not in the
+      // known set (e.g. a stale `PKPassengerCapabilityCarryon`) is shown as an
+      // "(unrecognized)" row so it's visible and can be unchecked.
+      wrap.style.cssText = "display:flex;flex-direction:column;gap:4px";
+      const selected = new Set(Array.isArray(value) ? value : []);
+      const opts = enumOptions.map(o => (typeof o === "string" ? { value: o, label: o } : { ...o }));
+      const known = new Set(opts.map(o => o.value));
+      for (const v of selected) if (!known.has(v)) opts.push({ value: v, label: `${v} (unrecognized)` });
+      const boxes = [];
+      const sync = () => fire(boxes.filter(b => b.checked).map(b => b.value));
+      for (const o of opts) {
+        const lbl = el("label");
+        lbl.style.cssText = "display:flex;gap:6px;align-items:center;font-weight:400;cursor:pointer";
+        const cb = el("input", { type: "checkbox", value: o.value, checked: selected.has(o.value) });
+        cb.addEventListener("change", sync);
+        boxes.push(cb);
+        lbl.append(cb, el("span", { textContent: o.label }));
+        wrap.append(lbl);
+      }
+      break;
     }
     case "location": {
       wrap.style.cssText = "display:flex;gap:6px";

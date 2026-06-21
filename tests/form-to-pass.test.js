@@ -30,7 +30,7 @@ describe("formStateToPassJson (new shape)", () => {
     expect(p.passTypeIdentifier).toBe("pass.dev.local");
     expect(p.teamIdentifier).toBe("DEV0000000");
     expect(p.serialNumber).toBe("RP-001");
-    expect(p.preferredStyleSchemes).toEqual(["semanticBoardingPass"]);
+    expect(p.preferredStyleSchemes).toEqual(["semanticBoardingPass", "boardingPass"]);
     expect(p.barcodes[0]).toEqual({ format: "PKBarcodeFormatQR", message: "RP247-SFOJFK-14A-0042", messageEncoding: "iso-8859-1", altText: "RP247 14A" });
   });
 

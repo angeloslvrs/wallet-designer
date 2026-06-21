@@ -72,6 +72,21 @@ export const BOARDING_SEMANTICS = Object.freeze({
 // event-only keys are intentionally excluded (see spec non-goals).
 const CATALOG_TYPE = { string: "text", date: "date", number: "number", personName: "personName", seats: "seats" };
 
+// Friendly options for the passengerCapabilities multi-select. iOS 26 renders
+// these as baggage/eligibility badges on the semantic boarding pass. Apple's
+// published docs only name `PKPassengerCapabilityLapInfant`; the carry-on /
+// personal-item constants are inferred from Pass Designer exports and Apple's
+// PassKit naming convention (compound words are camel-cased — hence `CarryOn`,
+// not the `Carryon` some Pass Designer 1.0 bundles emit, which iOS appears not
+// to recognize and renders as "No carry-on"). VERIFY on a real device before
+// treating these as canonical; the widget also surfaces any unrecognized
+// seeded value so a stale constant is visible and removable.
+export const PASSENGER_CAPABILITY_OPTIONS = Object.freeze([
+  { value: "PKPassengerCapabilityCarryOn",      label: "Carry-on bag" },
+  { value: "PKPassengerCapabilityPersonalItem", label: "Personal item" },
+  { value: "PKPassengerCapabilityLapInfant",    label: "Lap infant" }
+]);
+
 const EXTRA_SEMANTICS = {
   eventType:                 { type: "enum",        group: "flight",    label: "Event type",
                                enumOptions: ["PKEventTypeGeneric", "PKEventTypeBoarding"] },
@@ -81,7 +96,8 @@ const EXTRA_SEMANTICS = {
   silenceRequested:          { type: "boolean",     group: "status",    label: "Silence requested" },
   internationalDocumentsAreVerified: { type: "boolean", group: "passenger", label: "Intl. documents verified" },
   internationalDocumentsVerifiedDeclarationName: { type: "text", group: "passenger", label: "Docs declaration name" },
-  passengerCapabilities:     { type: "stringArray", group: "passenger", label: "Passenger capabilities" },
+  passengerCapabilities:     { type: "stringArray", group: "passenger", label: "Baggage & capabilities",
+                               enumOptions: PASSENGER_CAPABILITY_OPTIONS },
   passengerEligibleSecurityPrograms:   { type: "stringArray", group: "passenger", label: "Eligible security programs" },
   departureAirportSecurityPrograms:    { type: "stringArray", group: "route",     label: "Departure security programs" },
   destinationAirportSecurityPrograms:  { type: "stringArray", group: "route",     label: "Destination security programs" },
@@ -124,6 +140,24 @@ export const RECOMMENDED_SEMANTICS = Object.freeze([
   "departureCityName", "destinationCityName", "destinationAirportTimeZone", "seats"
 ]);
 const RECOMMENDED_SET = new Set(RECOMMENDED_SEMANTICS);
+
+// Apple's PUBLISHED doc requires MORE than the validator errors on. The
+// "Add the required semantic tags" table of
+// developer.apple.com/.../creating-an-airline-boarding-pass-using-semantic-tags
+// lists 12 tags; omitting ANY of them drops the pass to the legacy style on
+// iOS (no `semanticBoardingPass`). The buildpass validator (which REQUIRED_SET
+// is pinned to) only ERRORS on 9 — so Apple's own doc and validator disagree.
+// We keep REQUIRED_SEMANTICS pinned to the validator (the CI gate) and expose
+// the doc's superset separately so the Designer can WARN about doc-required
+// tags the validator would let slide. Time-zone keys use the *AirportTimeZone
+// spelling the editor manages (mirrored to the *LocationTimeZone twin at emit).
+export const DOC_REQUIRED_SEMANTICS = Object.freeze([
+  "airlineCode", "flightNumber",
+  "departureAirportCode", "departureCityName", "departureAirportTimeZone",
+  "destinationAirportCode", "destinationCityName", "destinationAirportTimeZone",
+  "originalDepartureDate", "originalBoardingDate", "originalArrivalDate",
+  "passengerName"
+]);
 
 export const SEMANTIC_CATALOG = Object.freeze({
   ...Object.fromEntries(Object.entries(BOARDING_SEMANTICS).map(([k, t]) => [k, {

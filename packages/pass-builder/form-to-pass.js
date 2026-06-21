@@ -35,7 +35,7 @@ export function formStateToPassJson(s) {
     foregroundColor: branding.foregroundColor,
     backgroundColor: branding.backgroundColor,
     labelColor: branding.labelColor,
-    preferredStyleSchemes: ["semanticBoardingPass"],
+    preferredStyleSchemes: ["semanticBoardingPass", "boardingPass"],
     barcodes: [{ format: barcode.format, message: barcode.message, messageEncoding: "iso-8859-1", altText: barcode.altText }],
     boardingPass,
     semantics: emitSemantics(s.semantics, ios.wifi),

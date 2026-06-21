@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, SEMANTIC_CATALOG
+  REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_CATALOG
 } from "../packages/pass-builder/semantics.js";
 
 // Pinned against apple/pass-builder Validation/Validators/BoardingPassValidator.swift
@@ -45,5 +45,38 @@ describe("boarding-pass compliance (validator-pinned)", () => {
       .filter(([, e]) => e.recommended).map(([k]) => k).sort();
     expect(flaggedRequired).toEqual([...REQUIRED_SEMANTICS].sort());
     expect(flaggedRecommended).toEqual([...RECOMMENDED_SEMANTICS].sort());
+  });
+});
+
+// Apple's PUBLISHED "Add the required semantic tags" table lists 12 tags
+// (https://developer.apple.com/documentation/walletpasses/creating-an-airline-boarding-pass-using-semantic-tags),
+// expressed here in the *AirportTimeZone spelling the editor manages.
+const APPLE_DOC_REQUIRED = [
+  "airlineCode", "flightNumber",
+  "departureAirportCode", "departureCityName", "departureAirportTimeZone",
+  "destinationAirportCode", "destinationCityName", "destinationAirportTimeZone",
+  "originalDepartureDate", "originalBoardingDate", "originalArrivalDate",
+  "passengerName"
+];
+
+describe("boarding-pass compliance (Apple published doc)", () => {
+  it("DOC_REQUIRED_SEMANTICS equals Apple's published required list", () => {
+    expect([...DOC_REQUIRED_SEMANTICS].sort()).toEqual([...APPLE_DOC_REQUIRED].sort());
+  });
+
+  it("is a strict superset of the validator's required set", () => {
+    const doc = new Set(DOC_REQUIRED_SEMANTICS);
+    for (const k of REQUIRED_SEMANTICS) expect(doc.has(k), k).toBe(true);
+    expect(DOC_REQUIRED_SEMANTICS.length).toBeGreaterThan(REQUIRED_SEMANTICS.length);
+  });
+
+  it("the doc-only extras are the three the validator merely warns on", () => {
+    const validatorRequired = new Set(REQUIRED_SEMANTICS);
+    const docOnly = DOC_REQUIRED_SEMANTICS.filter(k => !validatorRequired.has(k)).sort();
+    expect(docOnly).toEqual(["departureCityName", "destinationAirportTimeZone", "destinationCityName"]);
+  });
+
+  it("every doc-required key exists in the catalog", () => {
+    for (const k of DOC_REQUIRED_SEMANTICS) expect(SEMANTIC_CATALOG[k], k).toBeDefined();
   });
 });

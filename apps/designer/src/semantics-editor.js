@@ -1,5 +1,5 @@
 import {
-  SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, TIMEZONE_KEY_ALIASES
+  SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, TIMEZONE_KEY_ALIASES
 } from "@wpd/pass-builder/semantics.js";
 import { semanticKind, kindAttrs, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput, isEmptyTyped, widgetFor, fieldHint } from "./inputs.js";
@@ -51,11 +51,35 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
   const body = el("div", { className: "sem-body" });
   const picker = el("select", { className: "sem-add" });
 
+  // Apple's published doc requires a superset of what the validator errors on
+  // (see DOC_REQUIRED_SEMANTICS). Missing any of these drops the pass to the
+  // legacy style on iOS 26 — surface that as a live warning the validator
+  // (and thus the per-field " *") wouldn't otherwise flag.
+  const docWarn = el("div", { className: "sem-doc-warn" });
+  docWarn.style.cssText =
+    "display:none;margin:8px 0;padding:8px 10px;border-radius:6px;background:#fdf1f2;color:#c0182f;font-size:12px;line-height:1.4";
+  const docRequiredMissing = () => DOC_REQUIRED_SEMANTICS.filter(k => {
+    const type = SEMANTIC_CATALOG[k]?.type ?? "text";
+    const twin = TZ_TWIN[k];
+    const filled = !isEmptyTyped(type, state[k])
+      || (twin && !isEmptyTyped(SEMANTIC_CATALOG[twin]?.type ?? type, state[twin]));
+    return !filled;
+  });
+  function refreshDocWarning() {
+    const missing = docRequiredMissing();
+    if (!missing.length) { docWarn.style.display = "none"; docWarn.textContent = ""; return; }
+    const labels = missing.map(k => SEMANTIC_CATALOG[k]?.label ?? k).join(", ");
+    docWarn.textContent =
+      `Apple requires these tags or the pass falls back to the legacy style on iOS 26: ${labels}.`;
+    docWarn.style.display = "block";
+  }
+
   const setVal = (key, v) => {
     state[key] = v;
     const twin = TZ_TWIN[key];
     if (twin) state[twin] = v;   // keep doc/designer time-zone spellings in sync
     onChange?.({ ...state });
+    refreshDocWarning();
   };
 
   const fieldRow = (key) => {
@@ -142,6 +166,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
 
   renderBody();
   renderPicker();
-  wrap.append(body, picker);
+  refreshDocWarning();
+  wrap.append(docWarn, body, picker);
   return wrap;
 }
