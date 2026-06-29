@@ -60,7 +60,9 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 }
 
 /* ---- Manage dashboard ---- */
-#manage-pane, #issue-pane { height: calc(100vh - 50px); overflow-y: auto; padding: 28px 20px 72px; }
+/* Panes size to content; #app-main is the single scroll container (the old
+   top header — and its 100vh-50px allowance — was replaced by the sidebar
+   shell), so the sticky issue bar sits flush at the viewport bottom. */
 .mg-wrap { max-width: 960px; margin: 0 auto; }
 .mg-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 20px; }
 .mg-head h2 { font-size: 22px; margin: 0; letter-spacing: -0.01em; color: #14163a; }
@@ -124,8 +126,9 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 #issue-pane .live-row { display: flex; gap: 8px; align-items: center; padding: 8px 18px; }
 #issue-pane .live-row label { margin: 0; font-size: 12px; color: #51607a; min-width: 80px; }
 #issue-pane .hint { font-size: 12px; color: #6b7280; margin: 0; padding: 2px 18px 10px; }
-#issue-pane input, #issue-pane select { width: auto; border-color: #d4d8e6; border-radius: 6px; }
-#issue-pane .iss-compose input { flex: 0 1 150px; }
+/* Keep the legacy bindings rows (Advanced drawer) inline; the rewritten Issue
+   form inputs are governed by .wpd-view input/select (full-width, token border). */
+#issue-pane .live-row input, #issue-pane .live-row select { width: auto; }
 .iss-row { display: block; }
 .iss-fields { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .iss-fields input { flex: 1 1 120px; min-width: 0; font-size: 12px; }

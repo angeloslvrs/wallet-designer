@@ -246,7 +246,7 @@ const seatOf = (rec) => {
 };
 // Current trip status for the Manage chip: the pushed transitStatus semantic
 // (both shapes store it in semantics; may be a {value} patch), else "On Time".
-const statusOf = (rec) => {
+export const statusOf = (rec) => {
   const sem = rec.data ? rec.data.semantics : migrateFormState(rec.state)?.semantics;
   const ts = sem?.transitStatus;
   const v = (ts !== null && typeof ts === "object") ? ts.value : ts;
