@@ -8,6 +8,7 @@ import { renderTypedInput, widgetFor, fieldHint } from "./inputs.js";
 import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
 import { showBcbpPreview } from "./bcbp-preview.js";
 import { scanBarcode } from "./scan.js";
+import { appleWalletButton } from "./wallet-badge.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
@@ -259,14 +260,17 @@ export function mountIssue(root, showManage) {
     return errs;
   }
 
-  // Disable the Issue button while anything is invalid, with a visible reason.
+  // Disable the Issue button while anything is invalid, with a visible reason +
+  // a status dot (green when ready) in the sticky issue bar.
   function refreshGate() {
     const btn = root.querySelector('button[data-act="issue"]');
     if (!btn) return;
     const errs = collectValidationErrors();
     btn.disabled = errs.length > 0;
     const reason = root.querySelector("#iss-gate-reason");
-    if (reason) reason.textContent = errs.length ? `Fix ${errs.length} field(s) before issuing` : "";
+    if (reason) reason.textContent = errs.length ? `${errs.length} field(s) need attention` : "Ready to issue";
+    const dot = root.querySelector("#iss-gate-dot");
+    if (dot) dot.classList.toggle("is-ready", errs.length === 0);
   }
 
   // Render an error beside every offending field (used on submit).
@@ -313,26 +317,36 @@ export function mountIssue(root, showManage) {
     });
   }
 
+  // Shared grid template for the passenger table head + each row, so columns
+  // line up: #, one column per individualized field, the serial, the remove btn.
+  function colTemplate(n) {
+    const mid = n ? `repeat(${n},minmax(120px,1fr)) ` : "";
+    const minW = 34 + n * 120 + 188 + 34 + (n + 2) * 8;
+    return `grid-template-columns:34px ${mid}minmax(188px,1.3fr) 34px; min-width:${minW}px;`;
+  }
+
   function rowHtml(r, i) {
-    const fields = (current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)).map(k => rowFieldHtml(k, r, i)).join("");
+    const indKeys = orderByRequired((current()?.fieldKeys ?? []).filter(k => individualKeys.has(k)));
+    const cells = indKeys.map(k => rowFieldHtml(k, r, i)).join("");
     return `
-      <div class="iss-row mg-row" data-i="${i}">
-        <div class="iss-sem-wrap">
+      <div class="iss-row" data-i="${i}">
+        <div class="wpd-prow" style="${colTemplate(indKeys.length)}">
+          <span class="wpd-prow-num">${i + 1}</span>
+          ${cells}
+          <div class="wpd-prow-cell">
+            <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id) — must be unique per pass" />
+            <span class="field-err" data-err-serial="${i}"></span>
+          </div>
+          <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} class="wpd-prow-rm" title="remove passenger">✕</button>
+        </div>
+        <details class="wpd-prow-adv iss-adv">
+          <summary>Scan / paste boarding pass &amp; semantic tags</summary>
           <div class="iss-row-tools">
             <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">📷 Scan / paste boarding pass</button>
             <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
           </div>
-          <details class="iss-adv">
-            <summary>Advanced — semantic tags (Apple)</summary>
-            <div class="iss-sem" data-sem-row="${i}"></div>
-          </details>
-        </div>
-        <div class="iss-fields">
-          ${fields}
-          <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id) — must be unique per pass" />
-          <span class="field-err" data-err-serial="${i}"></span>
-          <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} title="remove">✕</button>
-        </div>
+          <div class="iss-sem" data-sem-row="${i}"></div>
+        </details>
         <div class="mg-status" data-row-status="${i}"></div>
       </div>`;
   }
@@ -357,8 +371,8 @@ export function mountIssue(root, showManage) {
       </div>`).join("");
     const unbound = SEMANTIC_KEYS.filter(k => !draft[k]);
     return `
-      <details class="tpl-bindings">
-        <summary>Bindings: ${Object.keys(draft).length} bound · ${unbound.length} unbound (informational)</summary>
+      <div class="tpl-bindings">
+        <p class="hint">${Object.keys(draft).length} bound · ${unbound.length} unbound (informational)</p>
         ${bound || `<p class="hint">No bindings yet — add one below.</p>`}
         <div class="live-row tpl-bind-row">
           <select data-add-sem data-tpl="${esc(t.id)}">
@@ -366,41 +380,53 @@ export function mountIssue(root, showManage) {
             ${unbound.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}
           </select>
           <select data-add-field data-tpl="${esc(t.id)}">${fieldOptions("")}</select>
-          <button data-act="bind-add" data-id="${esc(t.id)}">Add</button>
-          <button data-act="bind-save" data-id="${esc(t.id)}">Save bindings</button>
+          <button data-act="bind-add" data-id="${esc(t.id)}" class="wpd-ghost">Add</button>
+          <button data-act="bind-save" data-id="${esc(t.id)}" class="wpd-ghost">Save bindings</button>
           <span class="mg-grp-status" data-bind-status="${esc(t.id)}"></span>
         </div>
         <p class="hint">Unbound semantics still update on push — modern devices render from semantics; a bound field also updates the classic layout.</p>
+      </div>`;
+  }
+
+  // "Advanced — semantic bindings" drawer: the selected template's editable
+  // field-key → semantic-tag map.
+  function advancedDrawer() {
+    const t = current();
+    const body = (t && !t.error)
+      ? `<p class="wpd-drawer-note">Semantic tags are Apple’s fixed vocabulary; field keys are this template’s. Bound fields update the classic layout; unbound semantics still render on iOS&nbsp;26.</p>${bindingsEditor(t)}`
+      : `<p class="hint">Select a working template to edit its semantic bindings.</p>`;
+    return `
+      <details class="wpd-drawer">
+        <summary class="wpd-drawer-summary">Advanced — semantic bindings</summary>
+        <div class="wpd-drawer-body">${body}</div>
       </details>`;
   }
 
-  function templatesCard() {
-    const rows = templates.map(t => `
-      <div class="mg-row">
-        <div class="mg-info">
-          <b>${esc(t.id)}</b>
-          ${t.error
-            ? `<span class="mg-badge" style="background:#fdf1f2;color:#c0182f">broken: ${esc(t.error)}</span>`
-            : `· ${(t.fieldKeys ?? []).length} field key(s) · ${(t.assets ?? []).length} asset(s)`}
-          ${t.error ? "" : bindingsEditor(t)}
+  // "Template manager" drawer: installed .pkpasstemplate bundles + upload.
+  function templatesCard(open = false) {
+    const list = templates.map(t => `
+      <div class="wpd-tpl-row">
+        <div>
+          <div class="wpd-tpl-row-name">${esc(t.id)}</div>
+          <div class="wpd-tpl-row-meta">${t.error
+            ? `<span class="mg-badge" style="background:#FBE9ED;color:#B0203C">broken: ${esc(t.error)}</span>`
+            : `${(t.fieldKeys ?? []).length} field keys · ${(t.assets ?? []).length} assets`}</div>
         </div>
-        <div class="mg-acts">
-          <button data-act="tpl-del" data-id="${esc(t.id)}" class="danger">Delete</button>
-        </div>
+        <button data-act="tpl-del" data-id="${esc(t.id)}" class="wpd-ghost danger">Delete</button>
       </div>`).join("");
     return `
-      <div class="mg-card">
-        <div class="mg-card-head">
-          <div class="mg-trip"><span class="mg-trip-id">Templates</span><span class="mg-badge">${templates.length} installed</span></div>
+      <details class="wpd-drawer" ${open ? "open" : ""}>
+        <summary class="wpd-drawer-summary">Template manager <span class="mg-badge">${templates.length} installed</span></summary>
+        <div class="wpd-drawer-body">
+          ${list || `<p class="hint">None installed — see <code>templates/README.md</code>.</p>`}
+          <div class="wpd-tpl-upload">
+            <input id="tpl-id" placeholder="id (defaults to file name)" />
+            <input id="tpl-file" type="file" accept=".zip" />
+            <button data-act="tpl-upload" class="wpd-ghost">Upload zipped .pkpasstemplate</button>
+            <span class="mg-grp-status" id="tpl-status"></span>
+          </div>
         </div>
-        <div class="mg-list">${rows || `<p class="mg-empty">None installed — see <code>templates/README.md</code>.</p>`}</div>
-        <div class="mg-editor-acts">
-          <input id="tpl-id" placeholder="id (defaults to file name)" />
-          <input id="tpl-file" type="file" accept=".zip" />
-          <button data-act="tpl-upload">Upload zipped .pkpasstemplate</button>
-          <span class="mg-grp-status" id="tpl-status"></span>
-        </div>
-      </div>`;
+      </details>`;
   }
 
   function render() {
@@ -408,67 +434,94 @@ export function mountIssue(root, showManage) {
     ensureFieldDefaults();
     const sharedKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => !individualKeys.has(k)));
     const indKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => individualKeys.has(k)));
-    const sharedCard = tpl && !tpl.error ? `
-        <div class="mg-card">
-          <div class="mg-card-head">
-            <div class="mg-trip"><span class="mg-trip-id">Shared across the trip</span><span class="mg-badge">${sharedKeys.length} field(s)</span></div>
-          </div>
-          <div class="mg-list">
+
+    // Step 1 — template picker buttons + field-key chips
+    const tplButtons = templates.map(t => {
+      const meta = t.error ? esc(t.error) : `${(t.fieldKeys ?? []).length} fields · ${(t.assets ?? []).length} assets`;
+      return `<button data-act="sel-tpl" data-id="${esc(t.id)}" class="wpd-tpl-btn${t.id === selected ? " is-active" : ""}" ${t.error ? "disabled" : ""}>
+          <span class="wpd-tpl-name">${esc(t.id)}${t.error ? " · broken" : ""}</span>
+          <span class="wpd-tpl-meta">${meta}</span>
+        </button>`;
+    }).join("");
+    const chips = (tpl?.fieldKeys ?? []).map(k => `<span class="wpd-chip${requiredMark(k) ? " is-required" : ""}">${esc(k)}</span>`).join("");
+
+    // Step 2 — shared fields grid (each with a "per passenger →" toggle)
+    const sharedStep = tpl && !tpl.error && sharedKeys.length ? `
+        <section class="wpd-step">
+          <div class="wpd-step-head"><span class="wpd-step-num">2</span><span class="wpd-step-title">Shared across the trip</span><span class="wpd-step-sub">— entered once, same for everyone</span></div>
+          <div class="wpd-shared-grid">
             ${sharedKeys.map(k => `
-              <div class="iss-shared-row">
-                <label title="${esc(k)}${descriptorFor(k).boundSemantic ? " · " + esc(descriptorFor(k).boundSemantic) : ""}">${esc(friendlyLabel(k))}${requiredMark(k)}</label>
+              <div class="wpd-shared-field">
+                <div class="wpd-shared-top">
+                  <label title="${esc(k)}${descriptorFor(k).boundSemantic ? " · " + esc(descriptorFor(k).boundSemantic) : ""}">${esc(friendlyLabel(k))}${requiredMark(k)}</label>
+                  <button data-act="to-individual" data-key="${esc(k)}" class="wpd-ghost-mini" title="vary this per passenger">per&nbsp;passenger&nbsp;→</button>
+                </div>
                 ${sharedFieldHtml(k)}
-                <button data-act="to-individual" data-key="${esc(k)}" class="iss-toggle" title="vary this per passenger">individualize →</button>
-              </div>`).join("") || `<p class="hint">No shared fields — every field is per-passenger.</p>`}
+              </div>`).join("")}
           </div>
-        </div>` : "";
-    const indHeader = indKeys.length
-      ? `<div class="iss-colhead">${indKeys.map(k => `<span class="iss-col"><code title="${esc(friendlyLabel(k))}${fieldHintFor(k) ? " — " + esc(fieldHintFor(k)) : ""}">${esc(k)}${requiredMark(k)}</code> <button data-act="to-shared" data-key="${esc(k)}" class="iss-toggle" title="same for the whole trip">← share</button></span>`).join("")}</div>`
-      : `<p class="hint">All fields are shared — click <b>individualize →</b> above to vary a field per passenger (otherwise every passenger is identical except for the serial).</p>`;
-    const options = templates.map(t =>
-      `<option value="${esc(t.id)}" ${t.id === selected ? "selected" : ""} ${t.error ? "disabled" : ""}>` +
-      `${esc(t.id)}${t.error ? " (broken)" : ""}</option>`).join("");
+        </section>` : "";
+
+    // Step 3 — passenger table; header columns line up with each row via colTemplate
+    const tableHead = `
+      <div class="wpd-prow-head" style="${colTemplate(indKeys.length)}">
+        <span class="wpd-prow-num">#</span>
+        ${indKeys.map(k => `<span class="wpd-col-head"><code title="${esc(friendlyLabel(k))}${fieldHintFor(k) ? " — " + esc(fieldHintFor(k)) : ""}">${esc(k)}${requiredMark(k)}</code><button data-act="to-shared" data-key="${esc(k)}" class="wpd-col-share" title="make this shared for the whole trip">share</button></span>`).join("")}
+        <span class="wpd-col-head">Serial</span>
+        <span></span>
+      </div>`;
 
     root.innerHTML = `
-      <div class="mg-wrap">
-        <div class="mg-head"><h2>Issue passes from a template</h2></div>
-        <div class="mg-card">
-          <div class="live-row">
-            <label>Template</label>
-            <select id="iss-tpl" style="flex:1">${options}</select>
-          </div>
-          ${tpl?.error ? `<p class="hint">✗ ${esc(tpl.error)}</p>` : `
-          <p class="hint">Fields: ${(tpl?.fieldKeys ?? []).map(k => `<code>${esc(k)}</code>`).join(" ")}
-             · ${tpl?.assets?.length ?? 0} asset(s)</p>`}
-          <div class="live-row">
-            <label>Trip id</label>
-            <input id="iss-group" placeholder='RP247@2026-06-20 (required)' value="${esc(groupId)}" style="flex:1" />
-          </div>
-          <div class="live-row iss-compose">
-            <label class="hint">or compose:</label>
-            <input id="iss-flight" placeholder="RP247" />
-            <input id="iss-date" type="date" />
-            <button data-act="compose">→ Trip id</button>
-          </div>
-          <div class="live-row">
-            <label>Pass expiry</label>
-            <input id="iss-expiry" placeholder="blank = arrival + 1 day" value="${esc(tripExpiry)}" style="flex:1" />
-          </div>
+      <div class="wpd-view wpd-issue">
+        <div class="wpd-view-head">
+          <h1>Issue boarding passes</h1>
+          <p>Pick a boarding-pass template, name the trip, then add one row per passenger. Each row becomes a signed, installable <code>.pkpass</code>.</p>
         </div>
-        ${sharedCard}
-        <div class="mg-card">
-          <div class="mg-card-head">
-            <div class="mg-trip"><span class="mg-trip-id">Passengers</span><span class="mg-badge">${rows.length} row(s)</span></div>
-            <div class="mg-grp-acts"><button data-act="add">+ Add passenger</button></div>
+
+        <section class="wpd-step">
+          <div class="wpd-step-head"><span class="wpd-step-num">1</span><span class="wpd-step-title">Template &amp; trip</span></div>
+          <div class="wpd-tpl-grid">${tplButtons || `<p class="hint">No templates installed.</p>`}</div>
+          ${tpl?.error ? `<p class="hint">✗ ${esc(tpl.error)}</p>` : (chips ? `<div class="wpd-chips">${chips}</div>` : "")}
+          <div class="wpd-grid2">
+            <div class="wpd-field">
+              <label>Trip id <span class="wpd-req">*</span></label>
+              <input id="iss-group" class="mono" placeholder="RP247@2026-06-20" value="${esc(groupId)}" />
+              <div class="wpd-compose">
+                <span class="hint">or compose:</span>
+                <input id="iss-flight" class="wpd-compose-flight" placeholder="RP247" />
+                <input id="iss-date" type="date" />
+                <button data-act="compose" class="wpd-ghost">→ Trip id</button>
+              </div>
+            </div>
+            <div class="wpd-field">
+              <label>Pass expiry</label>
+              <input id="iss-expiry" placeholder="blank = arrival + 1 day" value="${esc(tripExpiry)}" />
+            </div>
           </div>
-          <div class="mg-list">${indHeader}${rows.map(rowHtml).join("")}</div>
-          <div class="mg-editor-acts">
-            <button data-act="issue">Issue ${rows.length} pass(es)</button>
-            <span class="hint" id="iss-gate-reason"></span>
-            <span class="mg-grp-status" id="iss-status"></span>
+        </section>
+
+        ${sharedStep}
+
+        <section class="wpd-step">
+          <div class="wpd-step-head"><span class="wpd-step-num">3</span><span class="wpd-step-title">Passengers</span><span class="wpd-pill">${rows.length}</span></div>
+          ${indKeys.length ? "" : `<p class="hint">All fields are shared — use <b>per&nbsp;passenger&nbsp;→</b> above to give a field its own column (otherwise every passenger is identical except the serial).</p>`}
+          <div class="wpd-ptable-scroll wpd-scroll">${tableHead}${rows.map(rowHtml).join("")}</div>
+          <div class="wpd-prow-add">
+            <button data-act="add" class="wpd-ghost">+ Add passenger</button>
+            <span class="hint">tip: toggle a shared field to “per passenger” to give it its own column</span>
           </div>
+        </section>
+
+        <div class="wpd-issue-bar">
+          <button data-act="issue" class="wpd-issue-btn">Issue ${rows.length} pass(es)</button>
+          <span class="wpd-dot" id="iss-gate-dot"></span>
+          <span class="wpd-issue-reason" id="iss-gate-reason"></span>
+          <span class="mg-grp-status" id="iss-status"></span>
         </div>
-        ${templatesCard()}
+
+        <div class="wpd-drawers">
+          ${advancedDrawer()}
+          ${templatesCard()}
+        </div>
       </div>`;
     mountSemanticsEditors();
     mountTypedFields();
@@ -533,11 +586,13 @@ export function mountIssue(root, showManage) {
 
   function renderEmpty() {
     root.innerHTML = `
-      <div class="mg-wrap">
-        <div class="mg-head"><h2>Issue passes from a template</h2></div>
-        <p class="mg-empty">No templates installed yet — drop a <code>.pkpasstemplate</code> bundle into
-        <code>templates/</code> or upload one below (see <code>templates/README.md</code>).</p>
-        ${templatesCard()}
+      <div class="wpd-view wpd-issue">
+        <div class="wpd-view-head">
+          <h1>Issue boarding passes</h1>
+          <p>No templates installed yet — drop a <code>.pkpasstemplate</code> bundle into
+          <code>templates/</code> or upload one below (see <code>templates/README.md</code>).</p>
+        </div>
+        <div class="wpd-drawers">${templatesCard(true)}</div>
       </div>`;
   }
 
@@ -549,7 +604,7 @@ export function mountIssue(root, showManage) {
   function walletAffordance(serial, updated = false) {
     const url = `${location.origin}/api/passes/${encodeURIComponent(serial)}/pkpass`;
     const label = updated ? "↻ updated existing pass" : "✓ issued";
-    return `${label} · <a class="btn wallet" href="${esc(url)}">Add to Wallet</a> <canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas>`;
+    return `<canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas><span class="wpd-result-status">${label}</span>${appleWalletButton(url)}`;
   }
 
   function drawQrCodes() {
@@ -618,6 +673,14 @@ export function mountIssue(root, showManage) {
   root.addEventListener("click", (e) => {
     const act = e.target?.dataset?.act;
     if (!act) return;
+    if (act === "sel-tpl") {
+      const id = e.target.closest("[data-id]")?.dataset.id;
+      if (!id || id === selected) return;
+      syncFromInputs();
+      selected = id;
+      render();
+      return;
+    }
     if (act === "compose") {
       const gid = composeGroupId($("#iss-flight").value, $("#iss-date").value);
       if (!gid) return;
@@ -771,7 +834,6 @@ export function mountIssue(root, showManage) {
   }, { signal });
 
   root.addEventListener("change", (e) => {
-    if (e.target.id === "iss-tpl") { syncFromInputs(); selected = e.target.value; render(); }
     if (e.target.matches("select[data-bind-sem]")) {
       const { bindSem, tpl } = e.target.dataset;
       const draft = { ...bindingDrafts[tpl] };

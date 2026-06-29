@@ -48,7 +48,7 @@ describe("Issue tab — display-field polish", () => {
   it("shows a format hint for a bound field", async () => {
     mountIssue(root, () => {});
     await flush();
-    const hints = [...root.querySelectorAll(".iss-shared-row .iss-hint")].map(e => e.textContent);
+    const hints = [...root.querySelectorAll(".wpd-shared-field .iss-hint")].map(e => e.textContent);
     expect(hints.some(h => /IANA/.test(h))).toBe(true);
     expect(hints.some(h => /IATA/.test(h))).toBe(true);
   });
@@ -56,7 +56,7 @@ describe("Issue tab — display-field polish", () => {
   it("orders required fields before optional ones in the shared list", async () => {
     mountIssue(root, () => {});
     await flush();
-    const labels = [...root.querySelectorAll(".iss-shared-row label")].map(l => l.textContent);
+    const labels = [...root.querySelectorAll(".wpd-shared-field label")].map(l => l.textContent);
     const firstOptional = labels.findIndex(l => !l.includes("*"));
     const lastRequired = labels.map(l => l.includes("*")).lastIndexOf(true);
     expect(lastRequired).toBeLessThan(firstOptional);   // all required precede the first optional
