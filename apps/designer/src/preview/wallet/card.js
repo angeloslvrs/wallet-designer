@@ -9,6 +9,7 @@ const el = (tag, cls, text) => {
 
 function fieldEl(f) {
   const wrap = el("div", "wallet-field");
+  if (f.key) { wrap.dataset.fieldkey = f.key; wrap.classList.add("wallet-field--clickable"); }
   wrap.appendChild(el("div", "wallet-label", f.label));
   wrap.appendChild(el("div", "wallet-value", f.value));
   return wrap;
@@ -79,6 +80,7 @@ export function renderFront(root, view, logoDataUrl) {
 function iataBlock(f, align) {
   const b = el("div");
   if (align === "right") b.style.textAlign = "right";
+  if (f?.key) { b.dataset.fieldkey = f.key; b.classList.add("wallet-field--clickable"); }
   b.appendChild(el("div", "wallet-city", f?.label ?? ""));
   b.appendChild(el("div", "wallet-iata", f?.value ?? "—"));
   return b;

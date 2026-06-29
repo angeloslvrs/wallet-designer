@@ -1,29 +1,63 @@
 * { box-sizing: border-box; }
-body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #222; background: #f6f7f9; }
-header { display: flex; align-items: baseline; gap: 12px; padding: 12px 18px; background: #1a2150; color: white; }
-header h1 { font-size: 16px; margin: 0; }
-#profile-badge { font-size: 12px; padding: 2px 8px; background: rgba(255,255,255,0.15); border-radius: 4px; }
-main { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px; height: calc(100vh - 50px); }
+html, body { margin: 0; padding: 0; height: 100%; }
+body { font: 14px/1.45 var(--wpd-font); color: var(--wpd-ink); background: var(--wpd-bg); -webkit-font-smoothing: antialiased; }
+
+/* ===== App shell: sidebar + main (collapses to a topbar < 760px) ===== */
+#app-shell { display: flex; height: 100vh; overflow: hidden; }
+#sidebar { flex: none; width: 212px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--wpd-border); padding: 16px 11px; }
+#app-main { flex: 1; min-width: 0; overflow-y: auto; background: var(--wpd-bg); }
+
+.wpd-brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 18px; }
+.wpd-brand-logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(150deg,#3D52E0,#2E48D8); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(46,72,216,.35); flex: none; }
+.wpd-brand-name { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.05; }
+.wpd-brand-sub { font-size: 11px; color: var(--wpd-muted-2); font-weight: 500; }
+
+#view-tabs { display: flex; flex-direction: column; gap: 3px; }
+#view-tabs button { display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 11px; border-radius: 9px; border: none; cursor: pointer; font: inherit; font-size: 13.5px; font-weight: 600; text-align: left; background: none; color: var(--wpd-nav); }
+#view-tabs button:hover { background: #F2F3F7; }
+#view-tabs button.active { background: var(--wpd-tint); color: var(--wpd-primary); }
+#view-tabs button svg { flex: none; }
+
+.wpd-profile { margin-top: auto; padding: 10px 8px 4px; }
+#profile-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: #0E5F40; background: #E4F3EB; padding: 4px 10px; border-radius: 999px; }
+#profile-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--wpd-ok-dot); }
+
+/* ===== Designer (Design view): editor column + live preview column ===== */
+main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.05fr); height: 100%; }
 /* The hidden attribute must win over the display rules above, or the views stack. */
 main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !important; }
-#form-pane { overflow-y: auto; background: white; padding: 16px; border-radius: 8px; }
-#preview-pane { display: flex; flex-direction: column; gap: 12px; background: white; padding: 16px; border-radius: 8px; }
-#tabs { display: flex; gap: 4px; border-bottom: 1px solid #eee; }
-#tabs button { background: none; border: none; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; }
-#tabs button.active { border-bottom-color: #1a2150; font-weight: 600; }
-#preview-stage { flex: 1; display: flex; align-items: center; justify-content: center; background: #f0f1f5; border-radius: 6px; min-height: 480px; }
-#actions { display: flex; gap: 8px; align-items: stretch; }
-#fixture-picker { padding: 0 12px; border: 1px solid #ccc; border-radius: 6px; background: white; font: inherit; cursor: pointer; }
-#build-btn { flex: 1; background: #1a2150; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: 600; }
-#build-btn:hover { background: #2a3170; }
-#build-btn:disabled { background: #888; cursor: not-allowed; }
-#reset-btn { background: transparent; color: #1a2150; border: 1px solid #1a2150; padding: 12px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
-#reset-btn:hover { background: #f0f1f5; }
-#build-status { font-size: 12px; color: #555; min-height: 16px; }
+#form-pane { overflow-y: auto; padding: 24px 22px; border-right: 1px solid var(--wpd-border); }
+#preview-pane { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 26px 20px 40px; overflow-y: auto; background: radial-gradient(120% 80% at 50% 0%, #F4F6FB 0%, #E7EAF1 100%); }
+#manage-pane, #issue-pane { padding: 26px 22px 60px; }
 
-#view-tabs { display: flex; gap: 4px; margin-left: 16px; }
-#view-tabs button { background: rgba(255,255,255,0.12); color: #fff; border: none; padding: 5px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
-#view-tabs button.active { background: #fff; color: #1a2150; font-weight: 600; }
+/* Segmented preview tabs (Front / Back / iOS 26 detail) */
+#tabs { display: inline-flex; padding: 3px; gap: 3px; background: #E4E7EE; border-radius: 11px; align-self: center; }
+#tabs button { background: none; border: none; cursor: pointer; padding: 7px 13px; border-radius: 8px; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--wpd-nav); }
+#tabs button.active { background: #fff; color: var(--wpd-ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+#preview-stage { display: flex; align-items: flex-start; justify-content: center; min-height: 360px; width: 100%; }
+
+#actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; width: 100%; max-width: 360px; }
+#fixture-picker { padding: 0 12px; border: 1px solid var(--wpd-border-input); border-radius: 9px; background: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+#build-btn { flex: 1; background: var(--wpd-primary); color: #fff; border: none; padding: 11px; border-radius: 9px; cursor: pointer; font: inherit; font-weight: 700; }
+#build-btn:hover { background: var(--wpd-primary-hover); }
+#build-btn:disabled { background: #C7CBD6; cursor: not-allowed; }
+#save-tpl-btn, #reset-btn { background: #fff; color: var(--wpd-primary); border: 1px solid var(--wpd-border-input); padding: 11px 14px; border-radius: 9px; cursor: pointer; font: inherit; font-weight: 600; }
+#save-tpl-btn:hover, #reset-btn:hover { background: var(--wpd-tint); border-color: #B9C0D6; }
+#build-status { font-size: 12px; color: var(--wpd-muted); min-height: 16px; width: 100%; max-width: 360px; text-align: center; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; height: auto; }
+  #form-pane { border-right: none; }
+}
+@media (max-width: 760px) {
+  #app-shell { flex-direction: column; }
+  #sidebar { width: auto; flex-direction: row; align-items: center; gap: 8px; padding: 8px 12px; border-right: none; border-bottom: 1px solid var(--wpd-border); }
+  .wpd-brand { padding: 0 6px 0 2px; }
+  .wpd-brand-sub { display: none; }
+  #view-tabs { flex-direction: row; gap: 4px; flex: 1; }
+  #view-tabs button { width: auto; padding: 8px 12px; }
+  .wpd-profile { margin-top: 0; padding: 0; }
+}
 
 /* ---- Manage dashboard ---- */
 #manage-pane, #issue-pane { height: calc(100vh - 50px); overflow-y: auto; padding: 28px 20px 72px; }
@@ -328,3 +362,61 @@ input, select { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-ra
 /* Custom scrollbars in the new views */
 .wpd-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 .wpd-scroll::-webkit-scrollbar-thumb { background: #D2D6DF; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+
+/* ===== Design editor (form.js cards) ===== */
+.wpd-design { display: flex; flex-direction: column; gap: 14px; }
+.wpd-design .wpd-view-head { margin-bottom: 4px; }
+.wpd-design-card { background: var(--wpd-card); border: 1px solid var(--wpd-border); border-radius: var(--wpd-radius); padding: 16px; }
+.wpd-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted-3); margin-bottom: 12px; }
+.wpd-fld { margin-bottom: 12px; }
+.wpd-fld:last-child { margin-bottom: 0; }
+.wpd-fld-label { display: block; font-size: 12px; font-weight: 600; color: var(--wpd-muted); margin-bottom: 5px; }
+
+/* colors */
+.wpd-color-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.wpd-color-row { display: flex; gap: 6px; align-items: center; }
+.wpd-color-row input { font-size: 12px; padding: 8px; }
+.wpd-color-swatch { width: 34px; height: 34px; padding: 0; border: 1px solid var(--wpd-border-input); border-radius: 8px; flex: none; cursor: pointer; }
+.wpd-color-hex { flex: 1; min-width: 0; }
+
+/* assets */
+.wpd-asset-list { display: flex; flex-direction: column; gap: 10px; }
+.wpd-asset-row { display: flex; align-items: center; gap: 11px; }
+.wpd-asset-thumb { flex: none; width: 56px; height: 42px; border: 1.5px dashed #C9CEDA; border-radius: 9px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background-color: #F1F2F5; background-image: linear-gradient(45deg,#E3E6EC 25%,transparent 25%,transparent 75%,#E3E6EC 75%),linear-gradient(45deg,#E3E6EC 25%,transparent 25%,transparent 75%,#E3E6EC 75%); background-size: 12px 12px; background-position: 0 0,6px 6px; }
+.wpd-asset-thumb:hover { border-color: var(--wpd-primary); }
+.wpd-asset-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.wpd-asset-plus { color: var(--wpd-faint); font-size: 19px; line-height: 1; }
+.wpd-asset-info { flex: 1; min-width: 0; }
+.wpd-asset-label { font-size: 13px; font-weight: 600; color: #3A3F4A; }
+.wpd-asset-hint { font-size: 11px; color: var(--wpd-faint); }
+.wpd-asset-note { font-size: 11px; margin-top: 3px; font-weight: 600; }
+.wpd-asset-note.is-ok { color: #0E7C4A; }
+.wpd-asset-note.is-warn { color: #9A6206; }
+.wpd-asset-clear { flex: none; padding: 5px 10px; font-size: 11.5px; }
+
+/* barcode format buttons */
+.wpd-fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.wpd-fmt-btn { border: 1px solid var(--wpd-border-input); background: #fff; color: #3A3F4A; border-radius: 9px; padding: 9px 8px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.wpd-fmt-btn:hover { border-color: #B9C0D6; }
+.wpd-fmt-btn.is-active { border-color: var(--wpd-primary); background: var(--wpd-tint); color: var(--wpd-primary); }
+
+/* display fields */
+.wpd-fields-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.wpd-fields-hint { font-size: 11px; color: var(--wpd-muted-3); }
+.wpd-fsec { padding: 11px 0; border-top: 1px solid #F0F1F5; }
+.wpd-fsec-head { font-size: 11.5px; font-weight: 700; color: #3A3F4A; margin-bottom: 7px; }
+.wpd-df-row { display: flex; gap: 6px; align-items: center; margin: 5px 0; padding: 3px; border-radius: 9px; }
+.wpd-df-row input { font-size: 12px; padding: 7px 9px; }
+.wpd-df-key { flex: 0 0 80px; min-width: 0; }
+.wpd-df-label { flex: 1; min-width: 0; color: var(--wpd-muted); font-weight: 600; }
+.wpd-df-row .wpd-df-value { flex: 1.4; min-width: 0; font-size: 13px; }
+.wpd-df-rm { flex: none; width: 30px; height: 30px; border: 1px solid var(--wpd-border-soft); background: #fff; border-radius: 8px; color: var(--wpd-faint); cursor: pointer; font: inherit; font-size: 13px; }
+.wpd-df-rm:hover { background: var(--wpd-err-bg); border-color: var(--wpd-err-border); color: var(--wpd-err); }
+.wpd-df-row.wpd-flash { background: var(--wpd-tint); box-shadow: 0 0 0 1px #C9D0F6; }
+
+/* design drawers (Pass metadata + Apple semantics) */
+.wpd-design-drawer .wpd-drawer-body { padding-top: 8px; }
+
+/* clickable pass fields (click-to-edit) */
+.wallet-field--clickable { cursor: pointer; border-radius: 6px; transition: opacity .12s; }
+.wallet-field--clickable:hover { opacity: .7; }

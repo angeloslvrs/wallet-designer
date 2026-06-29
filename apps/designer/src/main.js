@@ -74,8 +74,28 @@ function wireViewTabs(initialView = "issue") {
     if (view === "manage") mountManage(managePane, () => show("designer"));
     if (view === "issue") mountIssue(issuePane, () => show("manage"));
   };
-  tabs.addEventListener("click", e => { if (e.target.dataset?.view) show(e.target.dataset.view); });
+  tabs.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
   show(initialView);   // land on the issue flow, not the hand-designer
+}
+
+// Click a field on the live pass preview → jump to + focus its editor input.
+// The preview fields carry data-fieldkey (from the built pass); the Design
+// editor's display-field value inputs carry the same key. A no-op when a
+// clicked field has no matching editor input (e.g. a derived/iOS-26 field).
+function wireClickToEdit() {
+  const stage = document.getElementById("preview-stage");
+  if (!stage) return;
+  stage.addEventListener("click", (e) => {
+    const fieldEl = e.target.closest("[data-fieldkey]");
+    const key = fieldEl?.dataset.fieldkey;
+    if (!key) return;
+    const input = document.querySelector(`#form-pane [data-fieldkey="${CSS.escape(key)}"]`);
+    if (!input) return;
+    input.scrollIntoView({ block: "center", behavior: "smooth" });
+    input.focus();
+    const row = input.closest(".wpd-df-row");
+    if (row) { row.classList.add("wpd-flash"); setTimeout(() => row.classList.remove("wpd-flash"), 900); }
+  });
 }
 
 async function maybeLoadFromUrl() {
@@ -99,5 +119,6 @@ wireFixturePicker();
 refreshFixturePicker();
 document.getElementById("save-tpl-btn").addEventListener("click", saveDesign);
 wireViewTabs();
+wireClickToEdit();
 renderActiveTab();
 subscribe(() => renderActiveTab());

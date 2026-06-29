@@ -5,7 +5,7 @@ import { migrateFormState } from "@wpd/pass-builder/migrate.js";
 // preview/emitter exactly (no hand-maintained parallel shape).
 const initial = migrateFormState({
   meta: { passTypeId: "pass.com.angelo.airline.boardingpass", teamId: "WB7K79MCZG", organizationName: "Rocket Partners Airlines", serialNumber: "RP-001", description: "Boarding pass" },
-  branding: { logoText: "Rocket Partners", foregroundColor: "rgb(255,255,255)", backgroundColor: "rgb(20,30,80)", labelColor: "rgb(180,200,255)" },
+  branding: { logoText: "Rocket Partners", foregroundColor: "rgb(255,255,255)", backgroundColor: "rgb(20,30,80)", labelColor: "rgb(210,222,255)" },
   flight: {
     airlineCode: "RP", flightNumber: "247",
     departure: { iata: "SFO", name: "San Francisco Intl", city: "San Francisco", terminal: "2", gate: "B12", boarding: "2026-06-01T07:30:00-07:00", depart: "2026-06-01T08:15:00-07:00" },

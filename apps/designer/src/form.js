@@ -30,188 +30,209 @@ const DESIGNER_SUGGEST_MAP = {
   membershipProgramNumber: "ff", departureTerminal: "terminal-dep", destinationTerminal: "terminal-arr"
 };
 
-const sections = [
-  ["Meta", [
-    { path: "meta.passTypeId", label: "Pass Type ID", type: "text" },
-    { path: "meta.teamId", label: "Team ID", type: "text" },
-    { path: "meta.organizationName", label: "Organization", type: "text" },
-    { path: "meta.serialNumber", label: "Serial Number", type: "text" },
-    { path: "meta.description", label: "Description", type: "text" },
-    { path: "meta.expirationDate", label: "Pass expiry (ISO; blank = arrival + 1 day)", type: "text" }
-  ]],
-  ["Branding", [
-    { path: "branding.logoText", label: "Logo Text", type: "text" },
-    { path: "branding.foregroundColor", label: "Foreground", type: "color" },
-    { path: "branding.backgroundColor", label: "Background", type: "color" },
-    { path: "branding.labelColor", label: "Label", type: "color" }
-  ]],
-  ["Assets", BRANDING_IMAGE_SLOTS.map(s => ({ path: `branding.${s.key}`, label: s.label, type: "file" }))],
-  ["Barcode", [
-    { path: "barcode.format", label: "Format", type: "select", options: ["PKBarcodeFormatQR", "PKBarcodeFormatPDF417", "PKBarcodeFormatAztec", "PKBarcodeFormatCode128"] },
-    { path: "barcode.message", label: "Message", type: "text" },
-    { type: "scan", forPath: "barcode.message", label: "📷 Scan / paste boarding pass → autofill flight details" },
-    { path: "barcode.altText", label: "Alt Text", type: "text" }
-  ]]
+const BARCODE_FORMATS = [
+  ["PKBarcodeFormatQR", "QR"],
+  ["PKBarcodeFormatPDF417", "PDF417"],
+  ["PKBarcodeFormatAztec", "Aztec"],
+  ["PKBarcodeFormatCode128", "Code 128"]
 ];
 
-export function renderForm(root) {
-  root.innerHTML = "";
-  for (const [title, fields] of sections) root.appendChild(renderStaticSection(title, fields, root));
-  root.appendChild(renderSemanticsSection());
-  root.appendChild(renderDisplayFieldsSection());
-}
-
-function renderStaticSection(title, fields, root) {
-  const fs = document.createElement("fieldset");
-  const lg = document.createElement("legend");
-  lg.textContent = title;
-  fs.appendChild(lg);
-  for (const f of fields) {
-    const lbl = document.createElement("label");
-    lbl.textContent = f.label;
-    fs.appendChild(lbl);
-
-    if (f.type === "file") {
-      const input = document.createElement("input");
-      input.type = "file"; input.accept = "image/png";
-      input.addEventListener("change", e => {
-        const file = e.target.files?.[0];
-        if (!file) { setPath(f.path, ""); return; }
-        const reader = new FileReader();
-        reader.onload = () => setPath(f.path, reader.result);
-        reader.readAsDataURL(file);
-      });
-      fs.appendChild(input);
-      const cur = getPath(f.path);
-      if (cur) {
-        const note = document.createElement("div");
-        note.style.cssText = "font-size:11px;color:#888;margin-top:2px;display:flex;align-items:center;gap:8px";
-        if (typeof cur === "string" && cur.startsWith("data:image/")) {
-          const img = document.createElement("img");
-          img.src = cur; img.alt = f.label;
-          img.style.cssText = "height:28px;max-width:120px;object-fit:contain;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px";
-          note.appendChild(img);
-        }
-        const span = document.createElement("span");
-        span.textContent = "✓ set (choose a new file to replace)";
-        note.appendChild(span);
-        fs.appendChild(note);
-      }
-      continue;
-    }
-    if (f.type === "color") {
-      const wrap = document.createElement("div");
-      wrap.style.cssText = "display:flex;gap:6px;align-items:center";
-      const picker = document.createElement("input");
-      picker.type = "color";
-      picker.style.cssText = "width:42px;height:32px;padding:0;border:1px solid #ccc;border-radius:4px;flex:none";
-      const text = document.createElement("input");
-      text.type = "text"; text.dataset.path = f.path; text.value = getPath(f.path) ?? "";
-      picker.value = rgbToHex(text.value);
-      picker.addEventListener("input", () => { const rgb = hexToRgb(picker.value); text.value = rgb; setPath(f.path, rgb); });
-      text.addEventListener("input", () => { setPath(f.path, text.value); picker.value = rgbToHex(text.value); });
-      wrap.append(picker, text);
-      fs.appendChild(wrap);
-      continue;
-    }
-    if (f.type === "scan") {
-      const btn = document.createElement("button");
-      btn.type = "button"; btn.textContent = "📷 Scan / paste boarding pass";
-      btn.style.cssText = "background:#1a2150;color:#fff;border:none;padding:8px 12px;border-radius:6px;cursor:pointer";
-      const note = document.createElement("div");
-      note.style.cssText = "font-size:11px;color:#888;margin-top:4px";
-      btn.addEventListener("click", async () => {
-        btn.disabled = true; btn.textContent = "Scanning…";
-        try {
-          const text = await scanBarcode();
-          if (!text) return;
-          setPath(f.forPath, text); // raw barcode is always the message
-          let parsed = null;
-          try { parsed = parseBCBP(text); } catch { /* not a BCBP barcode */ }
-          if (!parsed) { note.textContent = "Set as barcode message (not a recognized boarding pass — fields not autofilled)."; renderForm(root); return; }
-          const ok = await showBcbpPreview(parsed);
-          if (!ok) { note.textContent = "Barcode message set; autofill cancelled."; renderForm(root); return; }
-          const sem = { ...(state.semantics ?? {}), ...bcbpToSemantics(parsed) };
-          setPath("semantics", sem);
-          const filled = suggestDisplayValues(sem, DESIGNER_SUGGEST_MAP);
-          const df = structuredClone(state.displayFields ?? {});
-          for (const section of SECTIONS) for (const fld of df[section] ?? []) {
-            if (fld.key in filled) { fld.value = filled[fld.key]; delete fld.dateStyle; delete fld.timeStyle; }
-          }
-          setPath("displayFields", df);
-          renderForm(root);
-        } finally { btn.disabled = false; btn.textContent = "📷 Scan / paste boarding pass"; }
-      });
-      fs.appendChild(btn);
-      fs.appendChild(note);
-      continue;
-    }
-    let input;
-    if (f.type === "select") {
-      input = document.createElement("select");
-      for (const o of f.options) {
-        const opt = document.createElement("option");
-        opt.value = o; opt.textContent = o;
-        input.appendChild(opt);
-      }
-    } else {
-      input = document.createElement("input");
-      input.type = f.type;
-    }
-    input.value = getPath(f.path) ?? "";
-    input.dataset.path = f.path;
-    input.addEventListener("input", e => setPath(f.path, e.target.value));
-    fs.appendChild(input);
+// Apple PassKit image specs (points; assets ship @2x/@3x). iOS scales to fit
+// and the validators don't enforce dimensions, so these are warnings, not
+// blocks — they keep uploaded art on-spec. Keyed by the builder's slot name.
+const ASSET_SPECS = {
+  icon: { type: "icon", sizes: [[29, 29], [58, 58], [87, 87]], rec: "58 × 58 (@2x) / 87 × 87 (@3x)" },
+  logo: { type: "wide", maxW: 480, maxH: 150, rec: "320 × 100 (@2x) / 480 × 150 (@3x)" },
+  footer: { type: "footer", maxW: 858, maxH: 45, rec: "572 × 30 (@2x) / 858 × 45 (@3x)" },
+  primaryLogo: { type: "wide", maxW: 480, maxH: 150, rec: "up to 480 × 150 (@3x)" }
+};
+function validateAssetDims(spec, w, h) {
+  if (!spec || !w || !h) return null;
+  const dims = `${w} × ${h} px`;
+  if (spec.type === "icon") {
+    if (Math.abs(w - h) > 1) return { ok: false, msg: `${dims} — must be square; use ${spec.rec}` };
+    if (w < 29) return { ok: false, msg: `${dims} — too small; use ${spec.rec}` };
+    return spec.sizes.some(([sw, sh]) => sw === w && sh === h)
+      ? { ok: true, msg: `${dims} — matches spec` }
+      : { ok: false, msg: `${dims} — non-standard; use ${spec.rec}` };
   }
-  return fs;
+  if (h > w) return { ok: false, msg: `${dims} — should be landscape; use ${spec.rec}` };
+  if (w > spec.maxW || h > spec.maxH) return { ok: false, msg: `${dims} — exceeds max; use ${spec.rec}` };
+  if (spec.type === "footer" && w < h * 6) return { ok: false, msg: `${dims} — too tall; footer is wide & short (${spec.rec})` };
+  return { ok: true, msg: `${dims} — within spec` };
 }
 
-function renderSemanticsSection() {
-  const fs = document.createElement("fieldset");
-  const lg = document.createElement("legend");
-  lg.textContent = "Semantics (Apple)";
-  fs.appendChild(lg);
-  fs.appendChild(renderSemanticsEditor({
-    values: state.semantics ?? {},
-    onChange: (next) => setPath("semantics", next)
-  }));
-  return fs;
+// tiny element helper
+function h(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (v != null) n.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) n.append(kid);
+  return n;
 }
 
-function renderDisplayFieldsSection() {
-  const fs = document.createElement("fieldset");
-  const lg = document.createElement("legend");
-  lg.textContent = "Display fields";
-  fs.appendChild(lg);
+const card = (eyebrow, ...body) => h("section", { class: "wpd-card wpd-design-card" }, h("div", { class: "wpd-eyebrow" }, eyebrow), ...body);
+const fieldLabel = (text) => h("label", { class: "wpd-fld-label", text });
 
-  const suggest = document.createElement("button");
-  suggest.type = "button"; suggest.className = "suggest-btn"; suggest.textContent = "✨ Suggest values from semantics";
-  suggest.addEventListener("click", () => {
-    const filled = suggestDisplayValues(state.semantics ?? {}, DESIGNER_SUGGEST_MAP);
-    const df = structuredClone(state.displayFields ?? {});
-    for (const section of SECTIONS) for (const f of df[section] ?? []) {
-      if (f.key in filled) { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; } // value is now literal text
+// A plain text input wired to a FormState path.
+function textInput(path, placeholder) {
+  const i = h("input", { class: "wpd-input", value: getPath(path) ?? "", placeholder: placeholder ?? "" });
+  i.dataset.path = path;
+  i.addEventListener("input", () => setPath(path, i.value));
+  return i;
+}
+
+// Color picker + hex text input, two-way synced (colors stored as rgb(...)).
+function colorRow(path, label) {
+  const picker = h("input", { type: "color", class: "wpd-color-swatch" });
+  const text = h("input", { class: "wpd-input mono wpd-color-hex", value: getPath(path) ?? "" });
+  text.dataset.path = path;
+  picker.value = rgbToHex(text.value);
+  picker.addEventListener("input", () => { const rgb = hexToRgb(picker.value); text.value = rgb; setPath(path, rgb); });
+  text.addEventListener("input", () => { setPath(path, text.value); picker.value = rgbToHex(text.value); });
+  return h("div", { class: "wpd-color" }, fieldLabel(label), h("div", { class: "wpd-color-row" }, picker, text));
+}
+
+function brandCard() {
+  return card("Brand",
+    h("div", { class: "wpd-fld" }, fieldLabel("Organization"), textInput("meta.organizationName")),
+    h("div", { class: "wpd-fld" }, fieldLabel("Logo text"), textInput("branding.logoText")),
+    h("div", { class: "wpd-color-grid" },
+      colorRow("branding.backgroundColor", "Background"),
+      colorRow("branding.foregroundColor", "Text"),
+      colorRow("branding.labelColor", "Label")));
+}
+
+function assetsCard(root) {
+  const rows = BRANDING_IMAGE_SLOTS.map(slotDef => {
+    const path = `branding.${slotDef.key}`;
+    const spec = ASSET_SPECS[slotDef.slot];
+    const cur = getPath(path);
+    const thumb = h("label", { class: "wpd-asset-thumb", title: slotDef.label });
+    const file = h("input", { type: "file", accept: "image/png", style: "display:none" });
+    const note = h("div", { class: "wpd-asset-note" });
+    const setNote = (res) => {
+      if (!res) { note.textContent = ""; note.className = "wpd-asset-note"; return; }
+      note.textContent = (res.ok ? "✓ " : "⚠ ") + res.msg;
+      note.className = "wpd-asset-note " + (res.ok ? "is-ok" : "is-warn");
+    };
+    if (typeof cur === "string" && cur.startsWith("data:image/")) {
+      thumb.appendChild(h("img", { src: cur, alt: slotDef.label }));
+    } else {
+      thumb.appendChild(h("span", { class: "wpd-asset-plus", text: "+" }));
     }
-    setPath("displayFields", df);
-    rerender();
+    file.addEventListener("change", (e) => {
+      const f = e.target.files?.[0];
+      if (!f) { setPath(path, ""); return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPath(path, reader.result);
+        const img = new Image();
+        img.onload = () => setNote(validateAssetDims(spec, img.naturalWidth, img.naturalHeight));
+        img.onerror = () => setNote(null);
+        img.src = reader.result;
+        thumb.replaceChildren(h("img", { src: reader.result, alt: slotDef.label }));
+        clearBtn.hidden = false;
+      };
+      reader.readAsDataURL(f);
+      e.target.value = "";
+    });
+    thumb.appendChild(file);
+    const clearBtn = h("button", { type: "button", class: "wpd-ghost wpd-asset-clear", text: "Remove" });
+    clearBtn.hidden = !cur;
+    clearBtn.addEventListener("click", () => { setPath(path, ""); renderForm(root); });
+    return h("div", { class: "wpd-asset-row" },
+      thumb,
+      h("div", { class: "wpd-asset-info" },
+        h("div", { class: "wpd-asset-label", text: slotDef.label }),
+        h("div", { class: "wpd-asset-hint", text: assetHint(slotDef.slot) }),
+        note),
+      clearBtn);
   });
-  fs.appendChild(suggest);
+  return card("Assets", h("div", { class: "wpd-asset-list" }, ...rows));
+}
+const assetHint = (slot) => ({
+  icon: "PNG · 29 × 29 pt, square — required by iOS",
+  logo: "PNG · up to 160 × 50 pt — front of the pass",
+  footer: "PNG · up to 286 × 15 pt — above the barcode",
+  primaryLogo: "PNG · iOS 26 expanded view"
+}[slot] ?? "PNG");
 
-  const body = document.createElement("div");
-  fs.appendChild(body);
+function barcodeCard(root) {
+  const cur = () => getPath("barcode.format");
+  const btns = BARCODE_FORMATS.map(([value, label]) => {
+    const b = h("button", { type: "button", class: "wpd-fmt-btn" + (cur() === value ? " is-active" : ""), text: label, "data-fmt": value });
+    b.addEventListener("click", () => {
+      setPath("barcode.format", value);
+      for (const sib of grid.querySelectorAll(".wpd-fmt-btn")) sib.classList.toggle("is-active", sib.dataset.fmt === value);
+    });
+    return b;
+  });
+  const grid = h("div", { class: "wpd-fmt-grid" }, ...btns);
+
+  const scanBtn = h("button", { type: "button", class: "wpd-ghost", text: "📷 Scan / paste boarding pass → autofill flight details" });
+  const scanNote = h("div", { class: "wpd-asset-hint" });
+  scanBtn.addEventListener("click", async () => {
+    scanBtn.disabled = true; const orig = scanBtn.textContent; scanBtn.textContent = "Scanning…";
+    try {
+      const text = await scanBarcode();
+      if (!text) return;
+      setPath("barcode.message", text);
+      let parsed = null;
+      try { parsed = parseBCBP(text); } catch { /* not a BCBP barcode */ }
+      if (!parsed) { scanNote.textContent = "Set as barcode message (not a recognized boarding pass — fields not autofilled)."; renderForm(root); return; }
+      if (!(await showBcbpPreview(parsed))) { scanNote.textContent = "Barcode message set; autofill cancelled."; renderForm(root); return; }
+      const sem = { ...(state.semantics ?? {}), ...bcbpToSemantics(parsed) };
+      setPath("semantics", sem);
+      const filled = suggestDisplayValues(sem, DESIGNER_SUGGEST_MAP);
+      const df = structuredClone(state.displayFields ?? {});
+      for (const section of SECTIONS) for (const fld of df[section] ?? []) {
+        if (fld.key in filled) { fld.value = filled[fld.key]; delete fld.dateStyle; delete fld.timeStyle; }
+      }
+      setPath("displayFields", df);
+      renderForm(root);
+    } finally { scanBtn.disabled = false; scanBtn.textContent = orig; }
+  });
+
+  return card("Barcode",
+    h("div", { class: "wpd-fld" }, fieldLabel("Format"), grid),
+    h("div", { class: "wpd-fld" }, fieldLabel("Message"), (() => { const i = textInput("barcode.message"); i.classList.add("mono"); return i; })()),
+    h("div", { class: "wpd-fld" }, scanBtn, scanNote),
+    h("div", { class: "wpd-fld" }, fieldLabel("Alt text"), textInput("barcode.altText")));
+}
+
+// Display fields: header/primary/secondary/auxiliary/back, each row key+label+value.
+// Value inputs carry data-fieldkey so a click on the matching pass field can focus them.
+function fieldsCard() {
+  const body = h("div");
+  const top = h("div", { class: "wpd-fields-top" },
+    h("span", { class: "wpd-fields-hint", text: "click a field on the pass to jump here" }),
+    (() => {
+      const b = h("button", { type: "button", class: "wpd-ghost", text: "✨ Suggest values from semantics" });
+      b.addEventListener("click", () => {
+        const filled = suggestDisplayValues(state.semantics ?? {}, DESIGNER_SUGGEST_MAP);
+        const df = structuredClone(state.displayFields ?? {});
+        for (const section of SECTIONS) for (const f of df[section] ?? []) {
+          if (f.key in filled) { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; }
+        }
+        setPath("displayFields", df);
+        rerender();
+      });
+      return b;
+    })());
 
   function rerender() {
     body.innerHTML = "";
     const df = state.displayFields ?? {};
     for (const section of SECTIONS) {
-      const block = document.createElement("div");
-      block.className = "df-section";
-      const head = document.createElement("div");
-      head.className = "df-head"; head.textContent = SECTION_LABEL[section];
-      block.appendChild(head);
+      const block = h("div", { class: "wpd-fsec" });
+      block.appendChild(h("div", { class: "wpd-fsec-head" }, SECTION_LABEL[section]));
       (df[section] ?? []).forEach((f, i) => block.appendChild(fieldRow(section, f, i)));
-      const add = document.createElement("button");
-      add.type = "button"; add.className = "df-add"; add.textContent = "+ add field";
+      const add = h("button", { type: "button", class: "wpd-ghost-mini", text: "+ add field" });
       add.addEventListener("click", () => {
         const next = structuredClone(state.displayFields ?? {});
         (next[section] ??= []).push({ key: `field${next[section].length + 1}`, label: "", value: "" });
@@ -224,37 +245,71 @@ function renderDisplayFieldsSection() {
   }
 
   function fieldRow(section, f, i) {
-    const row = document.createElement("div");
-    row.className = "df-row"; row.dataset.k = f.key;
-    const key = mk("df-key", f.key, "key");
-    const label = mk("df-label", f.label ?? "", "LABEL");
-    const value = mk("df-value", f.value ?? "", "value");
     const update = (prop, v) => {
       const next = structuredClone(state.displayFields ?? {});
       next[section][i][prop] = v;
       setPath("displayFields", next);
     };
-    key.addEventListener("input", () => update("key", key.value));
+    const key = h("input", { class: "wpd-input wpd-df-key", value: f.key ?? "", placeholder: "key" });
+    const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL" });
+    const value = h("input", { class: "wpd-input wpd-df-value", value: f.value ?? "", placeholder: "value" });
+    value.dataset.fieldkey = f.key ?? "";
+    key.addEventListener("input", () => { update("key", key.value); value.dataset.fieldkey = key.value; });
     label.addEventListener("input", () => update("label", label.value));
     value.addEventListener("input", () => update("value", value.value));
-    const rm = document.createElement("button");
-    rm.type = "button"; rm.textContent = "✕"; rm.title = "remove field";
+    const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", text: "✕" });
     rm.addEventListener("click", () => {
       const next = structuredClone(state.displayFields ?? {});
       next[section].splice(i, 1);
       setPath("displayFields", next);
       rerender();
     });
-    row.append(key, label, value, rm);
+    const row = h("div", { class: "wpd-df-row" }, key, label, value, rm);
+    row.dataset.k = f.key ?? "";
     return row;
   }
 
-  function mk(cls, value, placeholder) {
-    const i = document.createElement("input");
-    i.className = cls; i.value = value; i.placeholder = placeholder;
-    return i;
-  }
-
   rerender();
-  return fs;
+  return card("Fields", top, body);
+}
+
+function metaDrawer() {
+  const fields = [
+    ["meta.passTypeId", "Pass Type ID"],
+    ["meta.teamId", "Team ID"],
+    ["meta.serialNumber", "Serial Number"],
+    ["meta.description", "Description"],
+    ["meta.expirationDate", "Pass expiry (ISO; blank = arrival + 1 day)"]
+  ];
+  const body = h("div", { class: "wpd-drawer-body" },
+    ...fields.map(([path, label]) => h("div", { class: "wpd-fld" }, fieldLabel(label), textInput(path))));
+  return h("details", { class: "wpd-drawer wpd-design-drawer" },
+    h("summary", { class: "wpd-drawer-summary", text: "Pass metadata — identifiers & expiry" }),
+    body);
+}
+
+function semanticsDrawer() {
+  const body = h("div", { class: "wpd-drawer-body" });
+  body.appendChild(renderSemanticsEditor({
+    values: state.semantics ?? {},
+    onChange: (next) => setPath("semantics", next)
+  }));
+  return h("details", { class: "wpd-drawer wpd-design-drawer" },
+    h("summary", { class: "wpd-drawer-summary", text: "Apple semantics" }),
+    body);
+}
+
+export function renderForm(root) {
+  root.innerHTML = "";
+  const view = h("div", { class: "wpd-view wpd-design" },
+    h("div", { class: "wpd-view-head" },
+      h("h1", { text: "Design" }),
+      h("p", { text: "Branding, layout & barcode — the live preview mirrors the shipped boarding pass." })),
+    brandCard(),
+    assetsCard(root),
+    barcodeCard(root),
+    fieldsCard(),
+    metaDrawer(),
+    semanticsDrawer());
+  root.appendChild(view);
 }
