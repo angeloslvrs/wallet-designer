@@ -43,12 +43,19 @@
   background: #fff; margin: 16px 14px 18px; border-radius: 10px; padding: 14px;
   display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
-.wallet-barcode-canvas { display: block; width: 240px; max-width: 100%; height: auto; image-rendering: pixelated; }
+/* Size by symbology: square 2-D codes (QR/Aztec) render compact + centered the
+   way Wallet shows them; linear codes (PDF417/Code128) span the strip + stay
+   short. A single fixed width made square codes balloon to the strip width. */
+.wallet-barcode-canvas { display: block; margin: 0 auto; height: auto; image-rendering: pixelated; }
+.wallet-barcode-canvas--square { width: 116px; max-width: 100%; }
+.wallet-barcode-canvas--linear { width: 100%; max-width: 100%; }
 .wallet-barcode-placeholder {
-  width: 240px; height: 60px; display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: center; margin: 0 auto;
   background: repeating-linear-gradient(90deg, #000 0 3px, #fff 3px 6px);
   color: #333; font-size: 11px; letter-spacing: 2px;
 }
+.wallet-barcode-placeholder--square { width: 116px; height: 116px; }
+.wallet-barcode-placeholder--linear { width: 100%; height: 54px; }
 .wallet-alt { font-size: 11px; color: #333; letter-spacing: 2px; }
 
 /* Back + detail */
