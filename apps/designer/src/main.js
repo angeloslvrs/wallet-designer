@@ -3,7 +3,6 @@ import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
-import { mountTrip } from "./trip.js";
 import { mountManage } from "./manage.js";
 import { mountIssue } from "./issue.js";
 
@@ -98,6 +97,5 @@ wireFixturePicker();
 refreshFixturePicker();
 document.getElementById("save-tpl-btn").addEventListener("click", saveTemplate);
 wireViewTabs();
-mountTrip(document.getElementById("live-controls"));
 renderActiveTab();
 subscribe(() => renderActiveTab());

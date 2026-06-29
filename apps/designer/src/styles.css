@@ -20,19 +20,6 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 #reset-btn { background: transparent; color: #1a2150; border: 1px solid #1a2150; padding: 12px 16px; border-radius: 6px; cursor: pointer; font-weight: 500; }
 #reset-btn:hover { background: #f0f1f5; }
 #build-status { font-size: 12px; color: #555; min-height: 16px; }
-#live-controls fieldset { margin: 0; }
-#live-controls .hint { font-size: 11px; color: #888; margin: 4px 0 8px; }
-#live-controls .live-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-#live-controls .live-row label { margin: 0; font-size: 11px; color: #555; min-width: 80px; }
-#live-controls .live-row input { flex: 1; }
-#live-controls .live-row button { background: #1a2150; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-#live-controls .live-row button:hover { background: #2a3170; }
-#live-controls #live-status { font-size: 12px; color: #555; min-height: 16px; margin-top: 4px; }
-#live-controls .pax-row { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; }
-#live-controls .pax-row input { padding: 4px 6px; }
-#live-controls .pax-row button[data-act="rm"] { background: #eee; color: #900; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
-#live-controls #trip-status, #live-controls #group-status { font-size: 12px; color: #555; min-height: 16px; margin-top: 4px; }
-#live-controls select { padding: 5px 6px; border: 1px solid #ccc; border-radius: 4px; }
 
 #view-tabs { display: flex; gap: 4px; margin-left: 16px; }
 #view-tabs button { background: rgba(255,255,255,0.12); color: #fff; border: none; padding: 5px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
