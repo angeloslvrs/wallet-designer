@@ -47,14 +47,16 @@ function wireFixturePicker() {
   });
 }
 
-async function saveTemplate() {
-  const name = prompt("Save current design as template named:", state.meta.serialNumber || "my-template");
+// "Saved designs" are FormState snapshots persisted via /api/fixtures — distinct
+// from ".pkpasstemplate" bundles, which the Issue view calls "templates".
+async function saveDesign() {
+  const name = prompt("Save current design as:", state.meta.serialNumber || "my-design");
   if (!name) return;
   const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
   });
-  if (r.ok) { await refreshFixturePicker(); document.getElementById("build-status").textContent = `✓ saved template "${name}"`; }
-  else { alert("Could not save template"); }
+  if (r.ok) { await refreshFixturePicker(); document.getElementById("build-status").textContent = `✓ saved design "${name}"`; }
+  else { alert("Could not save design"); }
 }
 
 // Issue / Manage / Design view toggle. The template→issue→manage flow is the
@@ -95,7 +97,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
 });
 wireFixturePicker();
 refreshFixturePicker();
-document.getElementById("save-tpl-btn").addEventListener("click", saveTemplate);
+document.getElementById("save-tpl-btn").addEventListener("click", saveDesign);
 wireViewTabs();
 renderActiveTab();
 subscribe(() => renderActiveTab());
