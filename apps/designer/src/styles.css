@@ -33,43 +33,58 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .mg-count { font-size: 12px; font-weight: 600; color: #5a6; color: #51607a; background: #eef0f6; padding: 3px 10px; border-radius: 20px; }
 .mg-empty { text-align: center; color: #8a8f9c; padding: 64px 0; font-size: 14px; }
 
-.mg-card { background: #fff; border: 1px solid #e8eaf0; border-radius: 14px; box-shadow: 0 1px 3px rgba(20,22,58,0.06); margin-bottom: 18px; overflow: hidden; }
-.mg-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; background: linear-gradient(180deg,#fbfbfe,#f4f5fa); border-bottom: 1px solid #ececf2; }
-.mg-trip { display: flex; align-items: center; gap: 10px; }
-.mg-trip-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 600; color: #1a2150; }
-.mg-badge { font-size: 11px; font-weight: 600; color: #51607a; background: #e9ebf3; padding: 2px 9px; border-radius: 20px; }
+.mg-card { background: var(--wpd-card); border: 1px solid var(--wpd-border); border-radius: var(--wpd-radius); box-shadow: 0 1px 3px rgba(20,22,58,0.05); margin-bottom: 16px; overflow: hidden; }
+.mg-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 18px; background: linear-gradient(180deg,#FBFBFE,#F5F6FB); border-bottom: 1px solid #ECECF2; }
+.mg-trip { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mg-trip-id { font-family: var(--wpd-mono); font-size: 13px; font-weight: 600; color: #1a2150; }
+.mg-badge { font-size: 11px; font-weight: 600; color: #51607a; background: #E6E9F1; padding: 2px 9px; border-radius: 20px; }
+.mg-badge.mono { font-family: var(--wpd-mono); }
+.mg-meta { font-size: 11.5px; color: var(--wpd-muted-3); }
+.wpd-manage-head { display: flex; align-items: baseline; gap: 11px; }
+.wpd-manage-head .mg-count { font-size: 12px; }
 .mg-grp-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.mg-grp-status { font-size: 12px; color: #6b7280; margin-left: 4px; }
+.mg-grp-status { font-size: 12px; color: var(--wpd-ok); margin-left: 4px; }
 
-.mg-list { padding: 4px 8px; }
-.mg-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; padding: 11px 10px; border-radius: 8px; }
-.mg-row:hover { background: #f7f8fc; }
-.mg-row + .mg-row { border-top: 1px solid #f0f1f5; }
-.mg-info { font-size: 13px; color: #333; }
+/* Status chips — the single status vocabulary */
+.mg-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 11px; border-radius: 999px; }
+.mg-chip--ontime { background: #E4F3EB; color: #0E5F40; }
+.mg-chip--boarding { background: #E7EEFE; color: #2539B4; }
+.mg-chip--delayed { background: #FBEFD6; color: #8A5A00; }
+.mg-chip--cancelled { background: #FBE9ED; color: #B0203C; }
+.mg-chip--diverted { background: #EFE9FB; color: #5B3FB0; }
+.mg-chip--other { background: #EEF0F4; color: #5A6172; }
+
+.mg-list { padding: 4px 10px 8px; }
+.mg-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; padding: 11px 8px; border-radius: 8px; }
+.mg-row + .mg-row { border-top: 1px solid #F4F5F8; }
+.mg-info { font-size: 13px; color: #333; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mg-info b { color: #14163a; }
-.mg-info code { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #6b7280; background: #f0f1f5; padding: 1px 6px; border-radius: 5px; }
+.mg-info code { font-family: var(--wpd-mono); font-size: 11.5px; color: #6b7280; background: #F1F2F6; padding: 1px 6px; border-radius: 5px; }
 .mg-acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.mg-status { font-size: 12px; color: #51607a; flex-basis: 100%; min-height: 0; }
+.mg-status { font-size: 12px; color: var(--wpd-muted); flex-basis: 100%; min-height: 0; }
 .mg-status:empty { display: none; }
 
-/* Buttons: ghost-navy default, danger ghost, Apple-black wallet pill */
-#manage-pane button, #issue-pane button { background: #fff; color: #1a2150; border: 1px solid #d4d8e6; padding: 6px 12px; border-radius: 7px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background .12s, border-color .12s; }
-#manage-pane button:hover, #issue-pane button:hover { background: #f0f1f8; border-color: #b9c0d6; }
-#manage-pane button.danger { color: #c0182f; border-color: #f0c8ce; }
-#manage-pane button.danger:hover { background: #fdf1f2; border-color: #e3a3ac; }
-.btn.wallet { display: inline-flex; align-items: center; gap: 6px; background: #000; color: #fff; padding: 6px 13px; border-radius: 7px; text-decoration: none; font-size: 12px; font-weight: 600; transition: transform .1s, box-shadow .15s; }
-.btn.wallet::before { content: ""; width: 13px; height: 13px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7Zm3-1a1 1 0 0 0-1 1v1h14V7a1 1 0 0 0-1-1H6Zm13 5H5v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6Z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7Z'/%3E%3C/svg%3E") center/contain no-repeat; }
-.btn.wallet:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.22); }
+/* Primary variant of the ghost button — the main push action */
+.wpd-ghost.is-primary { background: var(--wpd-primary); color: #fff; border-color: var(--wpd-primary); }
+.wpd-ghost.is-primary:hover { background: var(--wpd-primary-hover); border-color: var(--wpd-primary-hover); }
+
+/* Collapsible status editors */
+.mg-trip-edit > summary, .mg-pass-edit > summary { list-style: none; cursor: pointer; user-select: none; }
+.mg-trip-edit > summary::-webkit-details-marker, .mg-pass-edit > summary::-webkit-details-marker { display: none; }
+.mg-trip-edit > summary { font-size: 12.5px; font-weight: 600; color: #3A3F4A; padding: 10px 18px; background: #FAFBFE; border-bottom: 1px solid #F0F1F5; }
+.mg-trip-edit > summary:hover { background: #F4F6FC; }
+.mg-trip-edit > summary::before, .mg-pass-edit > summary::before { content: "▸ "; color: var(--wpd-faint); }
+.mg-trip-edit[open] > summary::before, .mg-pass-edit[open] > summary::before { content: "▾ "; }
 
 /* Trip status editor + device log (ops console) */
-.mg-editor { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 12px 18px; border-bottom: 1px solid #ececf2; background: #fbfbfe; }
-.mg-editor input { padding: 6px 8px; font-size: 12px; }
-.mg-editor-acts { grid-column: 1 / -1; display: flex; gap: 6px; align-items: center; }
-.mg-badge.mg-tpl { background: #e6f0e9; color: #2c6e49; }
-.mg-when { color: #8a8f9c; font-size: 12px; }
+.mg-editor { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; padding: 14px 18px; border-bottom: 1px solid #ECECF2; background: #FBFBFE; }
+.mg-editor input, .mg-editor select { padding: 8px 9px; font-size: 12.5px; }
+.mg-editor-acts { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mg-badge.mg-tpl { background: #E4F3EB; color: #0E5F40; }
+.mg-when { color: var(--wpd-muted-3); font-size: 12px; }
 .mg-log-row { justify-content: flex-start; gap: 12px; }
-.mg-log-row code { flex-shrink: 0; }
-.mg-log-msg { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #555; word-break: break-word; }
+.mg-log-row code { flex-shrink: 0; font-family: var(--wpd-mono); }
+.mg-log-msg { font-family: var(--wpd-mono); font-size: 11.5px; color: #555; word-break: break-word; }
 
 /* ---- Issue view (template passes) ---- */
 #issue-pane .live-row { display: flex; gap: 8px; align-items: center; padding: 8px 18px; }
@@ -120,16 +135,14 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
 .iss-adv > summary { font-size: 11px; color: #51607a; cursor: pointer; user-select: none; padding: 2px 0; }
 .iss-adv[open] > summary { margin-bottom: 4px; }
 .mg-editor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #8a8f9c; margin: 6px 0 2px; }
-.mg-pass-edit { margin: 4px 0 2px; }
-.mg-pass-edit > summary { font-size: 11px; color: #51607a; cursor: pointer; user-select: none; padding: 2px 0; }
+.mg-pass-edit { margin: 6px 0 2px; flex-basis: 100%; }
+.mg-pass-edit > summary { font-size: 12px; color: var(--wpd-nav); cursor: pointer; user-select: none; padding: 4px 0; }
 .mg-pass-edit > summary:hover { color: #1a2150; }
 .mg-pass-edit[open] > summary { margin-bottom: 4px; }
-.mg-pass-edit .mg-editor { margin: 2px 0 6px; }
+.mg-pass-edit .mg-editor { margin: 2px 0 6px; border: 1px solid #ECECF2; border-radius: 10px; background: #FAFBFE; }
 .iss-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1 1 120px; min-width: 0; }
 .iss-field input { flex: 1 1 120px; min-width: 0; font-size: 12px; }
 .iss-field .field-err.show { flex: 1 0 100%; }
-button[data-act="issue"]:disabled { opacity: 0.5; cursor: not-allowed; }
-#iss-gate-reason { color: #c0182f; font-size: 12px; }
 .mg-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mg-field input, .mg-field select { width: 100%; }
 

@@ -244,6 +244,14 @@ const seatOf = (rec) => {
   const s = migrateFormState(rec.state)?.semantics?.seats?.[0];
   return s ? (`${s.seatRow ?? ""}${s.seatNumber ?? ""}` || undefined) : undefined;
 };
+// Current trip status for the Manage chip: the pushed transitStatus semantic
+// (both shapes store it in semantics; may be a {value} patch), else "On Time".
+const statusOf = (rec) => {
+  const sem = rec.data ? rec.data.semantics : migrateFormState(rec.state)?.semantics;
+  const ts = sem?.transitStatus;
+  const v = (ts !== null && typeof ts === "object") ? ts.value : ts;
+  return (v ?? "").toString().trim() || "On Time";
+};
 
 // GET /api/passes  →  all issued passes, with their group + device count
 adminRouter.get("/passes", async (_req, res) => {
@@ -254,6 +262,7 @@ adminRouter.get("/passes", async (_req, res) => {
     passTypeIdentifier: rec.passTypeIdentifier,
     passenger: passengerOf(rec),
     seat: seatOf(rec),
+    status: statusOf(rec),
     lastModified: rec.lastModified,
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     ...(rec.template && { template: rec.template })

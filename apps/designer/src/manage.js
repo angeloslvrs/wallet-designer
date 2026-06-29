@@ -4,6 +4,7 @@ import { esc } from "./esc.js";
 import { buildStatusBody, describePushResult, validateStatusValues } from "./ops.js";
 import { semanticKind } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput } from "./inputs.js";
+import { appleWalletButton } from "./wallet-badge.js";
 
 // Manage view — the ops console: every issued pass grouped by trip, with
 // Add-to-Wallet, a typed+validated status editor at the trip level (push to
@@ -22,11 +23,32 @@ const STATUS_FIELDS = [
   ["transitProvider", "Transit info"],
   ["securityScreening", "Security screening"],
   ["delayed", "Delay note"],
-  ["transitStatus", "Status", ["", "On Time", "Delayed", "Cancelled", "Diverted"]],
+  ["transitStatus", "Status", ["", "On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]],
   ["transitStatusReason", "Status reason (crew availability)"]
 ];
 // Clearing only resets the delay/status banner; schedule fields are left alone.
 const CLEAR_BODY = { delayed: "", transitStatus: "", transitStatusReason: "" };
+
+// The single status vocabulary (the retired trip.js verbs are gone): the
+// `transitStatus` an operator pushes drives a colored chip on the trip + each
+// pass. A free-text status outside this set gets a neutral chip.
+const STATUS_SLUG = { "On Time": "ontime", "Boarding": "boarding", "Delayed": "delayed", "Cancelled": "cancelled", "Diverted": "diverted" };
+// Trip chip = the most severe status across its passes.
+const STATUS_SEVERITY = ["Cancelled", "Diverted", "Delayed", "Boarding", "On Time"];
+const chipHtml = (status, attr = "") => {
+  const s = status || "On Time";
+  return `<span class="mg-chip mg-chip--${STATUS_SLUG[s] || "other"}" ${attr}>${esc(s)}</span>`;
+};
+const tripStatusOf = (members) => {
+  const set = new Set(members.map(p => p.status || "On Time"));
+  return STATUS_SEVERITY.find(s => set.has(s)) ?? [...set][0] ?? "On Time";
+};
+function setChipEl(el, status) {
+  if (!el) return;
+  const s = status || "On Time";
+  el.className = `mg-chip mg-chip--${STATUS_SLUG[s] || "other"}`;
+  el.textContent = s;
+}
 
 const fmtWhen = (s) => {
   const d = new Date(s);
@@ -55,13 +77,13 @@ export function mountManage(root, showDesigner) {
     if (el) el.textContent = msg;
   };
 
-  const shell = (inner) => `<div class="mg-wrap"><div class="mg-head"><h2>Manage issued passes</h2>${inner.count != null ? `<span class="mg-count">${inner.count} pass(es)</span>` : ""}</div>${inner.body}</div>`;
+  const shell = (inner) => `<div class="wpd-view wpd-manage"><div class="wpd-view-head wpd-manage-head"><h1>Manage boarding passes</h1>${inner.count != null ? `<span class="mg-count">${inner.count} pass(es)</span>` : ""}</div>${inner.body}</div>`;
 
   const logCard = () => `
     <div class="mg-card">
       <div class="mg-card-head">
-        <div class="mg-trip"><span class="mg-trip-id">Device log</span><span class="mg-badge">POST /v1/log</span></div>
-        <div class="mg-grp-acts"><button data-act="log-refresh">Refresh</button></div>
+        <div class="mg-trip"><span class="mg-trip-id">Device log</span><span class="mg-badge mono">POST /v1/log</span></div>
+        <div class="mg-grp-acts"><button data-act="log-refresh" class="wpd-ghost">Refresh</button></div>
       </div>
       <div class="mg-list" id="mg-log"><p class="mg-empty">Loading…</p></div>
     </div>`;
@@ -127,19 +149,20 @@ export function mountManage(root, showDesigner) {
 
   function passRow(p) {
     const passEditor = statusEditorHtml("pass", p.serial,
-      `<button data-act="pass-update" data-serial="${esc(p.serial)}">Update · push</button>` +
-      `<button data-act="pass-clear" data-serial="${esc(p.serial)}">Clear delay/status</button>`);
+      `<button data-act="pass-update" data-serial="${esc(p.serial)}" class="wpd-ghost is-primary">Update · push</button>` +
+      `<button data-act="pass-clear" data-serial="${esc(p.serial)}" class="wpd-ghost">Clear delay/status</button>`);
     return `
       <div class="mg-row" data-row="${esc(p.serial)}">
         <div class="mg-info">
+          ${chipHtml(p.status, `data-chip-pass="${esc(p.serial)}"`)}
           <b>${esc(p.passenger || "—")}</b> · seat ${esc(p.seat || "—")} · <code>${esc(p.serial)}</code>
           ${p.template ? `<span class="mg-badge mg-tpl">tpl: ${esc(p.template)}</span>` : ""}
           · ${p.deviceCount} device(s) · <span class="mg-when">${esc(fmtWhen(p.lastModified))}</span>
         </div>
         <div class="mg-acts">
-          <a class="btn wallet" href="/api/passes/${encodeURIComponent(p.serial)}/pkpass">Add to Wallet</a>
-          ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}">Edit</button>`}
-          <button data-act="del" data-serial="${esc(p.serial)}" class="danger">Delete</button>
+          ${appleWalletButton(`/api/passes/${encodeURIComponent(p.serial)}/pkpass`)}
+          ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}" class="wpd-ghost">Edit</button>`}
+          <button data-act="del" data-serial="${esc(p.serial)}" class="wpd-ghost danger">Delete</button>
         </div>
         <details class="mg-pass-edit">
           <summary>Update this pass — gate, delay, status…</summary>
@@ -169,20 +192,28 @@ export function mountManage(root, showDesigner) {
 
     const cards = Object.entries(groups).map(([gid, members]) => {
       const rows = members.map(passRow).join("");
+      const devices = members.reduce((n, p) => n + (p.deviceCount || 0), 0);
+      const tplLabel = members.find(p => p.template)?.template;
       const tripEditor = statusEditorHtml("grp", gid,
-        `<button data-act="grp-update" data-grp="${esc(gid)}">Update trip · push</button>` +
-        `<button data-act="grp-clear" data-grp="${esc(gid)}">Clear delay/status</button>` +
+        `<button data-act="grp-update" data-grp="${esc(gid)}" class="wpd-ghost is-primary">Update · push to all</button>` +
+        `<button data-act="grp-clear" data-grp="${esc(gid)}" class="wpd-ghost">Clear delay/status</button>` +
         `<span class="mg-grp-status" data-grp-status="${esc(gid)}"></span>`);
       return `
         <div class="mg-card" data-card="${esc(gid)}">
           <div class="mg-card-head">
-            <div class="mg-trip"><span class="mg-trip-id">${esc(gid)}</span><span class="mg-badge">${members.length} pass(es)</span></div>
+            <div class="mg-trip">
+              <span class="mg-trip-id">${esc(gid)}</span>
+              ${chipHtml(tripStatusOf(members), `data-chip-trip="${esc(gid)}"`)}
+              <span class="mg-meta">${members.length} pass(es) · ${devices} device(s)${tplLabel ? ` · tpl ${esc(tplLabel)}` : ""}</span>
+            </div>
             <div class="mg-grp-acts">
-              <button data-act="grp-del" data-grp="${esc(gid)}" class="danger">Delete trip</button>
+              <button data-act="grp-del" data-grp="${esc(gid)}" class="wpd-ghost danger">Delete trip</button>
             </div>
           </div>
-          <div class="mg-editor-label">Update the whole trip</div>
-          ${tripEditor}
+          <details class="mg-trip-edit">
+            <summary>Update the whole trip — gate, schedule, status, delay</summary>
+            ${tripEditor}
+          </details>
           <div class="mg-list">${rows}</div>
         </div>`;
     }).join("");
@@ -198,6 +229,7 @@ export function mountManage(root, showDesigner) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     }).then(r => r.json()).catch(() => ({}));
     setStatus(serial, describePushResult(j));
+    return j;
   }
 
   async function pushGroup(gid, body) {
@@ -207,6 +239,25 @@ export function mountManage(root, showDesigner) {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     }).then(r => r.json()).catch(() => ({}));
     if (el) el.textContent = describePushResult(j);
+    return j;
+  }
+
+  // After a push the new transitStatus is known (from the body we sent), so the
+  // chip updates without a full reload. A clear resets it to "On Time".
+  const passChipEl = (serial) => root.querySelector(`[data-chip-pass="${CSS.escape(serial)}"]`);
+  function recomputeTripChip(gid) {
+    if (!gid) return;
+    const card = root.querySelector(`.mg-card[data-card="${CSS.escape(gid)}"]`);
+    if (!card) return;
+    const statuses = [...card.querySelectorAll("[data-chip-pass]")].map(el => el.textContent.trim());
+    const set = new Set(statuses);
+    setChipEl(card.querySelector("[data-chip-trip]"), STATUS_SEVERITY.find(s => set.has(s)) ?? statuses[0] ?? "On Time");
+  }
+  function setGroupChips(gid, status) {
+    const card = root.querySelector(`.mg-card[data-card="${CSS.escape(gid)}"]`);
+    if (!card) return;
+    card.querySelectorAll("[data-chip-pass]").forEach(el => setChipEl(el, status));
+    setChipEl(card.querySelector("[data-chip-trip]"), status);
   }
 
   // Read a single editor instance's values: plain inputs/selects from the DOM,
@@ -231,10 +282,11 @@ export function mountManage(root, showDesigner) {
     const values = collectEditorValues(container, scopeKey(kind, id));
     const errs = validateStatusValues(values);
     showEditorErrors(container, errs);
-    if (Object.keys(errs).length) { setMsg(`✗ fix ${Object.keys(errs).length} invalid field(s) before pushing`); return; }
+    if (Object.keys(errs).length) { setMsg(`✗ fix ${Object.keys(errs).length} invalid field(s) before pushing`); return { ok: false }; }
     const body = buildStatusBody(values);
-    if (!body) { setMsg("✗ nothing to update — fill in at least one field"); return; }
-    if (kind === "grp") await pushGroup(id, body); else await pushOne(id, body);
+    if (!body) { setMsg("✗ nothing to update — fill in at least one field"); return { ok: false }; }
+    const j = kind === "grp" ? await pushGroup(id, body) : await pushOne(id, body);
+    return { ok: !!j?.ok, body };
   }
 
   root.addEventListener("click", async (e) => {
@@ -251,15 +303,23 @@ export function mountManage(root, showDesigner) {
 
     if (act === "grp-update") {
       const grpStatus = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
-      await runUpdate(t.closest(".mg-editor"), { kind: "grp", id: grp, setMsg: (m) => { if (grpStatus) grpStatus.textContent = m; } });
+      const { ok, body } = await runUpdate(t.closest(".mg-editor"), { kind: "grp", id: grp, setMsg: (m) => { if (grpStatus) grpStatus.textContent = m; } });
+      if (ok && body?.transitStatus) setGroupChips(grp, body.transitStatus);
       return;
     }
     if (act === "pass-update") {
-      await runUpdate(t.closest(".mg-editor"), { kind: "pass", id: serial, setMsg: (m) => setStatus(serial, m) });
+      const gid = t.closest(".mg-card")?.dataset.card;
+      const { ok, body } = await runUpdate(t.closest(".mg-editor"), { kind: "pass", id: serial, setMsg: (m) => setStatus(serial, m) });
+      if (ok && body?.transitStatus) { setChipEl(passChipEl(serial), body.transitStatus); recomputeTripChip(gid); }
       return;
     }
-    if (act === "grp-clear")  { await pushGroup(grp, { ...CLEAR_BODY }); return; }
-    if (act === "pass-clear") { await pushOne(serial, { ...CLEAR_BODY }); return; }
+    if (act === "grp-clear")  { const j = await pushGroup(grp, { ...CLEAR_BODY }); if (j?.ok) setGroupChips(grp, "On Time"); return; }
+    if (act === "pass-clear") {
+      const gid = t.closest(".mg-card")?.dataset.card;
+      const j = await pushOne(serial, { ...CLEAR_BODY });
+      if (j?.ok) { setChipEl(passChipEl(serial), "On Time"); recomputeTripChip(gid); }
+      return;
+    }
     if (act === "grp-del")    { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
     if (act === "log-refresh") { loadLog(); return; }
   }, { signal });
