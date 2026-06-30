@@ -15,7 +15,7 @@
 // — visible fields keep the whole patch (so a push can carry a lock-screen
 // banner), semantics always take the .value.
 
-import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS, semanticKind, validateFieldValue } from "@wpd/pass-builder";
+import { BOARDING_SEMANTICS, SEMANTIC_DATE_KEYS, assertStrictIsoDateTime, semanticKind, validateFieldValue } from "@wpd/pass-builder";
 
 const isPatch = (raw) => raw !== null && typeof raw === "object" && !Array.isArray(raw);
 const valueOf = (raw) => (isPatch(raw) ? raw.value : raw);
@@ -99,12 +99,6 @@ export function changeMessageFor(semanticKey) {
   return STATUS_CHANGE_MESSAGES[semanticKey] ?? DEFAULT_CHANGE_MESSAGE;
 }
 
-const assertIsoDate = (key, v) => {
-  if (v && Number.isNaN(Date.parse(v))) {
-    throw new Error(`${key}: "${v}" is not an ISO 8601 date`);
-  }
-};
-
 /**
  * Pure: returns new data; never mutates the input. Body keys are semantic
  * keys (normalize aliases first via {@link normalizeStatusBody}) plus
@@ -152,7 +146,7 @@ export function applyStatusToTemplateData(data, body = {}, bindings = {}) {
     const type = BOARDING_SEMANTICS[key];
     if (type !== "string" && type !== "date") continue;   // structured/unknown keys: not settable via status
     const v = valueOf(raw);
-    if (type === "date") assertIsoDate(key, v);
+    if (type === "date") assertStrictIsoDateTime(key, v);
     if (v) semantics[key] = v; else delete semantics[key];
     setBoundField(key, raw);
   }

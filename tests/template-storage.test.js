@@ -67,6 +67,41 @@ describe("saveTemplatePass", () => {
     expect(tplRec.state).toBeUndefined();
   });
 
+  it("keeps the authenticationToken stable when a FormState pass is re-issued with a submitted token", async () => {
+    const first = await storage.savePass({
+      ...minimalFormState("FORM-STABLE-1"),
+      meta: { ...minimalFormState("FORM-STABLE-1").meta, authenticationToken: "11111111111111111111111111111111" }
+    });
+    const second = await storage.savePass({
+      ...minimalFormState("FORM-STABLE-1"),
+      meta: { ...minimalFormState("FORM-STABLE-1").meta, authenticationToken: "22222222222222222222222222222222" }
+    });
+    expect(second.authenticationToken).toBe(first.authenticationToken);
+    expect(second.state.meta.authenticationToken).toBe(first.authenticationToken);
+  });
+
+  it("forces the env WEB_SERVICE_URL over a submitted localhost URL, and keeps the submitted one when env is unset", async () => {
+    const original = process.env.WEB_SERVICE_URL;
+    try {
+      process.env.WEB_SERVICE_URL = "https://wallet.example.test/api/wallet";
+      const forced = await storage.savePass({
+        ...minimalFormState("URL-FORCED-1"),
+        meta: { ...minimalFormState("URL-FORCED-1").meta, webServiceURL: "http://localhost:4317/api/wallet" }
+      });
+      expect(forced.state.meta.webServiceURL).toBe("https://wallet.example.test/api/wallet");
+
+      delete process.env.WEB_SERVICE_URL;
+      const fallback = await storage.savePass({
+        ...minimalFormState("URL-FALLBACK-1"),
+        meta: { ...minimalFormState("URL-FALLBACK-1").meta, webServiceURL: "http://localhost:4317/api/wallet" }
+      });
+      expect(fallback.state.meta.webServiceURL).toBe("http://localhost:4317/api/wallet");
+    } finally {
+      if (original === undefined) delete process.env.WEB_SERVICE_URL;
+      else process.env.WEB_SERVICE_URL = original;
+    }
+  });
+
   it("lets PASS_TYPE_ID force the stored pass type identifier", async () => {
     process.env.PASS_TYPE_ID = "pass.com.example.forced";
     try {

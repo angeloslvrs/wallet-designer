@@ -21,6 +21,13 @@ describe("validateStatusBody", () => {
     expect(errs[0]).toMatch(/currentBoardingDate.*date/i);
   });
 
+  it("requires date semantics to include seconds and an explicit offset", () => {
+    expect(validateStatusBody({ currentBoardingDate: "2026-08-01T10:00" })[0]).toMatch(/date/i);
+    expect(validateStatusBody({ currentBoardingDate: "2026-08-01" })[0]).toMatch(/date/i);
+    expect(validateStatusBody({ currentBoardingDate: "2026-02-30T10:00:00Z" })[0]).toMatch(/date/i);
+    expect(validateStatusBody({ currentBoardingDate: "2026-08-01T10:00:00+8" })[0]).toMatch(/date/i);
+  });
+
   it("validates through legacy aliases (boarding → currentBoardingDate)", () => {
     expect(validateStatusBody({ boarding: "not a date" })[0]).toMatch(/currentBoardingDate.*date/i);
   });

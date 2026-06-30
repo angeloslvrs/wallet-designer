@@ -34,6 +34,18 @@ describe("issueTemplatePass — rejects malformed field values", () => {
     await expect(issue({ date: "tomorrow" })).rejects.toThrow(/date/i);
   });
 
+  it("rejects offset-less and calendar-invalid date values", async () => {
+    await expect(issue({ date: "2026-08-01T10:00" })).rejects.toThrow(/date/i);
+    await expect(issue({ date: "2026-02-30T10:00:00Z" })).rejects.toThrow(/date/i);
+  });
+
+  it("rejects strict-date failures in explicit semantics and expirationDate", async () => {
+    await expect(issue({ semantics: { currentBoardingDate: "2026-08-01T09:10" } }))
+      .rejects.toThrow(/semantics\.currentBoardingDate.*date/i);
+    await expect(issue({ expirationDate: "2026-09-01T00:00" }))
+      .rejects.toThrow(/expirationDate.*date/i);
+  });
+
   it("accepts a valid lowercase airport code and stores it uppercased", async () => {
     const s = nextSerial();
     await issue({ depart: "mnl" }, s);

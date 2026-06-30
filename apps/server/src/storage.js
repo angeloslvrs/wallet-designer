@@ -43,7 +43,8 @@ function open() {
       template             TEXT,
       state_json           TEXT,
       data_json            TEXT,
-      last_modified        TEXT NOT NULL
+      last_modified        TEXT NOT NULL,
+      update_tag           INTEGER
     );
     CREATE INDEX IF NOT EXISTS idx_passes_group ON passes(group_id);
     CREATE TABLE IF NOT EXISTS registrations (
@@ -66,8 +67,69 @@ function open() {
       updated_at    TEXT NOT NULL
     );
   `);
+  ensureUpdateTagColumn();
   importLegacyJson();
+  backfillUpdateTags();
   return db;
+}
+
+function ensureUpdateTagColumn() {
+  const cols = new Set(db.prepare("PRAGMA table_info(passes)").all().map(c => c.name));
+  if (!cols.has("update_tag")) db.exec("ALTER TABLE passes ADD COLUMN update_tag INTEGER");
+}
+
+function metaValue(key) {
+  return db.prepare("SELECT value FROM meta WHERE key = ?").get(key)?.value;
+}
+
+function setMetaValue(key, value) {
+  db.prepare(`
+    INSERT INTO meta (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, String(value));
+}
+
+const validUpdateTag = (value) => {
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+};
+
+function updateTagCounter() {
+  return validUpdateTag(metaValue("update_tag_counter")) ?? 0;
+}
+
+function nextUpdateTag() {
+  const next = updateTagCounter() + 1;
+  setMetaValue("update_tag_counter", next);
+  return next;
+}
+
+function backfillUpdateTags() {
+  const rows = db.prepare("SELECT rowid, update_tag FROM passes ORDER BY rowid").all();
+  let counter = updateTagCounter();
+  for (const row of rows) counter = Math.max(counter, validUpdateTag(row.update_tag) ?? 0);
+  const setTag = db.prepare("UPDATE passes SET update_tag = ? WHERE rowid = ?");
+  for (const row of rows) {
+    if (validUpdateTag(row.update_tag) != null) continue;
+    counter += 1;
+    setTag.run(counter, row.rowid);
+  }
+  setMetaValue("update_tag_counter", counter);
+}
+
+function nextLastModified(existing) {
+  const now = new Date();
+  const previousMs = Date.parse(existing?.lastModified ?? "");
+  if (Number.isNaN(previousMs)) return now.toUTCString();
+  const nowHttpMs = Date.parse(now.toUTCString());
+  return new Date(nowHttpMs <= previousMs ? previousMs + 1000 : nowHttpMs).toUTCString();
+}
+
+function mutationStamp(existing) {
+  return {
+    lastModified: nextLastModified(existing),
+    updateTag: nextUpdateTag()
+  };
 }
 
 /**
@@ -115,8 +177,8 @@ function importLegacyJson() {
  *  with it snapshot()'s key order — survives re-issues like the JSON store. */
 function writePass(serial, rec) {
   db.prepare(`
-    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified, update_tag)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(serial) DO UPDATE SET
       pass_type_identifier = excluded.pass_type_identifier,
       authentication_token = excluded.authentication_token,
@@ -124,7 +186,8 @@ function writePass(serial, rec) {
       template             = excluded.template,
       state_json           = excluded.state_json,
       data_json            = excluded.data_json,
-      last_modified        = excluded.last_modified
+      last_modified        = excluded.last_modified,
+      update_tag           = COALESCE(excluded.update_tag, passes.update_tag)
   `).run(
     serial,
     rec.passTypeIdentifier ?? null,
@@ -133,7 +196,8 @@ function writePass(serial, rec) {
     rec.template ?? null,
     rec.state !== undefined ? JSON.stringify(rec.state) : null,
     rec.data !== undefined ? JSON.stringify(rec.data) : null,
-    rec.lastModified
+    rec.lastModified,
+    rec.updateTag ?? null
   );
 }
 
@@ -148,6 +212,7 @@ function rowToRec(row) {
   if (row.state_json != null) rec.state = JSON.parse(row.state_json);
   if (row.data_json != null) rec.data = JSON.parse(row.data_json);
   rec.lastModified = row.last_modified;
+  if (row.update_tag != null) rec.updateTag = Number(row.update_tag);
   return rec;
 }
 
@@ -160,10 +225,10 @@ export async function savePass(state) {
   // the copy already installed on a device (its embedded token would no longer
   // match), so the device could never fetch updates.
   const existing = rowToRec(getRow(serial));
-  const token = state.meta.authenticationToken ?? existing?.authenticationToken ?? randomBytes(16).toString("hex");
+  const token = existing?.authenticationToken ?? state.meta.authenticationToken ?? randomBytes(16).toString("hex");
   // Inject the passes-web-service URL from the environment so every issued pass
   // can register for push updates without the caller having to set it.
-  const webServiceURL = state.meta.webServiceURL ?? process.env.WEB_SERVICE_URL;
+  const webServiceURL = process.env.WEB_SERVICE_URL ?? state.meta.webServiceURL;
   const meta = {
     ...state.meta,
     // Force the identifiers to match the signing cert, so EVERY pass installs on
@@ -178,7 +243,7 @@ export async function savePass(state) {
     authenticationToken: token,
     groupId: deriveGroupId(state),   // all passengers on the same flight share this
     state: { ...state, meta },
-    lastModified: new Date().toUTCString()
+    ...mutationStamp(existing)
   };
   writePass(serial, rec);
   return rec;
@@ -202,7 +267,7 @@ export async function saveTemplatePass({ serialNumber, template, data = {}, grou
     groupId,
     template,
     data,
-    lastModified: new Date().toUTCString()
+    ...mutationStamp(existing)
   };
   writePass(serialNumber, rec);
   return rec;
@@ -254,7 +319,7 @@ export async function updatePassState(serial, mutator) {
   const rec = rowToRec(getRow(serial));
   if (!rec) return null;
   rec.state = mutator(rec.state);
-  rec.lastModified = new Date().toUTCString();
+  Object.assign(rec, mutationStamp(rec));
   writePass(serial, rec);
   return rec;
 }
@@ -265,7 +330,7 @@ export async function updatePassData(serial, mutator) {
   const rec = rowToRec(getRow(serial));
   if (!rec || rec.template == null) return null;
   rec.data = mutator(rec.data ?? {});
-  rec.lastModified = new Date().toUTCString();
+  Object.assign(rec, mutationStamp(rec));
   writePass(serial, rec);
   return rec;
 }
@@ -312,20 +377,20 @@ export async function unregisterDevice({ deviceLibraryIdentifier, serialNumber }
 export async function listUpdatedSerials({ deviceLibraryIdentifier, passTypeIdentifier, sinceTag }) {
   open();
   const subs = db.prepare(`
-    SELECT r.serial, p.last_modified FROM registrations r
+    SELECT r.serial, p.update_tag FROM registrations r
     JOIN passes p ON p.serial = r.serial
     WHERE r.device_library_identifier = ? AND r.pass_type_identifier = ?
   `).all(deviceLibraryIdentifier, passTypeIdentifier);
-  const sinceMs = sinceTag ? Date.parse(sinceTag) : 0;
+  const since = validUpdateTag(Array.isArray(sinceTag) ? sinceTag[0] : sinceTag) ?? 0;
   /** @type {string[]} */
   const serials = [];
-  let maxModified = 0;
-  for (const { serial, last_modified } of subs) {
-    const mt = Date.parse(last_modified);
-    if (mt > sinceMs) serials.push(serial);
-    if (mt > maxModified) maxModified = mt;
+  let maxTag = 0;
+  for (const { serial, update_tag } of subs) {
+    const tag = validUpdateTag(update_tag) ?? 0;
+    if (tag > since) serials.push(serial);
+    if (tag > maxTag) maxTag = tag;
   }
-  return { serials, lastModified: maxModified ? new Date(maxModified).toUTCString() : null };
+  return { serials, lastUpdated: maxTag ? String(maxTag) : null };
 }
 
 export async function devicesFor(passTypeId, serial) {

@@ -43,8 +43,13 @@ describe("validateFieldValue — null when valid, a message when not", () => {
     expect(validateFieldValue({ kind: "number" }, "x")).toMatch(/number/i);
     expect(validateFieldValue({ kind: "number" }, "12B")).toMatch(/number/i);
   });
-  it("date: must parse as a date/time", () => {
+  it("date: must be a complete ISO date/time with an offset", () => {
     expect(validateFieldValue({ kind: "date" }, "2026-08-01T10:00:00+08:00")).toBeNull();
+    expect(validateFieldValue({ kind: "date" }, "2026-08-01T02:00:00Z")).toBeNull();
+    expect(validateFieldValue({ kind: "date" }, "2026-08-01T10:00")).toMatch(/date/i);
+    expect(validateFieldValue({ kind: "date" }, "2026-08-01")).toMatch(/date/i);
+    expect(validateFieldValue({ kind: "date" }, "2026-02-30T10:00:00Z")).toMatch(/date/i);
+    expect(validateFieldValue({ kind: "date" }, "2026-08-01T10:00:00+8")).toMatch(/date/i);
     expect(validateFieldValue({ kind: "date" }, "half past seven")).toMatch(/date/i);
   });
   it("seat: row digits then a seat letter", () => {

@@ -8,8 +8,9 @@ describe("addDaysPreservingOffset", () => {
   it("handles month/year rollover and Z", () => {
     expect(addDaysPreservingOffset("2026-12-31T23:00:00Z", 1)).toBe("2027-01-01T23:00:00Z");
   });
-  it("handles naive (offset-less) ISO and HH:MM-only time", () => {
+  it("handles naive (offset-less) ISO and HH:MM-only time — re-derivation tolerates legacy stored dates", () => {
     expect(addDaysPreservingOffset("2026-08-28T15:45", 1)).toBe("2026-08-29T15:45:00");
+    expect(addDaysPreservingOffset("2026-08-28T15:45:00", 1)).toBe("2026-08-29T15:45:00");
   });
   it("returns undefined for junk", () => {
     expect(addDaysPreservingOffset("nope", 1)).toBeUndefined();
@@ -22,6 +23,7 @@ describe("addDaysPreservingOffset", () => {
   });
   it("rejects calendar-invalid datetimes", () => {
     expect(addDaysPreservingOffset("2026-13-01T25:99:00Z", 1)).toBeUndefined();
+    expect(addDaysPreservingOffset("2026-02-30T10:00:00Z", 1)).toBeUndefined();
   });
 });
 
@@ -82,5 +84,17 @@ describe("applyPassDates", () => {
   it("derives expiry from departure when no arrival date is present", () => {
     const p = { semantics: { currentDepartureDate: "2026-08-28T16:35:00+08:00" } };
     expect(applyPassDates(p).expirationDate).toBe("2026-08-29T16:35:00+08:00");
+  });
+
+  it("still derives relevance + expiry for a legacy pass whose dates lack an offset", () => {
+    const out = applyPassDates({
+      semantics: {
+        currentBoardingDate: "2026-08-28T15:50:00",
+        currentArrivalDate: "2026-08-28T17:55:00"
+      }
+    });
+    expect(out.relevantDate).toBe("2026-08-28T15:50:00");
+    expect(out.relevantDates).toEqual([{ startDate: "2026-08-28T15:50:00", endDate: "2026-08-28T17:55:00" }]);
+    expect(out.expirationDate).toBe("2026-08-29T17:55:00");
   });
 });

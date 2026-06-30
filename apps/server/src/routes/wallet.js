@@ -50,13 +50,13 @@ walletRouter.delete("/v1/devices/:device/registrations/:passType/:serial", async
 
 // GET /v1/devices/{device}/registrations/{passType}?passesUpdatedSince=tag
 walletRouter.get("/v1/devices/:device/registrations/:passType", async (req, res) => {
-  const { serials, lastModified } = await listUpdatedSerials({
+  const { serials, lastUpdated } = await listUpdatedSerials({
     deviceLibraryIdentifier: req.params.device,
     passTypeIdentifier: req.params.passType,
     sinceTag: req.query.passesUpdatedSince
   });
   if (!serials.length) return res.status(204).send();
-  res.json({ serialNumbers: serials, lastUpdated: lastModified ?? new Date().toUTCString() });
+  res.json({ serialNumbers: serials, lastUpdated: lastUpdated ?? "0" });
 });
 
 // GET /v1/passes/{passType}/{serial}   (If-Modified-Since header optional)
@@ -66,7 +66,9 @@ walletRouter.get("/v1/passes/:passType/:serial", async (req, res) => {
   if (!auth(req, res, pass)) return;
 
   const ims = req.header("If-Modified-Since");
-  if (ims && Date.parse(ims) >= Date.parse(pass.lastModified)) {
+  const imsMs = Date.parse(ims ?? "");
+  const passMs = Date.parse(pass.lastModified);
+  if (ims && !Number.isNaN(imsMs) && !Number.isNaN(passMs) && imsMs >= passMs) {
     return res.status(304).send();
   }
 

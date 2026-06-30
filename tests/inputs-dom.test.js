@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { renderTypedInput } from "../apps/designer/src/inputs.js";
+import { localUtcOffset, renderTypedInput } from "../apps/designer/src/inputs.js";
 
 function mount(opts) {
   let last;
@@ -17,6 +17,18 @@ describe("renderTypedInput", () => {
     expect(off.value).toBe("-07:00");
     dt.value = "2026-06-13T09:45"; dt.dispatchEvent(new Event("input", { bubbles: true }));
     expect(get()).toBe("2026-06-13T09:45:00-07:00");
+  });
+  it("date: blank widget hints the offset, then autofills the edited date's offset on input", () => {
+    const { el, get } = mount({ type: "date", value: "" });
+    const [dt, off] = el.querySelectorAll("input");
+    expect(dt.value).toBe("");
+    expect(off.value).toBe("");
+    expect(off.placeholder).toBe(localUtcOffset());
+    expect(off.title).toBe("UTC offset");
+    dt.value = "2026-06-13T09:45"; dt.dispatchEvent(new Event("input", { bubbles: true }));
+    const expected = localUtcOffset(new Date("2026-06-13T09:45"));
+    expect(off.value).toBe(expected);
+    expect(get()).toBe(`2026-06-13T09:45:00${expected}`);
   });
   it("number: emits a Number", () => {
     const { el, get } = mount({ type: "number", value: 5 });

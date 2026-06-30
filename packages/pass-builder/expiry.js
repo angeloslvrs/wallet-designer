@@ -5,7 +5,11 @@
 // AND a fresh relevantDates interval (never trusting the incoming array), plus
 // an expirationDate (custom, or arrival + 1 day).
 
-const ISO_RE = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T(([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?)(\.\d+)?([+-]\d{2}:\d{2}|Z)?$/;
+// Re-derivation tolerates legacy stored dates that lack seconds/offset (the old
+// designer let the offset field be blank). Fresh input is still validated
+// strictly at the designer/issue/status boundaries — see iso-date.js.
+import { isLooseIsoDateTime, parseLooseIsoDateTime } from "./iso-date.js";
+
 const pad = (n) => String(n).padStart(2, "0");
 
 /**
@@ -16,17 +20,13 @@ const pad = (n) => String(n).padStart(2, "0");
  * @returns {string|undefined}
  */
 export function addDaysPreservingOffset(iso, days) {
-  const m = ISO_RE.exec(String(iso ?? "").trim());
-  if (!m) return undefined;
-  const [, y, mo, d, time, , frac, offset] = m;
-  const base = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
+  const parsed = parseLooseIsoDateTime(iso);
+  if (!parsed) return undefined;
+  const base = new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
   base.setUTCDate(base.getUTCDate() + days);
   const date = `${base.getUTCFullYear()}-${pad(base.getUTCMonth() + 1)}-${pad(base.getUTCDate())}`;
-  const hms = time.length === 5 ? `${time}:00` : time;
-  return `${date}T${hms}${frac ?? ""}${offset ?? ""}`;
+  return `${date}T${parsed.time}${parsed.fraction}${parsed.offset}`;
 }
-
-const isIso = (v) => typeof v === "string" && ISO_RE.test(v.trim());
 
 /**
  * Return a NEW pass.json with relevantDate + relevantDates + expirationDate
@@ -49,17 +49,17 @@ export function applyPassDates(passJson, opts = {}) {
   // no staleness risk. Interval = boarding → arrival (falls back to a single
   // point when only one usable date exists).
   delete out.relevantDates;
-  if (isIso(rel)) {
+  if (isLooseIsoDateTime(rel)) {
     const start = rel.trim();
     out.relevantDate = start;
     const endRaw = sem.currentArrivalDate ?? sem.currentDepartureDate ?? sem.originalArrivalDate ?? sem.originalDepartureDate;
-    const end = isIso(endRaw) ? endRaw.trim() : undefined;
+    const end = isLooseIsoDateTime(endRaw) ? endRaw.trim() : undefined;
     out.relevantDates = end && end !== start ? [{ startDate: start, endDate: end }] : [{ date: start }];
   }
 
   const custom = opts.expirationDate;
   const arrival = sem.currentArrivalDate ?? sem.originalArrivalDate ?? sem.currentDepartureDate ?? sem.originalDepartureDate;
-  const exp = isIso(custom) ? custom.trim() : addDaysPreservingOffset(arrival, 1);
+  const exp = isLooseIsoDateTime(custom) ? custom.trim() : addDaysPreservingOffset(arrival, 1);
   if (exp) out.expirationDate = exp;
 
   return out;

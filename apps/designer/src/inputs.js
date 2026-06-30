@@ -3,11 +3,25 @@
 
 // ISO-8601 <-> datetime-local. <input type=datetime-local> only edits the
 // wall-clock part, so the UTC offset is parsed/preserved separately.
+export const localUtcOffset = (date = new Date()) => {
+  const minutes = -date.getTimezoneOffset();
+  const sign = minutes >= 0 ? "+" : "-";
+  const abs = Math.abs(minutes);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+};
+
+// Default offset for a wall-clock value, computed for THAT date's DST season
+// (not "now" — a January flight entered in July must not inherit July's offset).
+const offsetForLocal = (local) => {
+  const d = new Date(local);
+  return Number.isNaN(d.getTime()) ? localUtcOffset() : localUtcOffset(d);
+};
+
 export const splitIso = (v) => {
   const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/.exec(v || "");
   return m ? { local: m[1], offset: m[2] || "" } : { local: "", offset: "" };
 };
-export const joinIso = (local, offset) => (local ? `${local}:00${offset || ""}` : "");
+export const joinIso = (local, offset) => (local ? `${local}:00${offset || offsetForLocal(local)}` : "");
 
 // Type-aware emptiness lives in the package so the Suggest engine and the
 // designer share one implementation (drives emit-only-filled).
@@ -99,10 +113,19 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       wrap.style.cssText = "display:flex;gap:6px;align-items:center";
       const { local, offset } = splitIso(value);
       const dt = el("input", { type: "datetime-local", step: "60", value: local });
-      const off = el("input", { type: "text", value: offset, placeholder: "-07:00", title: "UTC offset (blank = none)" });
+      const off = el("input", { type: "text", value: offset, placeholder: localUtcOffset(), title: "UTC offset" });
+      off.pattern = "Z|[+-][0-9]{2}:[0-9]{2}";
+      off.maxLength = 6;
       off.style.cssText = "width:78px;flex:none"; dt.style.flex = "1";
-      const sync = () => fire(joinIso(dt.value, off.value.trim()));
-      dt.addEventListener("input", sync); off.addEventListener("input", sync);
+      // Until the user sets the offset, keep it filled with the EDITED date's
+      // local offset, so it tracks DST for whatever date they type.
+      let offsetTouched = Boolean(offset);
+      const sync = () => {
+        if (!offsetTouched && dt.value) off.value = offsetForLocal(dt.value);
+        fire(joinIso(dt.value, off.value.trim()));
+      };
+      dt.addEventListener("input", sync);
+      off.addEventListener("input", () => { offsetTouched = true; fire(joinIso(dt.value, off.value.trim())); });
       wrap.append(dt, off); break;
     }
     case "number": {

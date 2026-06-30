@@ -6,6 +6,7 @@
 // share one implementation.
 
 import { BOARDING_SEMANTICS } from "./semantics.js";
+import { isStrictIsoDateTime } from "./iso-date.js";
 
 /** @typedef {"date"|"number"|"iata"|"name"|"seat"|"text"} FieldKind */
 
@@ -72,7 +73,7 @@ export function validateFieldValue(descriptor, rawValue) {
   switch (kind) {
     case "iata":   return IATA_RE.test(v)   ? null : "Airport code must be 3 letters (e.g. MNL)";
     case "number": return NUMBER_RE.test(v) ? null : "Must be a number";
-    case "date":   return Number.isNaN(Date.parse(v)) ? "Must be a valid date and time" : null;
+    case "date":   return isStrictIsoDateTime(v) ? null : "Must be a valid ISO date and time with timezone";
     case "seat":   return SEAT_RE.test(v)   ? null : "Seat must be a row and letter (e.g. 17C)";
     default:       return null; // name / text — no format constraint
   }

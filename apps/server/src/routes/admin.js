@@ -4,7 +4,8 @@
 import { Router } from "express";
 import {
   applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven,
-  templateFieldDescriptors, validateFieldValue, normalizeFieldValue, discoverBindings
+  templateFieldDescriptors, validateFieldValue, normalizeFieldValue, discoverBindings,
+  BOARDING_SEMANTICS
 } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
@@ -180,14 +181,24 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
     if (msg) { errors.push(`${key}: ${msg}`); continue; }
     normalizedData[key] = typeof raw === "string" ? normalizeFieldValue(d.kind, raw) : raw;
   }
-  if (errors.length) throw new Error(errors.join("; "));
 
   // Semantics-first: the client sends explicit `data.semantics` (filled-only,
   // typed via SEMANTIC_CATALOG). The server NEVER derives semantics from display
   // fields — that mis-mapped time fields onto airport codes and shipped non-ISO
   // dates. Volatile placeholders the user left unset are cleared (null deletes at
   // merge), so the template's sample values never ship.
-  const explicit = (normalizedData.semantics && typeof normalizedData.semantics === "object") ? normalizedData.semantics : {};
+  const explicit = (normalizedData.semantics && typeof normalizedData.semantics === "object" && !Array.isArray(normalizedData.semantics))
+    ? normalizedData.semantics
+    : {};
+  const expMsg = validateFieldValue({ kind: "date", required: false }, normalizedData.expirationDate);
+  if (expMsg) errors.push(`expirationDate: ${expMsg}`);
+  for (const [key, raw] of Object.entries(explicit)) {
+    if (BOARDING_SEMANTICS[key] !== "date") continue;
+    const msg = validateFieldValue({ kind: "date", required: false }, fieldDataValue(raw));
+    if (msg) errors.push(`semantics.${key}: ${msg}`);
+  }
+  if (errors.length) throw new Error(errors.join("; "));
+
   const clears = {};
   for (const k of VOLATILE_ISSUE_SEMANTICS) {
     if (passJson.semantics?.[k] !== undefined && explicit[k] === undefined) clears[k] = null;
