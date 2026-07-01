@@ -7,7 +7,7 @@
     "express": "^4.19.0",
     "compression": "^1.7.4",
     "express-rate-limit": "^7.4.0",
-    "dotenv": "^16.4.0",
+    "dotenv": "^17.4.2",
     "@wpd/pass-builder": "*",
     "@wpd/pass-schema": "*"
   }
