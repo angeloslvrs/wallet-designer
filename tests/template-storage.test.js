@@ -58,9 +58,12 @@ describe("saveTemplatePass", () => {
 
   it("keeps the token stable when a FormState pass is re-issued as a template pass", async () => {
     const formRec = await storage.savePass(minimalFormState("MIX-1"));
+    // Same passType as the FormState record: a serial's passType is stable under
+    // the single-PASS_TYPE_ID model, so a shape change (FormState -> template)
+    // re-issues under the same passType. (minimalFormState uses pass.dev.local.)
     const tplRec = await storage.saveTemplatePass({
       serialNumber: "MIX-1", template: "dev-sample", data: {},
-      groupId: "g2", passTypeId: "pass.dev.placeholder"
+      groupId: "g2", passTypeId: "pass.dev.local"
     });
     expect(tplRec.authenticationToken).toBe(formRec.authenticationToken);
     expect(tplRec.template).toBe("dev-sample");

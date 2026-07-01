@@ -218,6 +218,26 @@ function rowToRec(row) {
 
 const getRow = (serial) => open().prepare("SELECT * FROM passes WHERE serial = ?").get(serial);
 
+/**
+ * Lightweight write-time guard on the single-passType production invariant.
+ * The passes table is keyed by serial alone, which is fine because we run one
+ * PASS_TYPE_ID. If a serial were ever re-saved under a DIFFERENT passType it
+ * would silently clobber the original pass (and orphan every installed copy,
+ * whose embedded passTypeIdentifier no longer matches). Fail loud instead.
+ * A normal re-issue of the SAME serial under the SAME passType is untouched,
+ * as is a first-time save (no existing record) or a write with no passType.
+ */
+function assertSamePassType(existing, incomingPassTypeId, serial) {
+  if (existing?.passTypeIdentifier == null || incomingPassTypeId == null) return;
+  if (existing.passTypeIdentifier !== incomingPassTypeId) {
+    throw new Error(
+      `Refusing to overwrite serial "${serial}": stored passTypeIdentifier ` +
+      `"${existing.passTypeIdentifier}" != incoming "${incomingPassTypeId}". ` +
+      `Serials are unique per passType under the single-PASS_TYPE_ID model.`
+    );
+  }
+}
+
 export async function savePass(state) {
   open();
   const serial = state.meta.serialNumber;
@@ -238,6 +258,8 @@ export async function savePass(state) {
     authenticationToken: token,
     ...(webServiceURL ? { webServiceURL } : {})
   };
+  // Fail loud rather than clobber a serial already issued under another passType.
+  assertSamePassType(existing, meta.passTypeId, serial);
   const rec = {
     passTypeIdentifier: meta.passTypeId,
     authenticationToken: token,
@@ -260,9 +282,12 @@ export async function saveTemplatePass({ serialNumber, template, data = {}, grou
   open();
   const existing = rowToRec(getRow(serialNumber));
   const token = existing?.authenticationToken ?? randomBytes(16).toString("hex");
+  // Same env forcing as savePass: the identifiers must match the signing cert.
+  const effectivePassTypeId = process.env.PASS_TYPE_ID ?? passTypeId ?? existing?.passTypeIdentifier;
+  // Fail loud rather than clobber a serial already issued under another passType.
+  assertSamePassType(existing, effectivePassTypeId, serialNumber);
   const rec = {
-    // Same env forcing as savePass: the identifiers must match the signing cert.
-    passTypeIdentifier: process.env.PASS_TYPE_ID ?? passTypeId ?? existing?.passTypeIdentifier,
+    passTypeIdentifier: effectivePassTypeId,
     authenticationToken: token,
     groupId,
     template,
@@ -361,12 +386,25 @@ export async function deleteTemplateBindings(templateId) {
   open().prepare("DELETE FROM template_bindings WHERE template_id = ?").run(templateId);
 }
 
+/**
+ * Register a device for push updates on a serial. Returns { created } so the
+ * route can answer Apple's spec: HTTP 201 when the (device, serial) pairing is
+ * brand new, HTTP 200 when the device was ALREADY registered for that serial.
+ * On re-registration the push token (and registration timestamp) are refreshed —
+ * a device can move to a new APNs token, so token freshness must never regress.
+ * @returns {Promise<{ created: boolean }>}
+ */
 export async function registerDevice({ deviceLibraryIdentifier, passTypeIdentifier, serialNumber, pushToken }) {
-  open().prepare(`
+  open();
+  const existed = db.prepare(
+    "SELECT 1 FROM registrations WHERE device_library_identifier = ? AND serial = ?"
+  ).get(deviceLibraryIdentifier, serialNumber) != null;
+  db.prepare(`
     INSERT OR REPLACE INTO registrations
       (device_library_identifier, serial, pass_type_identifier, push_token, registered_at)
     VALUES (?, ?, ?, ?, ?)
   `).run(deviceLibraryIdentifier, serialNumber, passTypeIdentifier, pushToken, new Date().toISOString());
+  return { created: !existed };
 }
 
 export async function unregisterDevice({ deviceLibraryIdentifier, serialNumber }) {

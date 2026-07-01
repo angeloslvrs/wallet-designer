@@ -27,13 +27,14 @@ walletRouter.post("/v1/devices/:device/registrations/:passType/:serial", async (
   if (!auth(req, res, pass)) return;
   const pushToken = req.body?.pushToken;
   if (!pushToken) return res.status(400).send();
-  await registerDevice({
+  const { created } = await registerDevice({
     deviceLibraryIdentifier: req.params.device,
     passTypeIdentifier: req.params.passType,
     serialNumber: req.params.serial,
     pushToken
   });
-  res.status(201).send();
+  // Apple spec: 201 for a new registration, 200 if the device was already registered.
+  res.status(created ? 201 : 200).send();
 });
 
 // DELETE /v1/devices/{device}/registrations/{passType}/{serial}

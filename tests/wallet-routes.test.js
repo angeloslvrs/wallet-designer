@@ -105,6 +105,33 @@ describe("Wallet web service update correctness", () => {
     }
   });
 
+  it("returns 201 for a new device registration and 200 when already registered", async () => {
+    const { walletRouter, storage } = await boot();
+    const first = await storage.savePass(await minimalState("WALLET-REG-1"));
+    const handler = routeHandler(
+      walletRouter,
+      "/v1/devices/:device/registrations/:passType/:serial",
+      "post"
+    );
+    const params = {
+      device: "DEVICE-REG",
+      passType: first.passTypeIdentifier,
+      serial: "WALLET-REG-1"
+    };
+    const headers = { Authorization: `ApplePass ${first.authenticationToken}` };
+
+    const created = await callRoute(handler, { params, headers, body: { pushToken: "tok-a" } });
+    expect(created.statusCode).toBe(201);
+
+    // Re-registering the same device+serial is a 200 (Apple spec) but must still
+    // refresh the push token so a rotated APNs token is not dropped.
+    const again = await callRoute(handler, { params, headers, body: { pushToken: "tok-b" } });
+    expect(again.statusCode).toBe(200);
+
+    const devices = await storage.devicesFor(first.passTypeIdentifier, "WALLET-REG-1");
+    expect(devices).toEqual([{ deviceLibraryIdentifier: "DEVICE-REG", pushToken: "tok-b" }]);
+  });
+
   it("does not return a false 304 after a same-second pass update", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-06-30T00:00:00.500Z"));

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, writeFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -204,5 +204,58 @@ describe("SQLite storage", () => {
     const snap = await (await bootStorage(statePath)).snapshot();
     expect(snap.log).toHaveLength(1000);
     expect(snap.log.at(-1).entries).toEqual(["line 1004"]);
+  });
+
+  // The passes table is keyed by serial alone (single-PASS_TYPE_ID model). A
+  // write-time guard refuses to silently clobber a serial already issued under a
+  // different passTypeIdentifier — the common re-issue path (same serial, same
+  // passType) must stay untouched and keep the auth token stable.
+  describe("serial passType write-time guard", () => {
+    const ORIG_PASS_TYPE_ID = process.env.PASS_TYPE_ID;
+    beforeEach(() => { delete process.env.PASS_TYPE_ID; });
+    afterEach(() => {
+      if (ORIG_PASS_TYPE_ID === undefined) delete process.env.PASS_TYPE_ID;
+      else process.env.PASS_TYPE_ID = ORIG_PASS_TYPE_ID;
+    });
+
+    it("throws when a template pass serial is re-saved under a different passType", async () => {
+      const s = await bootStorage(statePath);
+      await s.saveTemplatePass({
+        serialNumber: "GUARD-1", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local"
+      });
+      await expect(s.saveTemplatePass({
+        serialNumber: "GUARD-1", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.other"
+      })).rejects.toThrow(/passTypeIdentifier/);
+    });
+
+    it("does NOT throw re-saving a template pass under the SAME passType and keeps the token stable", async () => {
+      const s = await bootStorage(statePath);
+      const first = await s.saveTemplatePass({
+        serialNumber: "GUARD-2", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local"
+      });
+      const again = await s.saveTemplatePass({
+        serialNumber: "GUARD-2", template: "dev-sample", data: { seat: "2B" }, groupId: "G@1", passTypeId: "pass.dev.local"
+      });
+      expect(again.passTypeIdentifier).toBe("pass.dev.local");
+      expect(again.authenticationToken).toBe(first.authenticationToken);
+    });
+
+    it("throws when a FormState pass serial is re-saved under a different passType", async () => {
+      const s = await bootStorage(statePath);
+      const base = { flight: {}, meta: { serialNumber: "GUARD-3", passTypeId: "pass.dev.local" } };
+      await s.savePass(base);
+      await expect(s.savePass({
+        ...base, meta: { ...base.meta, passTypeId: "pass.dev.other" }
+      })).rejects.toThrow(/passTypeIdentifier/);
+    });
+
+    it("does NOT throw re-saving a FormState pass under the SAME passType and keeps the token stable", async () => {
+      const s = await bootStorage(statePath);
+      const base = { flight: {}, meta: { serialNumber: "GUARD-4", passTypeId: "pass.dev.local" } };
+      const first = await s.savePass(base);
+      const again = await s.savePass(base);
+      expect(again.passTypeIdentifier).toBe("pass.dev.local");
+      expect(again.authenticationToken).toBe(first.authenticationToken);
+    });
   });
 });
