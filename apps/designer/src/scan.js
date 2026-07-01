@@ -1,10 +1,17 @@
-import { BrowserMultiFormatReader } from "@zxing/browser";
+// @zxing/browser is the heaviest dependency in the app and is only needed the
+// moment a user actually decodes a barcode (camera or photo). It's lazily
+// imported inside scanBarcode so it lands in its own chunk and never loads on
+// first paint — a paste-only scan never even touches it.
+let readerPromise = null;
+function getReader() {
+  readerPromise ??= import("@zxing/browser").then(m => new m.BrowserMultiFormatReader());
+  return readerPromise;
+}
 
 // Get a barcode's text by paste (primary), photo upload, or camera (on demand).
 // Resolves with the text, or null if cancelled. Camera needs a secure origin.
 export function scanBarcode() {
   return new Promise((resolve) => {
-    const reader = new BrowserMultiFormatReader();
     let controls = null, done = false;
 
     const overlay = document.createElement("div");
@@ -41,14 +48,19 @@ export function scanBarcode() {
       if (v) finish(v); else msg.textContent = "Paste the barcode text first, or use a photo / camera.";
     });
 
-    $("#scan-use-cam").addEventListener("click", () => {
+    $("#scan-use-cam").addEventListener("click", async () => {
       video.style.display = "block";
       msg.textContent = "Starting camera…";
-      reader.decodeFromVideoDevice(undefined, video, (result, _err, ctl) => {
-        controls = ctl;
-        if (result) finish(result.getText());
-      }).then(() => { msg.textContent = ""; })
-        .catch((e) => { msg.textContent = "Camera unavailable — paste the text or upload a photo. " + (e?.message ?? ""); });
+      try {
+        const reader = await getReader();
+        await reader.decodeFromVideoDevice(undefined, video, (result, _err, ctl) => {
+          controls = ctl;
+          if (result) finish(result.getText());
+        });
+        msg.textContent = "";
+      } catch (e) {
+        msg.textContent = "Camera unavailable — paste the text or upload a photo. " + (e?.message ?? "");
+      }
     });
 
     fileInput.addEventListener("change", async () => {
@@ -57,6 +69,7 @@ export function scanBarcode() {
       msg.textContent = "Decoding…";
       const url = URL.createObjectURL(file);
       try {
+        const reader = await getReader();
         const result = await reader.decodeFromImageUrl(url);
         finish(result.getText());
       } catch {

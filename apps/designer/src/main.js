@@ -3,8 +3,9 @@ import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
-import { mountManage } from "./manage.js";
-import { mountIssue } from "./issue.js";
+// Issue and Manage are the heavy non-default views (they pull in bwip-js /
+// @zxing/browser transitively). They're loaded on demand — see wireViewTabs —
+// so a first paint on the Designer view doesn't pay for the issue/scanner deps.
 
 async function showProfile() {
   try {
@@ -66,13 +67,23 @@ function wireViewTabs(initialView = "issue") {
   const main = document.querySelector("main");
   const managePane = document.getElementById("manage-pane");
   const issuePane = document.getElementById("issue-pane");
+  // The heavy views are code-split: import() the module the first time its tab
+  // is shown, then mount. Because import() is async, the user could switch tabs
+  // again before it resolves — `activeView` records the current selection so a
+  // stale import doesn't mount a pane the user has already navigated away from.
+  // Each mount still calls the module's own root._mountAbort teardown, so the
+  // abort-on-remount contract is unchanged whether the module is fresh or cached.
+  let activeView = null;
+  const loadManage = () => import("./manage.js").then(m => m.mountManage);
+  const loadIssue = () => import("./issue.js").then(m => m.mountIssue);
   const show = (view) => {
+    activeView = view;
     main.hidden = view !== "designer";
     managePane.hidden = view !== "manage";
     issuePane.hidden = view !== "issue";
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
-    if (view === "manage") mountManage(managePane, () => show("designer"));
-    if (view === "issue") mountIssue(issuePane, () => show("manage"));
+    if (view === "manage") loadManage().then(mount => { if (activeView === "manage") mount(managePane, () => show("designer")); });
+    if (view === "issue") loadIssue().then(mount => { if (activeView === "issue") mount(issuePane, () => show("manage")); });
   };
   tabs.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
   show(initialView);   // land on the issue flow, not the hand-designer

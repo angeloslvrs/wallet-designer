@@ -1,4 +1,3 @@
-import bwipjs from "bwip-js";
 import { BOARDING_SEMANTICS, SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
 import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
@@ -607,8 +606,15 @@ export function mountIssue(root, showManage) {
     return `<canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas><span class="wpd-result-status">${label}</span>${appleWalletButton(url)}`;
   }
 
-  function drawQrCodes() {
-    for (const c of root.querySelectorAll("canvas[data-qr]")) {
+  // bwip-js is only needed to draw the result QR codes after passes are issued,
+  // so it's lazily imported here (its own chunk) rather than at module load — the
+  // Issue view renders and validates without ever pulling in the barcode encoder.
+  async function drawQrCodes() {
+    const canvases = [...root.querySelectorAll("canvas[data-qr]")];
+    if (!canvases.length) return;
+    let bwipjs;
+    try { ({ default: bwipjs } = await import("bwip-js")); } catch { return; }
+    for (const c of canvases) {
       try { bwipjs.toCanvas(c, { bcid: "qrcode", text: c.dataset.qr, scale: 2 }); } catch { /* ignore */ }
       c.removeAttribute("data-qr");
     }

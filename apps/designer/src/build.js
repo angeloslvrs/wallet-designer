@@ -1,5 +1,4 @@
 import { state } from "./state.js";
-import bwipjs from "bwip-js";
 import { esc } from "./esc.js";
 
 // "Add to Wallet": issue (store) the pass, then show a QR to scan with the
@@ -29,7 +28,9 @@ export function wireBuildButton(btn, statusEl) {
       wrap.style.cssText = "display:flex;gap:14px;align-items:center;margin-top:8px";
 
       const qr = document.createElement("canvas");
-      try { bwipjs.toCanvas(qr, { bcid: "qrcode", text: url, scale: 3 }); } catch { /* ignore */ }
+      // bwip-js is lazily imported (its own chunk) only when a pass is actually
+      // issued — the "Add to Wallet" click — never at first paint.
+      try { const { default: bwipjs } = await import("bwip-js"); bwipjs.toCanvas(qr, { bcid: "qrcode", text: url, scale: 3 }); } catch { /* ignore */ }
       qr.style.cssText = "width:120px;height:120px;border:1px solid #eee;border-radius:8px";
 
       const right = document.createElement("div");
