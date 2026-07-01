@@ -1,7 +1,8 @@
 # Deploy runbook
 
 How the live boarding-pass service is hosted, how to redeploy, and the gotchas
-learned getting it working end-to-end. Companion to [`cert-day.md`](./cert-day.md).
+learned getting it working end-to-end. Companion to [`cert-day.md`](./cert-day.md)
+and [`dev-machine-setup.md`](./dev-machine-setup.md) (developing on a second machine).
 
 ## Topology
 
