@@ -8,11 +8,14 @@ import { wireBuildButton } from "./build.js";
 // so a first paint on the Designer view doesn't pay for the issue/scanner deps.
 
 async function showProfile() {
+  const badge = document.getElementById("profile-badge");
   try {
     const r = await fetch("/api/profile").then(r => r.json());
-    document.getElementById("profile-badge").textContent = `profile: ${r.profile}`;
+    badge.textContent = r.profile === "prod" ? "PROD CERT" : "DEV CERT";
+    badge.classList.remove("is-err");
   } catch {
-    document.getElementById("profile-badge").textContent = "API offline";
+    badge.textContent = "API OFFLINE";
+    badge.classList.add("is-err");
   }
 }
 
