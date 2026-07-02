@@ -204,29 +204,42 @@ input, select { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-ra
    (the "Frontend overhaul" visual system; ported from the prototype)
    ===================================================================== */
 :root {
-  --wpd-font: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  /* Manifest — swiss utilitarian: black on paper, hairline rules, radius 0.
+     Color is reserved for status markers, validation, and the pass preview. */
+  --wpd-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --wpd-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --wpd-bg: #EEF0F4;
-  --wpd-ink: #15171C;
-  --wpd-primary: #2E48D8;
-  --wpd-primary-hover: #2539B4;
-  --wpd-tint: #EDEFFD;
-  --wpd-card: #fff;
-  --wpd-border: #E5E8EE;
-  --wpd-border-input: #D7DAE2;
-  --wpd-border-soft: #E2E5EC;
-  --wpd-muted: #6A7180;
-  --wpd-muted-2: #7B8290;
-  --wpd-muted-3: #8A909E;
-  --wpd-faint: #9098A6;
-  --wpd-nav: #5A6172;
-  --wpd-err: #C32C44;
+  --wpd-bg: #F6F6F3;
+  --wpd-ink: #111111;
+  --wpd-primary: #111111;
+  --wpd-primary-hover: #333333;
+  --wpd-card: #fff;              /* interactive islands only */
+  --wpd-rule: #111111;           /* major boundaries */
+  --wpd-rule-soft: #D9D9D3;      /* minor rows */
+  --wpd-border-input: #C9C9C1;
+  --wpd-muted: #62625C;
+  --wpd-faint: #8F8F88;
+  --wpd-err: #CF2B43;
+  --wpd-ok: #0C8A52;
+  --wpd-radius: 0;
+  /* status marker colors — markers only, never fills */
+  --wpd-st-ontime: #0C8A52;
+  --wpd-st-boarding: #1F4BD8;
+  --wpd-st-delayed: #C07C00;
+  --wpd-st-cancelled: #CF2B43;
+  --wpd-st-diverted: #7048C8;
+  --wpd-st-other: #62625C;
+  /* legacy aliases — still consumed by pre-Manifest rules; the component pass
+     deletes those rules and this block with them */
+  --wpd-tint: #ECECE7;
+  --wpd-border: var(--wpd-rule-soft);
+  --wpd-border-soft: var(--wpd-rule-soft);
+  --wpd-muted-2: var(--wpd-muted);
+  --wpd-muted-3: var(--wpd-faint);
+  --wpd-nav: var(--wpd-muted);
   --wpd-err-bg: #FBE9ED;
   --wpd-err-border: #F2C9D2;
-  --wpd-ok: #0E5F40;
-  --wpd-ok-dot: #16A06A;
-  --wpd-focus: 0 0 0 3px rgba(46,72,216,.13);
-  --wpd-radius: 14px;
+  --wpd-ok-dot: var(--wpd-ok);
+  --wpd-focus: 0 0 0 2px #111111;
 }
 
 /* The reskinned views opt into the new type system; the legacy Designer chrome
