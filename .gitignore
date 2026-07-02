@@ -27,3 +27,9 @@ templates/dev-sample.pkpasstemplate/*.png
 state/
 
 .superpowers/
+
+# Claude Code: ignore ephemeral/personal artifacts; shared config
+# (settings.json, commands/, agents/) can still be committed intentionally
+.claude/plans/
+.claude/settings.local.json
+.claude/*.local.json
