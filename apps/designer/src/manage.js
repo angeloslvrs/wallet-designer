@@ -16,15 +16,15 @@ import { appleWalletButton } from "./wallet-badge.js";
 // Body keys are Apple's semantic keys (the status API vocabulary); the old
 // verbs (gate, boarding, …) remain accepted server-side as aliases.
 const STATUS_FIELDS = [
-  ["departureGate", "Gate (B7)"],
-  ["currentBoardingDate", "Boarding (2026-06-20T07:30:00-07:00)"],
-  ["currentDepartureDate", "Depart (ISO time)"],
-  ["currentArrivalDate", "Arrive (ISO time)"],
-  ["transitProvider", "Transit info"],
-  ["securityScreening", "Security screening"],
-  ["delayed", "Delay note"],
-  ["transitStatus", "Status", ["", "On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]],
-  ["transitStatusReason", "Status reason (crew availability)"]
+  ["departureGate", "Gate", "B9"],
+  ["currentBoardingDate", "Boarding", "2026-06-20T07:30:00-07:00"],
+  ["currentDepartureDate", "Depart", "ISO time"],
+  ["currentArrivalDate", "Arrive", "ISO time"],
+  ["transitProvider", "Transit info", ""],
+  ["securityScreening", "Security", ""],
+  ["delayed", "Delay note", ""],
+  ["transitStatus", "Status", "", ["", "On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]],
+  ["transitStatusReason", "Status reason", "crew availability"]
 ];
 // Clearing only resets the delay/status banner; schedule fields are left alone.
 const CLEAR_BODY = { delayed: "", transitStatus: "", transitStatusReason: "" };
@@ -77,13 +77,13 @@ export function mountManage(root, showDesigner) {
     if (el) el.textContent = msg;
   };
 
-  const shell = (inner) => `<div class="wpd-view wpd-manage"><div class="wpd-view-head wpd-manage-head"><h1>Manage boarding passes</h1>${inner.count != null ? `<span class="mg-count">${inner.count} pass(es)</span>` : ""}</div>${inner.body}</div>`;
+  const shell = (inner) => `<div class="wpd-view wpd-manage"><div class="wpd-view-head wpd-manage-head"><h1>Manage boarding passes</h1>${inner.meta ? `<span class="mg-count">${inner.meta}</span>` : ""}</div>${inner.body}</div>`;
 
   const logCard = () => `
     <div class="mg-card">
       <div class="mg-card-head">
-        <div class="mg-trip"><span class="mg-trip-id">Device log</span><span class="mg-badge mono">POST /v1/log</span></div>
-        <div class="mg-grp-acts"><button data-act="log-refresh" class="wpd-ghost">Refresh</button></div>
+        <div class="mg-trip"><span class="mg-trip-id">Device log</span><span class="mg-badge">POST /v1/log</span></div>
+        <div class="mg-grp-acts"><button data-act="log-refresh" class="wpd-link">Refresh</button></div>
       </div>
       <div class="mg-list" id="mg-log"><p class="mg-empty">Loading…</p></div>
     </div>`;
@@ -109,19 +109,19 @@ export function mountManage(root, showDesigner) {
   // action buttons. Date fields render the typed picker (mounted post-render);
   // everything else is a plain input or a select.
   function statusEditorHtml(kind, id, actsHtml) {
-    const fields = STATUS_FIELDS.map(([key, ph, options]) => {
+    const fields = STATUS_FIELDS.map(([key, label, ph, options]) => {
       let control;
       if (options) {
-        control = `<select data-f="${esc(key)}" title="${esc(ph)}">${options.map(o =>
-          `<option value="${esc(o)}">${esc(o || `${ph}: (no change)`)}</option>`).join("")}</select>`;
+        control = `<select data-f="${esc(key)}" title="${esc(label)}">${options.map(o =>
+          `<option value="${esc(o)}">${esc(o || `${label}: (no change)`)}</option>`).join("")}</select>`;
       } else if (semanticKind(key) === "date") {
         // ISO-8601 schedule field → datetime-local + offset picker, mounted
         // post-render so a malformed date can't be typed.
-        control = `<div class="mg-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" title="${esc(ph)}"></div>`;
+        control = `<div class="mg-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" title="${esc(label)}"></div>`;
       } else {
-        control = `<input data-f="${esc(key)}" placeholder="${esc(ph)}" title="${esc(ph)}" />`;
+        control = `<input data-f="${esc(key)}" placeholder="${esc(ph)}" title="${esc(label)}" />`;
       }
-      return `<span class="mg-field">${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
+      return `<span class="mg-field"><label class="mg-f-label">${esc(label)}</label>${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
     }).join("");
     return `<div class="mg-editor" data-scope="${esc(kind)}" data-scope-id="${esc(id)}">${fields}<div class="mg-editor-acts">${actsHtml}</div></div>`;
   }
@@ -147,30 +147,37 @@ export function mountManage(root, showDesigner) {
     }
   }
 
+  // One pass = one table row: STATUS / PASSENGER / SEAT / SERIAL /
+  // DEVICES · SEEN / ACTIONS, with the inline editor + status line spanning
+  // the full width below (grid-column 1/-1).
   function passRow(p) {
     const passEditor = statusEditorHtml("pass", p.serial,
       `<button data-act="pass-update" data-serial="${esc(p.serial)}" class="wpd-ghost is-primary">Update · push</button>` +
       `<button data-act="pass-clear" data-serial="${esc(p.serial)}" class="wpd-ghost">Clear delay/status</button>`);
     return `
       <div class="mg-row" data-row="${esc(p.serial)}">
-        <div class="mg-info">
-          ${chipHtml(p.status, `data-chip-pass="${esc(p.serial)}"`)}
-          <b>${esc(p.passenger || "—")}</b> · seat ${esc(p.seat || "—")} · <code>${esc(p.serial)}</code>
-          ${p.template ? `<span class="mg-badge mg-tpl">tpl: ${esc(p.template)}</span>` : ""}
-          · ${p.deviceCount} device(s) · <span class="mg-when">${esc(fmtWhen(p.lastModified))}</span>
-        </div>
-        <div class="mg-acts">
+        ${chipHtml(p.status, `data-chip-pass="${esc(p.serial)}"`)}
+        <b class="mg-cell-passenger">${esc(p.passenger || "—")}</b>
+        <span class="mg-cell-seat">${esc(p.seat || "—")}</span>
+        <code class="mg-cell-serial" title="${esc(p.serial)}">${esc(p.serial)}</code>
+        <span class="mg-cell-devices">${p.deviceCount} · <span class="mg-when">${esc(fmtWhen(p.lastModified))}</span></span>
+        <div class="mg-acts mg-cell-acts">
           ${appleWalletButton(`/api/passes/${encodeURIComponent(p.serial)}/pkpass`)}
-          ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}" class="wpd-ghost">Edit</button>`}
-          <button data-act="del" data-serial="${esc(p.serial)}" class="wpd-ghost danger">Delete</button>
+          ${p.template ? "" : `<button data-act="edit" data-serial="${esc(p.serial)}" class="wpd-link">Edit</button>`}
+          <button data-act="del" data-serial="${esc(p.serial)}" class="wpd-link danger">Delete</button>
         </div>
         <details class="mg-pass-edit">
-          <summary>Update this pass — gate, delay, status…</summary>
+          <summary>Update — gate, delay, status…</summary>
           ${passEditor}
         </details>
         <div class="mg-status" data-status="${esc(p.serial)}"></div>
       </div>`;
   }
+
+  const passTableHead = `
+    <div class="mg-thead">
+      <span>Status</span><span>Passenger</span><span>Seat</span><span>Serial</span><span>Devices · seen</span><span class="is-right">Actions</span>
+    </div>`;
 
   async function load() {
     editorValues = {};   // fresh editors on every (re)load
@@ -204,21 +211,25 @@ export function mountManage(root, showDesigner) {
             <div class="mg-trip">
               <span class="mg-trip-id">${esc(gid)}</span>
               ${chipHtml(tripStatusOf(members), `data-chip-trip="${esc(gid)}"`)}
-              <span class="mg-meta">${members.length} pass(es) · ${devices} device(s)${tplLabel ? ` · tpl ${esc(tplLabel)}` : ""}</span>
+              <span class="mg-meta">${members.length} pass${members.length === 1 ? "" : "es"} · ${devices} device${devices === 1 ? "" : "s"}${tplLabel ? ` · tpl ${esc(tplLabel)}` : ""}</span>
             </div>
             <div class="mg-grp-acts">
-              <button data-act="grp-del" data-grp="${esc(gid)}" class="wpd-ghost danger">Delete trip</button>
+              <button data-act="grp-del" data-grp="${esc(gid)}" class="wpd-link danger">Delete trip</button>
             </div>
           </div>
           <details class="mg-trip-edit">
             <summary>Update the whole trip — gate, schedule, status, delay</summary>
             ${tripEditor}
           </details>
-          <div class="mg-list">${rows}</div>
+          <div class="mg-list">${passTableHead}${rows}</div>
         </div>`;
     }).join("");
 
-    root.innerHTML = shell({ count: list.length, body: cards + logCard() });
+    const tripCount = Object.keys(groups).length;
+    root.innerHTML = shell({
+      meta: `${list.length} pass${list.length === 1 ? "" : "es"} · ${tripCount} trip${tripCount === 1 ? "" : "s"}`,
+      body: cards + logCard()
+    });
     mountStatusDateFields();
     loadLog();
   }

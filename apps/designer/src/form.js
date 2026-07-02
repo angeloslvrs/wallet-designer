@@ -174,7 +174,7 @@ function barcodeCard(root) {
   });
   const grid = h("div", { class: "wpd-fmt-grid" }, ...btns);
 
-  const scanBtn = h("button", { type: "button", class: "wpd-ghost", text: "📷 Scan / paste boarding pass → autofill flight details" });
+  const scanBtn = h("button", { type: "button", class: "wpd-ghost", text: "Scan / paste boarding pass → autofill" });
   const scanNote = h("div", { class: "wpd-asset-hint" });
   scanBtn.addEventListener("click", async () => {
     scanBtn.disabled = true; const orig = scanBtn.textContent; scanBtn.textContent = "Scanning…";
@@ -212,7 +212,7 @@ function fieldsCard() {
   const top = h("div", { class: "wpd-fields-top" },
     h("span", { class: "wpd-fields-hint", text: "click a field on the pass to jump here" }),
     (() => {
-      const b = h("button", { type: "button", class: "wpd-ghost", text: "✨ Suggest values from semantics" });
+      const b = h("button", { type: "button", class: "wpd-link", text: "Suggest from semantics" });
       b.addEventListener("click", () => {
         const filled = suggestDisplayValues(state.semantics ?? {}, DESIGNER_SUGGEST_MAP);
         const df = structuredClone(state.displayFields ?? {});
@@ -232,7 +232,7 @@ function fieldsCard() {
       const block = h("div", { class: "wpd-fsec" });
       block.appendChild(h("div", { class: "wpd-fsec-head" }, SECTION_LABEL[section]));
       (df[section] ?? []).forEach((f, i) => block.appendChild(fieldRow(section, f, i)));
-      const add = h("button", { type: "button", class: "wpd-ghost-mini", text: "+ add field" });
+      const add = h("button", { type: "button", class: "wpd-link", text: "+ add field" });
       add.addEventListener("click", () => {
         const next = structuredClone(state.displayFields ?? {});
         (next[section] ??= []).push({ key: `field${next[section].length + 1}`, label: "", value: "" });
@@ -257,7 +257,7 @@ function fieldsCard() {
     key.addEventListener("input", () => { update("key", key.value); value.dataset.fieldkey = key.value; });
     label.addEventListener("input", () => update("label", label.value));
     value.addEventListener("input", () => update("value", value.value));
-    const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", text: "✕" });
+    const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", text: "×" });
     rm.addEventListener("click", () => {
       const next = structuredClone(state.displayFields ?? {});
       next[section].splice(i, 1);
@@ -304,7 +304,7 @@ export function renderForm(root) {
   const view = h("div", { class: "wpd-view wpd-design" },
     h("div", { class: "wpd-view-head" },
       h("h1", { text: "Design" }),
-      h("p", { text: "Branding, layout & barcode — the live preview mirrors the shipped boarding pass." })),
+      h("p", { text: "Branding, layout & barcode — the preview mirrors the shipped pass." })),
     brandCard(),
     assetsCard(root),
     barcodeCard(root),

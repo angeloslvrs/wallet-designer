@@ -129,6 +129,8 @@ export function mountIssue(root, showManage) {
   // a new one, so we warn before an issue would silently overwrite an existing one.
   let existingSerials = new Set();
   let tripExpiry = "";   // optional ISO-8601 expiry override — blank = server derives arrival + 1
+  // Mobile: completed steps collapse to "✓ 01 — …" rows; [edit] re-expands one.
+  let expandedSteps = new Set();
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -267,7 +269,9 @@ export function mountIssue(root, showManage) {
     const errs = collectValidationErrors();
     btn.disabled = errs.length > 0;
     const reason = root.querySelector("#iss-gate-reason");
-    if (reason) reason.textContent = errs.length ? `${errs.length} field(s) need attention` : "Ready to issue";
+    if (reason) reason.textContent = errs.length
+      ? `${errs.length} field(s) need attention`
+      : `Ready — ${rows.length} row${rows.length === 1 ? "" : "s"} valid · serials unique`;
     const dot = root.querySelector("#iss-gate-dot");
     if (dot) dot.classList.toggle("is-ready", errs.length === 0);
   }
@@ -317,11 +321,11 @@ export function mountIssue(root, showManage) {
   }
 
   // Shared grid template for the passenger table head + each row, so columns
-  // line up: #, one column per individualized field, the serial, the remove btn.
+  // line up: #, one column per individualized field, the serial, row actions.
   function colTemplate(n) {
     const mid = n ? `repeat(${n},minmax(120px,1fr)) ` : "";
-    const minW = 34 + n * 120 + 188 + 34 + (n + 2) * 8;
-    return `grid-template-columns:34px ${mid}minmax(188px,1.3fr) 34px; min-width:${minW}px;`;
+    const minW = 34 + n * 120 + 188 + 60 + (n + 2) * 8;
+    return `grid-template-columns:34px ${mid}minmax(188px,1.3fr) minmax(48px,auto); min-width:${minW}px;`;
   }
 
   function rowHtml(r, i) {
@@ -336,12 +340,14 @@ export function mountIssue(root, showManage) {
             <input data-serial placeholder="serial" value="${esc(r.serial)}" class="iss-serial" title="Serial number (caller-supplied; suggested from the trip id) — must be unique per pass" />
             <span class="field-err" data-err-serial="${i}"></span>
           </div>
-          <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} class="wpd-prow-rm" title="remove passenger">✕</button>
+          <div class="wpd-prow-acts">
+            <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} class="wpd-prow-rm" title="remove passenger">×</button>
+          </div>
         </div>
         <details class="wpd-prow-adv iss-adv">
           <summary>Scan / paste boarding pass &amp; semantic tags</summary>
           <div class="iss-row-tools">
-            <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">📷 Scan / paste boarding pass</button>
+            <button data-scan-row="${i}" class="iss-toggle" title="scan or paste a boarding pass barcode to autofill this row">Scan / paste boarding pass</button>
             <button data-act="suggest" data-i="${i}" class="iss-toggle" title="fill the display fields below from these semantics">Suggest values ↓</button>
           </div>
           <div class="iss-sem" data-sem-row="${i}"></div>
@@ -408,7 +414,7 @@ export function mountIssue(root, showManage) {
         <div>
           <div class="wpd-tpl-row-name">${esc(t.id)}</div>
           <div class="wpd-tpl-row-meta">${t.error
-            ? `<span class="mg-badge" style="background:#FBE9ED;color:#B0203C">broken: ${esc(t.error)}</span>`
+            ? `<span class="mg-badge is-broken">broken: ${esc(t.error)}</span>`
             : `${(t.fieldKeys ?? []).length} field keys · ${(t.assets ?? []).length} assets`}</div>
         </div>
         <button data-act="tpl-del" data-id="${esc(t.id)}" class="wpd-ghost danger">Delete</button>
@@ -428,37 +434,109 @@ export function mountIssue(root, showManage) {
       </details>`;
   }
 
+  // A completed step collapses to a "✓ 01 — …" summary row on <760px (see the
+  // 3b/4b mocks); [edit] expands it again. Desktop always shows the full step.
+  const isMobile = () => typeof window.matchMedia === "function" && window.matchMedia("(max-width: 760px)").matches;
+  const collapsedStep = (n, title, summary) => `
+      <section class="wpd-step">
+        <div class="wpd-step-collapsed">
+          <span class="wpd-step-ok">✓</span>
+          <span>0${n} — ${title}</span>
+          ${summary}
+          <button data-act="step-edit" data-step="${n}" class="wpd-link">edit</button>
+        </div>
+      </section>`;
+
+  // Short mono summary of the shared step: MNL→CEB · B7 · 07:05 when the
+  // airport/gate/boarding semantics are bound, else the first filled values.
+  function sharedSummary(sharedKeys) {
+    const b = current()?.bindings ?? {};
+    const val = (sem) => { const fk = b[sem]?.fieldKey; return fk ? (shared[fk] ?? "").trim() : ""; };
+    const parts = [];
+    const o = val("departureAirportCode"), d = val("destinationAirportCode");
+    if (o && d) parts.push(`${o}→${d}`);
+    const gate = val("departureGate");
+    if (gate) parts.push(gate);
+    const bt = val("currentBoardingDate") || val("originalBoardingDate");
+    if (bt) { const m = /T(\d{2}:\d{2})/.exec(bt); parts.push(m ? m[1] : bt); }
+    if (!parts.length) {
+      for (const k of sharedKeys) {
+        const v = (shared[k] ?? "").trim();
+        if (v) { parts.push(v); if (parts.length >= 3) break; }
+      }
+    }
+    return parts.slice(0, 3).join(" · ");
+  }
+
   function render() {
     const tpl = current();
     ensureFieldDefaults();
     const sharedKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => !individualKeys.has(k)));
     const indKeys = orderByRequired((tpl?.fieldKeys ?? []).filter(k => individualKeys.has(k)));
+    const mobile = isMobile();
 
     // Step 1 — template picker buttons + field-key chips
     const tplButtons = templates.map(t => {
       const meta = t.error ? esc(t.error) : `${(t.fieldKeys ?? []).length} fields · ${(t.assets ?? []).length} assets`;
       return `<button data-act="sel-tpl" data-id="${esc(t.id)}" class="wpd-tpl-btn${t.id === selected ? " is-active" : ""}" ${t.error ? "disabled" : ""}>
-          <span class="wpd-tpl-name">${esc(t.id)}${t.error ? " · broken" : ""}</span>
+          <span class="wpd-tpl-name">${esc(t.id)}${t.error ? " · broken" : ""}${t.id === selected ? `<span class="wpd-tpl-tag">Selected</span>` : ""}</span>
           <span class="wpd-tpl-meta">${meta}</span>
         </button>`;
     }).join("");
     const chips = (tpl?.fieldKeys ?? []).map(k => `<span class="wpd-chip${requiredMark(k) ? " is-required" : ""}">${esc(k)}</span>`).join("");
 
-    // Step 2 — shared fields grid (each with a "per passenger →" toggle)
-    const sharedStep = tpl && !tpl.error && sharedKeys.length ? `
+    const step1Done = Boolean(tpl && !tpl.error && groupId.trim());
+    const step1 = (mobile && step1Done && !expandedSteps.has(1))
+      ? collapsedStep(1, "Template &amp; trip", `<b>${esc(selected)}</b><span>· ${esc(groupId)}</span>`)
+      : `
         <section class="wpd-step">
-          <div class="wpd-step-head"><span class="wpd-step-num">2</span><span class="wpd-step-title">Shared across the trip</span><span class="wpd-step-sub">— entered once, same for everyone</span></div>
-          <div class="wpd-shared-grid">
-            ${sharedKeys.map(k => `
-              <div class="wpd-shared-field">
-                <div class="wpd-shared-top">
-                  <label title="${esc(k)}${descriptorFor(k).boundSemantic ? " · " + esc(descriptorFor(k).boundSemantic) : ""}">${esc(friendlyLabel(k))}${requiredMark(k)}</label>
-                  <button data-act="to-individual" data-key="${esc(k)}" class="wpd-ghost-mini" title="vary this per passenger">per&nbsp;passenger&nbsp;→</button>
+          <div class="wpd-step-eyebrow">01 — Template &amp; trip</div>
+          <div class="wpd-step-body">
+            <div class="wpd-tpl-grid">${tplButtons || `<p class="hint">No templates installed.</p>`}</div>
+            ${tpl?.error ? `<p class="hint">✗ ${esc(tpl.error)}</p>` : (chips ? `<div class="wpd-chips">${chips}</div>` : "")}
+            <div class="wpd-grid2">
+              <div class="wpd-field">
+                <label>Trip id <span class="wpd-req">*</span></label>
+                <input id="iss-group" class="mono" placeholder="RP247@2026-06-20" value="${esc(groupId)}" />
+                <div class="wpd-compose">
+                  <span class="hint">or compose:</span>
+                  <input id="iss-flight" class="wpd-compose-flight" placeholder="RP247" />
+                  <input id="iss-date" type="date" />
+                  <button data-act="compose" class="wpd-ghost">→ Trip id</button>
                 </div>
-                ${sharedFieldHtml(k)}
-              </div>`).join("")}
+              </div>
+              <div class="wpd-field">
+                <label>Pass expiry</label>
+                <input id="iss-expiry" placeholder="blank = arrival + 1 day" value="${esc(tripExpiry)}" />
+              </div>
+            </div>
           </div>
-        </section>` : "";
+        </section>`;
+
+    // Step 2 — shared fields grid (each with a "per passenger →" toggle)
+    const step2Done = step1Done && sharedKeys.length > 0
+      && sharedKeys.every(k => !errMsg(k, shared[k] ?? ""))
+      && sharedKeys.some(k => (shared[k] ?? "").trim());
+    const sharedStep = tpl && !tpl.error && sharedKeys.length
+      ? ((mobile && step2Done && !expandedSteps.has(2))
+        ? collapsedStep(2, "Shared", `<b>${esc(sharedSummary(sharedKeys))}</b>`)
+        : `
+        <section class="wpd-step">
+          <div class="wpd-step-eyebrow">02 — Shared across trip</div>
+          <div class="wpd-step-body">
+            <div class="wpd-shared-grid">
+              ${sharedKeys.map(k => `
+                <div class="wpd-shared-field">
+                  <div class="wpd-shared-top">
+                    <label title="${esc(k)}${descriptorFor(k).boundSemantic ? " · " + esc(descriptorFor(k).boundSemantic) : ""}">${esc(friendlyLabel(k))}${requiredMark(k)}</label>
+                    <button data-act="to-individual" data-key="${esc(k)}" class="wpd-ghost-mini" title="vary this per passenger">per&nbsp;passenger&nbsp;→</button>
+                  </div>
+                  ${sharedFieldHtml(k)}
+                </div>`).join("")}
+            </div>
+          </div>
+        </section>`)
+      : "";
 
     // Step 3 — passenger table; header columns line up with each row via colTemplate
     const tableHead = `
@@ -473,45 +551,27 @@ export function mountIssue(root, showManage) {
       <div class="wpd-view wpd-issue">
         <div class="wpd-view-head">
           <h1>Issue boarding passes</h1>
-          <p>Pick a boarding-pass template, name the trip, then add one row per passenger. Each row becomes a signed, installable <code>.pkpass</code>.</p>
+          <p>Template → trip → one row per passenger → signed <code>.pkpass</code></p>
         </div>
 
-        <section class="wpd-step">
-          <div class="wpd-step-head"><span class="wpd-step-num">1</span><span class="wpd-step-title">Template &amp; trip</span></div>
-          <div class="wpd-tpl-grid">${tplButtons || `<p class="hint">No templates installed.</p>`}</div>
-          ${tpl?.error ? `<p class="hint">✗ ${esc(tpl.error)}</p>` : (chips ? `<div class="wpd-chips">${chips}</div>` : "")}
-          <div class="wpd-grid2">
-            <div class="wpd-field">
-              <label>Trip id <span class="wpd-req">*</span></label>
-              <input id="iss-group" class="mono" placeholder="RP247@2026-06-20" value="${esc(groupId)}" />
-              <div class="wpd-compose">
-                <span class="hint">or compose:</span>
-                <input id="iss-flight" class="wpd-compose-flight" placeholder="RP247" />
-                <input id="iss-date" type="date" />
-                <button data-act="compose" class="wpd-ghost">→ Trip id</button>
-              </div>
-            </div>
-            <div class="wpd-field">
-              <label>Pass expiry</label>
-              <input id="iss-expiry" placeholder="blank = arrival + 1 day" value="${esc(tripExpiry)}" />
-            </div>
-          </div>
-        </section>
+        ${step1}
 
         ${sharedStep}
 
         <section class="wpd-step">
-          <div class="wpd-step-head"><span class="wpd-step-num">3</span><span class="wpd-step-title">Passengers</span><span class="wpd-pill">${rows.length}</span></div>
-          ${indKeys.length ? "" : `<p class="hint">All fields are shared — use <b>per&nbsp;passenger&nbsp;→</b> above to give a field its own column (otherwise every passenger is identical except the serial).</p>`}
-          <div class="wpd-ptable-scroll wpd-scroll">${tableHead}${rows.map(rowHtml).join("")}</div>
-          <div class="wpd-prow-add">
-            <button data-act="add" class="wpd-ghost">+ Add passenger</button>
-            <span class="hint">tip: toggle a shared field to “per passenger” to give it its own column</span>
+          <div class="wpd-step-eyebrow">03 — Passengers (${rows.length})</div>
+          <div class="wpd-step-body">
+            ${indKeys.length ? "" : `<p class="hint">All fields are shared — use <b>per&nbsp;passenger&nbsp;→</b> above to give a field its own column (otherwise every passenger is identical except the serial).</p>`}
+            <div class="wpd-ptable-scroll wpd-scroll">${tableHead}${rows.map(rowHtml).join("")}</div>
+            <div class="wpd-prow-add">
+              <button data-act="add" class="wpd-ghost">+ Add passenger</button>
+              <span class="hint">scan a BCBP barcode to autofill a row</span>
+            </div>
           </div>
         </section>
 
         <div class="wpd-issue-bar">
-          <button data-act="issue" class="wpd-issue-btn">Issue ${rows.length} pass(es)</button>
+          <button data-act="issue" class="wpd-issue-btn">Issue ${rows.length} ${rows.length === 1 ? "pass" : "passes"}</button>
           <span class="wpd-dot" id="iss-gate-dot"></span>
           <span class="wpd-issue-reason" id="iss-gate-reason"></span>
           <span class="mg-grp-status" id="iss-status"></span>
@@ -603,7 +663,10 @@ export function mountIssue(root, showManage) {
   function walletAffordance(serial, updated = false) {
     const url = `${location.origin}/api/passes/${encodeURIComponent(serial)}/pkpass`;
     const label = updated ? "↻ updated existing pass" : "✓ issued";
-    return `<canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas><span class="wpd-result-status">${label}</span>${appleWalletButton(url)}`;
+    return `<canvas class="iss-qr" data-qr="${esc(url)}" title="Scan with the iPhone"></canvas>` +
+      `<span class="wpd-result-status">${label}</span>${appleWalletButton(url)}` +
+      `<button data-act="copy-link" data-url="${esc(url)}" class="wpd-link">Copy link</button>` +
+      `<a class="wpd-link" href="${esc(url)}" download>Download .pkpass</a>`;
   }
 
   // bwip-js is only needed to draw the result QR codes after passes are issued,
@@ -729,6 +792,17 @@ export function mountIssue(root, showManage) {
       render();
       return;
     }
+    if (act === "step-edit") {
+      syncFromInputs();
+      expandedSteps = new Set(expandedSteps).add(Number(e.target.dataset.step));
+      render();
+      return;
+    }
+    if (act === "copy-link") {
+      navigator.clipboard?.writeText(e.target.dataset.url);
+      e.target.textContent = "Copied ✓";
+      return;
+    }
     if (act === "issue") return issueAll();
     if (act === "manage") return showManage?.();
     if (act === "tpl-upload") return uploadTemplate();
@@ -847,6 +921,15 @@ export function mountIssue(root, showManage) {
       bindingDrafts = { ...bindingDrafts, [tpl]: draft };
       if (!e.target.value) { syncFromInputs(); render(); }   // row disappears → re-render
     }
+  }, { signal });
+
+  // Crossing the 760px breakpoint swaps completed steps between full and
+  // collapsed layouts, so a resize needs a re-render (values synced first).
+  const mql = typeof window.matchMedia === "function" ? window.matchMedia("(max-width: 760px)") : null;
+  mql?.addEventListener?.("change", () => {
+    if (!templates.length) return;
+    syncFromInputs();
+    render();
   }, { signal });
 
   load();
