@@ -633,7 +633,7 @@ export function mountIssue(root, showManage) {
       <div class="wpd-prow-head" style="${colTemplate(indKeys.length)}">
         <span class="wpd-prow-num">#</span>
         ${indKeys.map(k => `<span class="wpd-col-head"><code title="${esc(friendlyLabel(k))}${fieldHintFor(k) ? " — " + esc(fieldHintFor(k)) : ""}">${esc(k)}${requiredMark(k)}</code><button data-act="to-shared" data-key="${esc(k)}" class="wpd-col-share" title="make this shared for the whole trip">share</button></span>`).join("")}
-        <span class="wpd-col-head">Serial</span>
+        <span class="wpd-col-head">serial</span>
         <span></span>
       </div>`;
 
