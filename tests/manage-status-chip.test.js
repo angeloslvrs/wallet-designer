@@ -2,10 +2,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountManage } from "../apps/designer/src/manage.js";
 
-// The Manage view shows a single status vocabulary as colored chips
-// (On Time / Boarding / Delayed / Cancelled / Diverted), derived from each
+// The Manage view shows a single status vocabulary as marker chips — an 8px
+// colored square (via the .mg-chip--<slug> modifier) + uppercase text — for
+// On Time / Boarding / Delayed / Cancelled / Diverted, derived from each
 // pass's transitStatus (surfaced by GET /api/passes as `status`), and updates
-// them optimistically after a push.
+// them optimistically after a push. The DOM contract is the .mg-chip element
+// with its status-slug modifier class and the status as textContent; the
+// Manifest reskin draws the marker square from the modifier class in CSS.
 const flush = () => new Promise(r => setTimeout(r, 0));
 const ev = (el, type) => el.dispatchEvent(new Event(type, { bubbles: true }));
 
