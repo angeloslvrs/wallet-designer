@@ -178,6 +178,26 @@ label { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 700; lett
 .iss-row-tools { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 6px; }
 .iss-sem-wrap { margin: 6px 0 4px; }
 
+/* ===== Saved passengers: chips strip + manager island ===== */
+.wpd-roster { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.wpd-roster-label { font-family: var(--wpd-mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); }
+.wpd-roster-chip { border: 1px solid var(--wpd-rule); background: #fff; color: var(--wpd-ink); font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+.wpd-roster-chip:hover, .wpd-roster-chip.is-used { background: var(--wpd-ink); color: #fff; }
+.wpd-roster-hint { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-faint); margin-left: auto; }
+.wpd-roster-state { font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--wpd-ok); white-space: nowrap; }
+.wpd-roster-manager { background: var(--wpd-card); border: 1px solid var(--wpd-rule); padding: 14px 16px; margin-bottom: 14px; }
+.wpd-roster-mhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.wpd-roster-mtitle { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.wpd-roster-mnote { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-faint); flex: 1; min-width: 200px; }
+.wpd-roster-thead, .wpd-roster-row { display: grid; grid-template-columns: 120px 1.4fr 1fr 1fr auto; gap: 12px; align-items: center; }
+.wpd-roster-thead { font-family: var(--wpd-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); padding-bottom: 6px; border-bottom: 1px solid var(--wpd-rule); }
+.wpd-roster-row { padding: 9px 0; border-bottom: 1px solid var(--wpd-rule-soft); }
+.wpd-roster-row:last-child { border-bottom: none; }
+.wpd-roster-row b { font-size: 12.5px; }
+.wpd-roster-cell { cursor: text; min-height: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wpd-roster-cell.mono { font-family: var(--wpd-mono); font-size: 11px; }
+.wpd-roster-cell input { padding: 4px 6px; font-size: 12px; }
+
 /* ===== Sticky issue bar: full-width strip, top rule, no shadow ===== */
 .wpd-issue-bar {
   position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
@@ -425,6 +445,11 @@ main[hidden], #manage-pane[hidden], #issue-pane[hidden] { display: none !importa
   .wpd-issue-bar { position: sticky; bottom: 0; margin: 0 -16px; padding: 12px 16px; }
   .wpd-issue-btn { flex: 1; min-height: 48px; }
   .wpd-drawers { padding-bottom: 24px; }
+
+  /* roster manager → stacked rows; chips already wrap */
+  .wpd-roster-thead { display: none; }
+  .wpd-roster-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+  .wpd-roster-hint { display: none; }
 
   /* manage table → stacked rows */
   .mg-thead { display: none; }

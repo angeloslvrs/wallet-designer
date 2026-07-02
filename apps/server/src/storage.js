@@ -66,6 +66,13 @@ function open() {
       bindings_json TEXT NOT NULL,
       updated_at    TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS roster (
+      id             TEXT PRIMARY KEY,
+      label          TEXT,
+      semantics_json TEXT NOT NULL,
+      prefs_json     TEXT,
+      updated_at     TEXT NOT NULL
+    );
   `);
   ensureUpdateTagColumn();
   importLegacyJson();
@@ -449,6 +456,60 @@ export async function logFromDevice(entries) {
   db.prepare(`
     DELETE FROM device_log WHERE id NOT IN (SELECT id FROM device_log ORDER BY id DESC LIMIT ?)
   `).run(LOG_LIMIT);
+}
+
+// ---- Saved passengers ("roster") ------------------------------------------
+// Entries are keyed by SEMANTIC key (Apple's vocabulary), never by a template's
+// field keys, so one saved passenger works across every installed template —
+// the client resolves semantics → field keys through the selected template's
+// bindings at load time.
+
+/** Row → {id, label?, semantics, prefs?, updatedAt} (absent keys stay absent). */
+function rowToRosterEntry(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    ...(row.label ? { label: row.label } : {}),
+    semantics: JSON.parse(row.semantics_json),
+    ...(row.prefs_json != null ? { prefs: JSON.parse(row.prefs_json) } : {}),
+    updatedAt: row.updated_at
+  };
+}
+
+/** All saved passengers, in insertion order. */
+export async function listRoster() {
+  return open().prepare("SELECT * FROM roster ORDER BY rowid").all().map(rowToRosterEntry);
+}
+
+/**
+ * Upsert a saved passenger. A missing id creates a new entry (id generated
+ * server-side); an existing id replaces that entry's label/semantics/prefs.
+ * @returns {Promise<{id: string, label?: string, semantics: object, prefs?: object, updatedAt: string}>}
+ */
+export async function saveRosterEntry({ id, label, semantics, prefs } = {}) {
+  open();
+  const entryId = (id ?? "").trim() || `p_${randomBytes(6).toString("hex")}`;
+  db.prepare(`
+    INSERT INTO roster (id, label, semantics_json, prefs_json, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      label          = excluded.label,
+      semantics_json = excluded.semantics_json,
+      prefs_json     = excluded.prefs_json,
+      updated_at     = excluded.updated_at
+  `).run(
+    entryId,
+    (label ?? "").trim() || null,
+    JSON.stringify(semantics ?? {}),
+    prefs !== undefined && prefs !== null ? JSON.stringify(prefs) : null,
+    new Date().toISOString()
+  );
+  return rowToRosterEntry(db.prepare("SELECT * FROM roster WHERE id = ?").get(entryId));
+}
+
+/** Delete a saved passenger. Returns false when the id is unknown. */
+export async function deleteRosterEntry(id) {
+  return open().prepare("DELETE FROM roster WHERE id = ?").run(id).changes > 0;
 }
 
 /** Whole-store view in the legacy JSON shape: {passes, registrations, log}. */

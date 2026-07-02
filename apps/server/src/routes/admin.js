@@ -9,7 +9,8 @@ import {
 } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
-  devicesFor, unregisterDevice, snapshot, passesInGroup, deletePass, deleteGroup
+  devicesFor, unregisterDevice, snapshot, passesInGroup, deletePass, deleteGroup,
+  listRoster, saveRosterEntry, deleteRosterEntry
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 import {
@@ -394,6 +395,52 @@ adminRouter.get("/log", async (req, res) => {
   const snap = await snapshot();
   const limit = Math.min(Number(req.query.limit) || 50, 500);
   res.json(snap.log.slice(-limit).reverse());
+});
+
+// ---- Saved passengers ("roster") — control-plane, like everything here. ----
+// Entries are semantic-keyed so they work across templates; the designer maps
+// semantics → field keys through the selected template's bindings on load.
+
+/**
+ * Validate a roster upsert body. Returns an error message or null.
+ * Semantics values must be plain strings (the portable, cross-template core);
+ * label/prefs are optional presentation extras.
+ */
+export function validateRosterBody(body) {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return "body must be an object";
+  const { id, label, semantics, prefs } = body;
+  if (id !== undefined && (typeof id !== "string" || !id.trim())) return "id must be a non-empty string";
+  if (label !== undefined && label !== null && typeof label !== "string") return "label must be a string";
+  if (semantics === null || typeof semantics !== "object" || Array.isArray(semantics)) return "semantics must be an object of semanticKey → value";
+  const keys = Object.keys(semantics);
+  if (!keys.length) return "semantics must not be empty";
+  for (const k of keys) {
+    if (typeof semantics[k] !== "string" || !semantics[k].trim()) return `semantics.${k} must be a non-empty string`;
+  }
+  if (prefs !== undefined && (prefs === null || typeof prefs !== "object" || Array.isArray(prefs))) return "prefs must be an object";
+  return null;
+}
+
+// GET /api/roster  →  every saved passenger
+adminRouter.get("/roster", async (_req, res) => {
+  res.json(await listRoster());
+});
+
+// POST /api/roster  →  upsert one saved passenger (no id = create)
+adminRouter.post("/roster", async (req, res) => {
+  const invalid = validateRosterBody(req.body ?? {});
+  if (invalid) return res.status(400).json({ error: invalid });
+  const { id, label, semantics, prefs } = req.body;
+  const created = !(id && (await listRoster()).some(en => en.id === id));
+  const entry = await saveRosterEntry({ id, label, semantics, prefs });
+  res.status(created ? 201 : 200).json(entry);
+});
+
+// DELETE /api/roster/:id  →  remove one saved passenger
+adminRouter.delete("/roster/:id", async (req, res) => {
+  const ok = await deleteRosterEntry(req.params.id);
+  if (!ok) return res.status(404).json({ error: "not found" });
+  res.json({ ok: true });
 });
 
 // GET /api/passes/:serial

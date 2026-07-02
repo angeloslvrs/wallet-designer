@@ -105,6 +105,40 @@ export function mergeTripValues(sharedValues = {}, rowValues = {}, individualKey
   return out;
 }
 
+/**
+ * Map a saved passenger's semantic values onto a template's field keys through
+ * its semanticKey → {fieldKey} bindings. Semantics with no bound field are
+ * dropped — the same polarity as skippedFields at push time (roster entries
+ * are stored by Apple's semantic vocabulary, never a template's field keys).
+ * @returns {Record<string,string>} fieldKey → value for a new passenger row
+ */
+export function rosterEntryToRowValues(entry, bindings) {
+  const values = {};
+  for (const [sem, v] of Object.entries(entry?.semantics ?? {})) {
+    const fk = bindings?.[sem]?.fieldKey;
+    if (fk && typeof v === "string" && v.trim()) values[fk] = v;
+  }
+  return values;
+}
+
+/**
+ * Harvest a passenger row's field values into portable semantics by inverting
+ * the template's bindings (fieldKey → semanticKey). Unbound field keys and
+ * empty values are dropped — semantics are the cross-template core.
+ * @returns {Record<string,string>} semanticKey → value
+ */
+export function rowValuesToSemantics(values, bindings) {
+  const semByField = {};
+  for (const [sem, b] of Object.entries(bindings ?? {})) if (b?.fieldKey) semByField[b.fieldKey] = sem;
+  const out = {};
+  for (const [fk, raw] of Object.entries(values ?? {})) {
+    const sem = semByField[fk];
+    const v = typeof raw === "string" ? raw.trim() : "";
+    if (sem && v) out[sem] = v;
+  }
+  return out;
+}
+
 export function mountIssue(root, showManage) {
   // Re-mounted on every tab visit — drop the previous mount's listeners or
   // one click would fire issueAll() once per visit (duplicate POSTs).
@@ -131,6 +165,12 @@ export function mountIssue(root, showManage) {
   let tripExpiry = "";   // optional ISO-8601 expiry override — blank = server derives arrival + 1
   // Mobile: completed steps collapse to "✓ 01 — …" rows; [edit] re-expands one.
   let expandedSteps = new Set();
+  // Saved passengers (GET /api/roster) — semantic-keyed entries that prefill a
+  // row via the selected template's bindings. usedChips marks entries already
+  // tapped this session (chip flips black + ✓); rosterOpen toggles the manager.
+  let roster = [];
+  let rosterOpen = false;
+  let usedChips = new Set();
 
   const $ = (sel) => root.querySelector(sel);
   const current = () => templates.find(t => t.id === selected);
@@ -341,6 +381,9 @@ export function mountIssue(root, showManage) {
             <span class="field-err" data-err-serial="${i}"></span>
           </div>
           <div class="wpd-prow-acts">
+            ${r.rosterState === "saved" ? `<span class="wpd-roster-state" data-roster-slot="${i}">Saved ✓</span>`
+              : r.rosterState === "loaded" ? `<span class="wpd-roster-state" data-roster-slot="${i}">Loaded ✓</span>`
+                : `<button data-act="row-save" data-i="${i}" class="wpd-link" data-roster-slot="${i}" title="save this passenger for next time">save</button>`}
             <button data-act="rm" data-i="${i}" ${rows.length === 1 ? "disabled" : ""} class="wpd-prow-rm" title="remove passenger">×</button>
           </div>
         </div>
@@ -405,6 +448,53 @@ export function mountIssue(root, showManage) {
         <summary class="wpd-drawer-summary">Advanced — semantic bindings</summary>
         <div class="wpd-drawer-body">${body}</div>
       </details>`;
+  }
+
+  // Saved-passenger chips strip at the top of step 3: tap a chip → append a
+  // prefilled row. Overflow past ~8 caps at one row + an "ALL (n)…" chip that
+  // opens the manager.
+  const ROSTER_CHIP_CAP = 8;
+  function rosterStrip() {
+    if (!roster.length) return rosterOpen ? rosterManager() : "";
+    const overflow = roster.length > ROSTER_CHIP_CAP;
+    const shown = overflow ? roster.slice(0, ROSTER_CHIP_CAP) : roster;
+    const chips = shown.map(en => {
+      const name = en.semantics?.passengerName ?? "?";
+      const used = usedChips.has(en.id);
+      return `<button data-act="roster-add" data-id="${esc(en.id)}" class="wpd-roster-chip${used ? " is-used" : ""}" title="adds a prefilled passenger row">${esc(en.label ? `${en.label} — ${name}` : name)}${used ? " ✓" : ""}</button>`;
+    }).join("");
+    return `
+      <div class="wpd-roster">
+        <span class="wpd-roster-label">Saved:</span>
+        ${chips}
+        ${overflow ? `<button data-act="roster-manage" class="wpd-roster-chip">All (${roster.length})…</button>` : ""}
+        <button data-act="roster-manage" class="wpd-link">Manage saved (${roster.length})</button>
+        <span class="wpd-roster-hint">tap a chip → adds a prefilled row</span>
+      </div>
+      ${rosterOpen ? rosterManager() : ""}`;
+  }
+
+  // Manager island (no modal): LABEL / NAME / SEAT PREF / FREQ. FLYER / Delete,
+  // click-to-edit inline on each cell.
+  function rosterManager() {
+    const rowsHtml = roster.map(en => `
+      <div class="wpd-roster-row" data-roster-id="${esc(en.id)}">
+        <span class="wpd-roster-cell" data-roster-edit="label" data-id="${esc(en.id)}" title="click to edit">${esc(en.label ?? "—")}</span>
+        <b class="wpd-roster-cell" data-roster-edit="name" data-id="${esc(en.id)}" title="click to edit">${esc(en.semantics?.passengerName ?? "—")}</b>
+        <span class="wpd-roster-cell" data-roster-edit="seat" data-id="${esc(en.id)}" title="click to edit">${esc(en.prefs?.seat ?? "—")}</span>
+        <span class="wpd-roster-cell mono" data-roster-edit="ff" data-id="${esc(en.id)}" title="click to edit">${esc(en.semantics?.membershipProgramNumber ?? "—")}</span>
+        <button data-act="roster-del" data-id="${esc(en.id)}" class="wpd-link danger">Delete</button>
+      </div>`).join("");
+    return `
+      <div class="wpd-roster-manager">
+        <div class="wpd-roster-mhead">
+          <span class="wpd-roster-mtitle">Saved passengers</span>
+          <span class="wpd-roster-mnote">stored on the server, keyed by semantics — they work across templates</span>
+          <button data-act="roster-manage" class="wpd-link">close</button>
+        </div>
+        <div class="wpd-roster-thead"><span>Label</span><span>Name</span><span>Seat pref</span><span>Freq. flyer</span><span></span></div>
+        ${rowsHtml || `<p class="hint">Nothing saved yet — use a row’s “save” action.</p>`}
+      </div>`;
   }
 
   // "Template manager" drawer: installed .pkpasstemplate bundles + upload.
@@ -561,11 +651,12 @@ export function mountIssue(root, showManage) {
         <section class="wpd-step">
           <div class="wpd-step-eyebrow">03 — Passengers (${rows.length})</div>
           <div class="wpd-step-body">
+            ${rosterStrip()}
             ${indKeys.length ? "" : `<p class="hint">All fields are shared — use <b>per&nbsp;passenger&nbsp;→</b> above to give a field its own column (otherwise every passenger is identical except the serial).</p>`}
             <div class="wpd-ptable-scroll wpd-scroll">${tableHead}${rows.map(rowHtml).join("")}</div>
             <div class="wpd-prow-add">
               <button data-act="add" class="wpd-ghost">+ Add passenger</button>
-              <span class="hint">scan a BCBP barcode to autofill a row</span>
+              <span class="hint">“save” keeps a row for next time — it shows up as a chip above</span>
             </div>
           </div>
         </section>
@@ -734,12 +825,18 @@ export function mountIssue(root, showManage) {
       const passes = await fetch("/api/passes").then(r => r.json());
       existingSerials = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
     } catch { existingSerials = new Set(); }
+    // Saved passengers for the chips strip + manager.
+    try {
+      const r = await fetch("/api/roster").then(r => r.json());
+      roster = Array.isArray(r) ? r : [];
+    } catch { roster = []; }
     selected ??= (templates.find(t => !t.error) ?? templates[0]).id;
     reSuggestSerials();
     render();
   }
 
   root.addEventListener("click", (e) => {
+    if (e.target?.dataset?.rosterEdit) return beginRosterEdit(e.target);
     const act = e.target?.dataset?.act;
     if (!act) return;
     if (act === "sel-tpl") {
@@ -798,6 +895,24 @@ export function mountIssue(root, showManage) {
       render();
       return;
     }
+    if (act === "roster-add") {
+      const entry = roster.find(en => en.id === e.target.dataset.id);
+      if (!entry) return;
+      syncFromInputs();
+      rows = [...rows, {
+        values: rosterEntryToRowValues(entry, current()?.bindings),
+        serial: suggestSerial(groupId, rows.length + 1),
+        serialEdited: false,
+        semantics: { ...baseSemantics },
+        rosterState: "loaded"
+      }];
+      usedChips = new Set(usedChips).add(entry.id);
+      render();
+      return;
+    }
+    if (act === "roster-manage") { syncFromInputs(); rosterOpen = !rosterOpen; render(); return; }
+    if (act === "roster-del") return deleteRosterEntry(e.target.dataset.id);
+    if (act === "row-save") return saveRowToRoster(Number(e.target.dataset.i));
     if (act === "copy-link") {
       navigator.clipboard?.writeText(e.target.dataset.url);
       e.target.textContent = "Copied ✓";
@@ -874,6 +989,110 @@ export function mountIssue(root, showManage) {
     if (el) el.textContent = `✓ deleted "${id}"`;
   }
 
+  // ---- Saved passengers ----------------------------------------------------
+
+  /** POST an upsert, refresh the local roster list, and re-render. */
+  async function upsertRoster(body) {
+    let r, j;
+    try {
+      r = await fetch("/api/roster", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      j = await r.json().catch(() => ({}));
+    } catch { alert("API offline — passenger not saved"); return null; }
+    if (!r.ok) { alert(`Could not save passenger: ${j.error ?? r.status}`); return null; }
+    const i = roster.findIndex(en => en.id === j.id);
+    roster = i >= 0 ? roster.map(en => (en.id === j.id ? j : en)) : [...roster, j];
+    return j;
+  }
+
+  // "save" on a row: harvest its per-passenger values into semantics through
+  // the template's bindings, prompt for an optional label, and upsert. A name
+  // that already exists offers Update / Save as new.
+  async function saveRowToRoster(i) {
+    syncFromInputs();
+    const row = rows[i];
+    if (!row) return;
+    const perPassenger = Object.fromEntries(Object.entries(row.values ?? {}).filter(([k]) => individualKeys.has(k)));
+    const semantics = rowValuesToSemantics(perPassenger, current()?.bindings);
+    if (!Object.keys(semantics).length) {
+      alert("Nothing to save — this row's fields aren't bound to semantics yet (see Advanced — semantic bindings).");
+      return;
+    }
+    const name = (semantics.passengerName ?? "").trim();
+    const existing = name
+      ? roster.find(en => (en.semantics?.passengerName ?? "").trim().toUpperCase() === name.toUpperCase())
+      : null;
+    const label = prompt("Label for this saved passenger (optional, e.g. DAD):", existing?.label ?? "");
+    if (label === null) return;   // cancelled
+    let id;
+    if (existing) {
+      // Duplicate guard: same passenger name already saved → Update or Save as new.
+      id = confirm(`"${name}" is already saved${existing.label ? ` as ${existing.label}` : ""}.\n\nOK — update that entry · Cancel — save as a new entry`)
+        ? existing.id : undefined;
+    }
+    const saved = await upsertRoster({
+      ...(id ? { id, ...(existing?.prefs ? { prefs: existing.prefs } : {}) } : {}),
+      ...(label.trim() ? { label: label.trim() } : {}),
+      semantics
+    });
+    if (!saved) return;
+    rows = rows.map((r, n) => (n === i ? { ...r, rosterState: "saved" } : r));
+    render();
+  }
+
+  async function deleteRosterEntry(id) {
+    const entry = roster.find(en => en.id === id);
+    if (!confirm(`Delete saved passenger ${entry?.label ?? entry?.semantics?.passengerName ?? id}?`)) return;
+    let r;
+    try { r = await fetch(`/api/roster/${encodeURIComponent(id)}`, { method: "DELETE" }); }
+    catch { alert("API offline"); return; }
+    if (!r.ok && r.status !== 404) { alert(`Could not delete (${r.status})`); return; }
+    roster = roster.filter(en => en.id !== id);
+    syncFromInputs();
+    render();
+  }
+
+  // Click-to-edit a manager cell: swap the text for an input; Enter/blur saves.
+  function beginRosterEdit(cell) {
+    if (cell.querySelector("input")) return;
+    const { rosterEdit: field, id } = cell.dataset;
+    const entry = roster.find(en => en.id === id);
+    if (!entry) return;
+    const currentValue = field === "label" ? entry.label ?? ""
+      : field === "name" ? entry.semantics?.passengerName ?? ""
+        : field === "seat" ? entry.prefs?.seat ?? ""
+          : entry.semantics?.membershipProgramNumber ?? "";
+    const input = document.createElement("input");
+    input.value = currentValue;
+    cell.replaceChildren(input);
+    input.focus();
+    let done = false;
+    const commit = async () => {
+      if (done) return;
+      done = true;
+      const v = input.value.trim();
+      const next = {
+        id: entry.id,
+        ...(entry.label ? { label: entry.label } : {}),
+        semantics: { ...entry.semantics },
+        ...(entry.prefs ? { prefs: { ...entry.prefs } } : {})
+      };
+      if (field === "label") { if (v) next.label = v; else delete next.label; }
+      if (field === "name") { if (v) next.semantics.passengerName = v; else delete next.semantics.passengerName; }
+      if (field === "seat") { next.prefs = { ...(next.prefs ?? {}) }; if (v) next.prefs.seat = v; else delete next.prefs.seat; }
+      if (field === "ff") { if (v) next.semantics.membershipProgramNumber = v; else delete next.semantics.membershipProgramNumber; }
+      if (!Object.keys(next.semantics).length) { alert("A saved passenger needs at least one semantic value (e.g. the name)."); render(); return; }
+      await upsertRoster(next);
+      render();
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); input.blur(); }
+      if (ev.key === "Escape") { done = true; render(); }
+    });
+  }
+
   root.addEventListener("input", (e) => {
     if (e.target.id === "iss-group") {
       groupId = e.target.value;
@@ -902,6 +1121,26 @@ export function mountIssue(root, showManage) {
       }
       liveClearError(inp);
       refreshGate();
+    }
+    // Editing a loaded/saved row's per-passenger values reverts its Loaded ✓ /
+    // Saved ✓ marker to "save" (so the edit can be saved as new or an update).
+    // The action cell is swapped in place — a full render would steal focus.
+    if (e.target.matches(".iss-row input[data-key]")) {
+      const i = Number(e.target.closest(".iss-row").dataset.i);
+      if (rows[i]?.rosterState) {
+        rows = rows.map((r, n) => (n === i ? { ...r, rosterState: null } : r));
+        const slot = root.querySelector(`[data-roster-slot="${i}"]`);
+        if (slot) {
+          const btn = document.createElement("button");
+          btn.dataset.act = "row-save";
+          btn.dataset.i = String(i);
+          btn.className = "wpd-link";
+          btn.title = "save this passenger for next time";
+          btn.textContent = "save";
+          btn.dataset.rosterSlot = String(i);
+          slot.replaceWith(btn);
+        }
+      }
     }
   }, { signal });
 
