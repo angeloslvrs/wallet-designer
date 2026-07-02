@@ -230,6 +230,44 @@ reinterpret via the `timezone` field. Test artifacts left on the box: PAL is set
 to PR2129 (Manila early-AM demo), template `classic-ab` + pass `CLASSIC-AB-1`.
 See memory `ios26-semantic-pass-no-banner`.
 
+## 2026-07-02 session — "Manifest" UI overhaul + saved passengers (main, CI-bound)
+
+Implemented the committed **Manifest** reskin from `design_handoff_manifest_ui/`
+(spec: `manifest-port-spec.md` — swiss utilitarian: Helvetica + JetBrains Mono,
+`#111` on `#F6F6F3` paper, hairline rules, radius 0, color only in status
+markers/validation/pass preview). Seven commits, one per handoff step
+(tokens → masthead → components → badge → roster → tests → verify fixes).
+All three views + `<760px` mobile match the committed mocks (4a/4b/1c/2c/2d/3b);
+392 tests green; `preview/wallet/*`, build/sign pipeline, and wallet routes
+untouched.
+
+Two functional additions beyond the reskin:
+
+- **Official Apple Wallet badge** — the hand-drawn lockup (a guidelines
+  violation) is replaced everywhere (Issue results, Manage rows, Design build
+  flow) by Apple's US/UK RGB SVG, committed verbatim at
+  `apps/designer/src/assets/add-to-apple-wallet/en.svg` (source: the
+  agreement-gated zip at `developer.apple.com/file/?file=wallet&agree=Yes`,
+  needs a browser UA). Rendered via `<img>` at uniform 40px; hidden — never
+  dimmed — when unavailable. `.gitignore`'s `assets/` rule was anchored to
+  `/assets/` so the badge could be committed.
+- **Saved passengers ("roster")** — server-side, semantic-keyed store so
+  entries work across templates: SQLite `roster` table in `storage.js`,
+  control-plane routes `GET/POST /api/roster` + `DELETE /api/roster/:id`
+  (validated in `routes/admin.js: validateRosterBody`). Issue view: `SAVED:`
+  chips atop step 3 (tap → prefilled row through the selected template's
+  bindings, drop-unbound polarity), per-row `save` with duplicate-name
+  Update/Save-as-new guard, `Loaded ✓`/`Saved ✓` states reverting on edit,
+  click-to-edit manager island. Mapping helpers `rosterEntryToRowValues` /
+  `rowValuesToSemantics` are exported from `issue.js` and covered by
+  `tests/roster.test.js`.
+
+Gotchas discovered: the dev box `.env` here has `CERT_PROFILE=prod` without
+`WEB_SERVICE_URL`, so `npm run dev` fails env validation — run
+`CERT_PROFILE=dev npm run dev` locally. Local demo roster entries
+(DAD/MOM/REYES + one test save) were seeded into `state/passes.sqlite`
+(gitignored) — delete via the Issue view's manager if unwanted.
+
 ## Start here (next session)
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
