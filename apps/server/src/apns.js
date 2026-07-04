@@ -22,25 +22,65 @@ import { env } from "./env.js";
 
 const APNS_HOST = process.env.APNS_HOST ?? "api.push.apple.com";
 const PING_TIMEOUT_MS = 3000;
+const STREAM_TIMEOUT_MS = 10000; // per-push watchdog: never let one stalled stream hang deliver()
 const EXPIRATION_WINDOW_S = 24 * 60 * 60; // store-and-forward for a day if offline
+
+// Injection seams — test-only. Production always uses the real modules/env.
+let http2Impl = http2;
+let readFileImpl = readFile;
+let profileOverride = null;
+let streamTimeoutMs = STREAM_TIMEOUT_MS;
+
+const activeProfile = () => profileOverride ?? env.profile;
+
+/** @internal test-only: swap the http2/readFile impls, cert profile, or stream timeout. */
+export function _setTestHooks(overrides = {}) {
+  if ("http2" in overrides) http2Impl = overrides.http2 ?? http2;
+  if ("readFile" in overrides) readFileImpl = overrides.readFile ?? readFile;
+  if ("profile" in overrides) profileOverride = overrides.profile ?? null;
+  if ("streamTimeoutMs" in overrides) streamTimeoutMs = overrides.streamTimeoutMs ?? STREAM_TIMEOUT_MS;
+}
+
+/** @internal test-only: restore real impls and clear cached connection state. */
+export function _resetTestHooks() {
+  http2Impl = http2;
+  readFileImpl = readFile;
+  profileOverride = null;
+  streamTimeoutMs = STREAM_TIMEOUT_MS;
+  clientPromise = null;
+}
 
 let clientPromise = null;
 
 function connect() {
-  return (async () => {
-    const [cert, key] = await Promise.all([
-      readFile(join(env.certDir, "signerCert.pem")),
-      readFile(join(env.certDir, "signerKey.pem"))
-    ]);
-    const session = http2.connect(`https://${APNS_HOST}:443`, { cert, key, passphrase: env.passphrase });
-    session.on("error", err => { console.error("APNs session error:", err.message); clientPromise = null; });
-    session.on("close", () => { clientPromise = null; });
-    return session;
+  let myPromise;
+  // The close/error handlers must only clear the cache if THIS connection is
+  // still the cached one. An orphaned session (replaced by forceNewClient /
+  // getLiveClient) fires its close/error late — without this identity guard it
+  // would null out the live `clientPromise` and kill a healthy connection.
+  const ownsCache = () => clientPromise === myPromise;
+  myPromise = (async () => {
+    try {
+      const [cert, key] = await Promise.all([
+        readFileImpl(join(env.certDir, "signerCert.pem")),
+        readFileImpl(join(env.certDir, "signerKey.pem"))
+      ]);
+      const session = http2Impl.connect(`https://${APNS_HOST}:443`, { cert, key, passphrase: env.passphrase });
+      session.on("error", err => { console.error("APNs session error:", err.message); if (ownsCache()) clientPromise = null; });
+      session.on("close", () => { if (ownsCache()) clientPromise = null; });
+      return session;
+    } catch (err) {
+      // Don't cache a rejected connect — otherwise every future push reuses the
+      // rejected promise and push is dead until process restart.
+      if (ownsCache()) clientPromise = null;
+      throw err;
+    }
   })();
+  return myPromise;
 }
 
 async function getClient() {
-  if (env.profile !== "prod") return null;
+  if (activeProfile() !== "prod") return null;
   if (!clientPromise) clientPromise = connect();
   return clientPromise;
 }
@@ -57,6 +97,9 @@ function pingOk(session) {
   });
 }
 
+// Exported for lifecycle unit tests; production callers reach these via pushUpdates.
+export { getClient, getLiveClient, forceNewClient };
+
 /** A live session, reconnecting if the cached one is destroyed or unresponsive. */
 async function getLiveClient() {
   let session = await getClient();
@@ -71,8 +114,19 @@ async function getLiveClient() {
 
 /** Force a brand-new session — used to retry once after a transport failure. */
 async function forceNewClient() {
+  const old = clientPromise;
   clientPromise = null;
-  return getClient();
+  const fresh = getClient(); // synchronously installs the new clientPromise
+  if (old) {
+    // Destroy the previous session so the socket doesn't leak. Its close/error
+    // handlers fire late but the identity guard in connect() keeps them from
+    // clobbering `fresh` (clientPromise is already the new promise by now).
+    Promise.resolve(old).then(
+      s => { try { s?.destroy(); } catch { /* already gone */ } },
+      () => { /* old connect never resolved — nothing to destroy */ }
+    );
+  }
+  return fresh;
 }
 
 /** Send one empty background push; resolve with a classified result (never rejects). */
@@ -90,12 +144,23 @@ function sendOne(session, device, { passTypeId, collapseId }) {
     let req;
     try { req = session.request(headers); }
     catch (err) { return resolve({ device, transportError: err.message }); }
-    let status = 0, body = "";
+    let status = 0, body = "", settled = false;
+    // Settle exactly once and always clear the watchdog, so a late close/error
+    // after a timeout (or vice-versa) can't double-resolve or leak the timer.
+    const finish = (result) => { if (settled) return; settled = true; clearTimeout(timer); resolve(result); };
+    // Watchdog: a stalled stream that never emits response/end/error would leave
+    // this promise pending forever and hang the Promise.all in deliver().
+    const timer = setTimeout(() => {
+      try { req.close?.(); } catch { /* already gone */ }
+      try { req.destroy?.(); } catch { /* already gone */ }
+      finish({ device, transportError: `stream timeout after ${streamTimeoutMs}ms` });
+    }, streamTimeoutMs);
+    timer.unref?.();
     req.setEncoding?.("utf8");
     req.on("response", h => { status = h[":status"]; });
     req.on("data", c => { body += c; });
-    req.on("end", () => resolve({ device, status, body }));
-    req.on("error", err => resolve({ device, transportError: err.message }));
+    req.on("end", () => finish({ device, status, body }));
+    req.on("error", err => finish({ device, transportError: err.message }));
     req.end("{}");
   });
 }
@@ -159,7 +224,7 @@ export async function deliver({ getSession, reconnect, passTypeId, devices, coll
  *                    unregistered: Array<{deviceLibraryIdentifier: string, pushToken: string}>}>}
  */
 export async function pushUpdates({ passTypeId, devices, collapseId }) {
-  if (env.profile !== "prod") {
+  if (activeProfile() !== "prod") {
     for (const d of devices) {
       console.log(`[apns:dev-log] topic=${passTypeId} → device=${d.deviceLibraryIdentifier} token=${d.pushToken.slice(0, 12)}…`);
     }
