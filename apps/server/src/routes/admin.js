@@ -19,6 +19,7 @@ import {
 } from "../template-status.js";
 import { bindingsForTemplate } from "../template-bindings.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
+import { asyncHandler } from "../util/async-handler.js";
 
 export const adminRouter = Router();
 
@@ -236,13 +237,13 @@ export async function registerPass(body = {}) {
 // POST /api/passes  →  registers a "live" pass. Two body shapes:
 //   full FormState                                  (designer flow)
 //   { template, serialNumber, data, groupId }       (template flow)
-adminRouter.post("/passes", async (req, res) => {
+adminRouter.post("/passes", asyncHandler(async (req, res) => {
   try {
     res.status(201).json(await registerPass(req.body));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+}));
 
 // Display readouts for the passes list. FormState rows migrate on the fly so a
 // pre-Phase-3 row (old shape) and a new-shape row both resolve to semantics.
@@ -266,7 +267,7 @@ export const statusOf = (rec) => {
 };
 
 // GET /api/passes  →  all issued passes, with their group + device count
-adminRouter.get("/passes", async (_req, res) => {
+adminRouter.get("/passes", asyncHandler(async (_req, res) => {
   const snap = await snapshot();
   res.json(Object.entries(snap.passes).map(([serial, rec]) => ({
     serial,
@@ -279,7 +280,7 @@ adminRouter.get("/passes", async (_req, res) => {
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     ...(rec.template && { template: rec.template })
   })));
-});
+}));
 
 /**
  * Apply a status body to a stored pass of either shape. The body vocabulary
@@ -320,7 +321,7 @@ async function applyStatusToStoredPass(serial, body) {
 }
 
 // POST /api/passes/:serial/status  →  update one pass + push its devices
-adminRouter.post("/passes/:serial/status", async (req, res) => {
+adminRouter.post("/passes/:serial/status", asyncHandler(async (req, res) => {
   const invalid = validateStatusBody(req.body ?? {});
   if (invalid.length) return res.status(400).json({ error: invalid.join("; "), fields: invalid });
   try {
@@ -334,10 +335,10 @@ adminRouter.post("/passes/:serial/status", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // POST /api/groups/:groupId/status  →  update EVERY pass on the flight + push all devices
-adminRouter.post("/groups/:groupId/status", async (req, res) => {
+adminRouter.post("/groups/:groupId/status", asyncHandler(async (req, res) => {
   const invalid = validateStatusBody(req.body ?? {});
   if (invalid.length) return res.status(400).json({ error: invalid.join("; "), fields: invalid });
   const members = await passesInGroup(req.params.groupId);
@@ -357,10 +358,10 @@ adminRouter.post("/groups/:groupId/status", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
 // GET /api/passes/:serial/pkpass  →  download the signed .pkpass for a stored pass
-adminRouter.get("/passes/:serial/pkpass", async (req, res) => {
+adminRouter.get("/passes/:serial/pkpass", asyncHandler(async (req, res) => {
   const snap = await snapshot();
   const rec = snap.passes[req.params.serial];
   if (!rec) return res.status(404).json({ error: "not found" });
@@ -373,29 +374,29 @@ adminRouter.get("/passes/:serial/pkpass", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message, details: err.details });
   }
-});
+}));
 
 // DELETE /api/passes/:serial  →  remove one pass + its registrations
-adminRouter.delete("/passes/:serial", async (req, res) => {
+adminRouter.delete("/passes/:serial", asyncHandler(async (req, res) => {
   const ok = await deletePass(req.params.serial);
   if (!ok) return res.status(404).json({ error: "not found" });
   res.json({ ok: true });
-});
+}));
 
 // DELETE /api/groups/:groupId  →  remove every pass in the trip
-adminRouter.delete("/groups/:groupId", async (req, res) => {
+adminRouter.delete("/groups/:groupId", asyncHandler(async (req, res) => {
   const count = await deleteGroup(req.params.groupId);
   if (!count) return res.status(404).json({ error: "no passes in this group" });
   res.json({ ok: true, count });
-});
+}));
 
 // GET /api/log  →  recent device-reported PassKit logs (newest first).
 // Devices write via the public POST /v1/log; this is the admin read side.
-adminRouter.get("/log", async (req, res) => {
+adminRouter.get("/log", asyncHandler(async (req, res) => {
   const snap = await snapshot();
   const limit = Math.min(Number(req.query.limit) || 50, 500);
   res.json(snap.log.slice(-limit).reverse());
-});
+}));
 
 // ---- Saved passengers ("roster") — control-plane, like everything here. ----
 // Entries are semantic-keyed so they work across templates; the designer maps
@@ -422,29 +423,29 @@ export function validateRosterBody(body) {
 }
 
 // GET /api/roster  →  every saved passenger
-adminRouter.get("/roster", async (_req, res) => {
+adminRouter.get("/roster", asyncHandler(async (_req, res) => {
   res.json(await listRoster());
-});
+}));
 
 // POST /api/roster  →  upsert one saved passenger (no id = create)
-adminRouter.post("/roster", async (req, res) => {
+adminRouter.post("/roster", asyncHandler(async (req, res) => {
   const invalid = validateRosterBody(req.body ?? {});
   if (invalid) return res.status(400).json({ error: invalid });
   const { id, label, semantics, prefs } = req.body;
   const created = !(id && (await listRoster()).some(en => en.id === id));
   const entry = await saveRosterEntry({ id, label, semantics, prefs });
   res.status(created ? 201 : 200).json(entry);
-});
+}));
 
 // DELETE /api/roster/:id  →  remove one saved passenger
-adminRouter.delete("/roster/:id", async (req, res) => {
+adminRouter.delete("/roster/:id", asyncHandler(async (req, res) => {
   const ok = await deleteRosterEntry(req.params.id);
   if (!ok) return res.status(404).json({ error: "not found" });
   res.json({ ok: true });
-});
+}));
 
 // GET /api/passes/:serial
-adminRouter.get("/passes/:serial", async (req, res) => {
+adminRouter.get("/passes/:serial", asyncHandler(async (req, res) => {
   const snap = await snapshot();
   const rec = snap.passes[req.params.serial];
   if (!rec) return res.status(404).json({ error: "not found" });
@@ -452,4 +453,4 @@ adminRouter.get("/passes/:serial", async (req, res) => {
     subs[req.params.serial] ? [{ device: dev, pushToken: subs[req.params.serial].pushToken.slice(0, 8) + "…" }] : []
   );
   res.json({ ...rec, devices });
-});
+}));

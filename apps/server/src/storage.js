@@ -24,6 +24,10 @@ const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const PATH = process.env.STATE_PATH ?? "state/passes.json";
 const DB_PATH = PATH.replace(/\.json$/, "") + ".sqlite";
 const LOG_LIMIT = 1000;
+// Cap registrations per serial. /v1/devices/... is public (authenticated
+// per-pass), so a leaked pass token could otherwise grow this table without
+// bound — evict the oldest registration for the serial so the latest N win.
+const REGISTRATIONS_PER_SERIAL = 10;
 
 let db = null;
 
@@ -399,6 +403,8 @@ export async function deleteTemplateBindings(templateId) {
  * brand new, HTTP 200 when the device was ALREADY registered for that serial.
  * On re-registration the push token (and registration timestamp) are refreshed —
  * a device can move to a new APNs token, so token freshness must never regress.
+ * Registrations per serial are capped: when a NEW pairing would exceed the cap,
+ * the oldest registration for that serial is evicted first (latest devices win).
  * @returns {Promise<{ created: boolean }>}
  */
 export async function registerDevice({ deviceLibraryIdentifier, passTypeIdentifier, serialNumber, pushToken }) {
@@ -406,6 +412,22 @@ export async function registerDevice({ deviceLibraryIdentifier, passTypeIdentifi
   const existed = db.prepare(
     "SELECT 1 FROM registrations WHERE device_library_identifier = ? AND serial = ?"
   ).get(deviceLibraryIdentifier, serialNumber) != null;
+  // Only a brand-new pairing grows the row count; evict oldest to make room.
+  if (!existed) {
+    const { n } = db.prepare(
+      "SELECT COUNT(*) AS n FROM registrations WHERE serial = ?"
+    ).get(serialNumber);
+    if (n >= REGISTRATIONS_PER_SERIAL) {
+      db.prepare(`
+        DELETE FROM registrations
+        WHERE rowid IN (
+          SELECT rowid FROM registrations WHERE serial = ?
+          ORDER BY registered_at ASC, rowid ASC
+          LIMIT ?
+        )
+      `).run(serialNumber, n - REGISTRATIONS_PER_SERIAL + 1);
+    }
+  }
   db.prepare(`
     INSERT OR REPLACE INTO registrations
       (device_library_identifier, serial, pass_type_identifier, push_token, registered_at)

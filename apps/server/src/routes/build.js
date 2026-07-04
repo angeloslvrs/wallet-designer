@@ -2,10 +2,11 @@ import { Router } from "express";
 import { env } from "../env.js";
 import { savePass } from "../storage.js";
 import { buildStoredPass } from "../pass-build.js";
+import { asyncHandler } from "../util/async-handler.js";
 
 export const buildRouter = Router();
 
-buildRouter.post("/build", async (req, res) => {
+buildRouter.post("/build", asyncHandler(async (req, res) => {
   try {
     const rec = await savePass(req.body);
     // Build through the same server-controlled identity path Wallet fetches use,
@@ -18,7 +19,7 @@ buildRouter.post("/build", async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message, details: err.details });
   }
-});
+}));
 
 buildRouter.get("/profile", (_req, res) => {
   res.json({ profile: env.profile, certDir: env.certDir, port: env.port });

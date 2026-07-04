@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "./env.js";
 import { accessGuard } from "./middleware/guard.js";
+import { errorHandler } from "./middleware/error-handler.js";
 import { buildRouter } from "./routes/build.js";
 import { fixturesRouter } from "./routes/fixtures.js";
 import { walletRouter } from "./routes/wallet.js";
@@ -61,6 +62,19 @@ if (existsSync(INDEX)) {
   });
   console.log(`Serving designer SPA from ${DIST}`);
 }
+
+// Final middleware: any error a route forwarded via next(err) (async rejections
+// are routed here by asyncHandler) is logged server-side and answered with a
+// generic body — no stack traces or err.message leak (esp. to the public
+// /api/wallet/* routes). Must be registered LAST, after all routes.
+app.use(errorHandler);
+
+// Backstop only — asyncHandler already forwards route rejections to errorHandler
+// above; this catches anything that still slips past (e.g. a stray promise in a
+// background task) so one unhandled rejection cannot take the process down.
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
 
 app.listen(env.port, () => {
   console.log(`Server listening on http://0.0.0.0:${env.port} (profile=${env.profile})`);

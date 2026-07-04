@@ -120,16 +120,63 @@ describe("Wallet web service update correctness", () => {
     };
     const headers = { Authorization: `ApplePass ${first.authenticationToken}` };
 
-    const created = await callRoute(handler, { params, headers, body: { pushToken: "tok-a" } });
+    const tokA = "a".repeat(64);
+    const tokB = "b".repeat(64);
+    const created = await callRoute(handler, { params, headers, body: { pushToken: tokA } });
     expect(created.statusCode).toBe(201);
 
     // Re-registering the same device+serial is a 200 (Apple spec) but must still
     // refresh the push token so a rotated APNs token is not dropped.
-    const again = await callRoute(handler, { params, headers, body: { pushToken: "tok-b" } });
+    const again = await callRoute(handler, { params, headers, body: { pushToken: tokB } });
     expect(again.statusCode).toBe(200);
 
     const devices = await storage.devicesFor(first.passTypeIdentifier, "WALLET-REG-1");
-    expect(devices).toEqual([{ deviceLibraryIdentifier: "DEVICE-REG", pushToken: "tok-b" }]);
+    expect(devices).toEqual([{ deviceLibraryIdentifier: "DEVICE-REG", pushToken: tokB }]);
+  });
+
+  it("rejects a malformed pushToken (wrong length / non-hex) with 400", async () => {
+    const { walletRouter, storage } = await boot();
+    const first = await storage.savePass(await minimalState("WALLET-REG-BAD"));
+    const handler = routeHandler(
+      walletRouter,
+      "/v1/devices/:device/registrations/:passType/:serial",
+      "post"
+    );
+    const params = {
+      device: "DEVICE-BAD",
+      passType: first.passTypeIdentifier,
+      serial: "WALLET-REG-BAD"
+    };
+    const headers = { Authorization: `ApplePass ${first.authenticationToken}` };
+
+    // Too short.
+    const short = await callRoute(handler, { params, headers, body: { pushToken: "abc123" } });
+    expect(short.statusCode).toBe(400);
+    // Right length, non-hex characters.
+    const nonHex = await callRoute(handler, { params, headers, body: { pushToken: "z".repeat(64) } });
+    expect(nonHex.statusCode).toBe(400);
+    // Nothing was stored.
+    expect(await storage.devicesFor(first.passTypeIdentifier, "WALLET-REG-BAD")).toEqual([]);
+  });
+
+  it("rejects an oversized deviceLibraryIdentifier with 400", async () => {
+    const { walletRouter, storage } = await boot();
+    const first = await storage.savePass(await minimalState("WALLET-REG-BIGDEV"));
+    const handler = routeHandler(
+      walletRouter,
+      "/v1/devices/:device/registrations/:passType/:serial",
+      "post"
+    );
+    const params = {
+      device: "D".repeat(129),
+      passType: first.passTypeIdentifier,
+      serial: "WALLET-REG-BIGDEV"
+    };
+    const headers = { Authorization: `ApplePass ${first.authenticationToken}` };
+
+    const res = await callRoute(handler, { params, headers, body: { pushToken: "a".repeat(64) } });
+    expect(res.statusCode).toBe(400);
+    expect(await storage.devicesFor(first.passTypeIdentifier, "WALLET-REG-BIGDEV")).toEqual([]);
   });
 
   it("does not return a false 304 after a same-second pass update", async () => {

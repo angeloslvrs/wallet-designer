@@ -147,6 +147,66 @@ describe("SQLite storage", () => {
     })).resolves.toEqual({ serials: ["TAG-2"], lastUpdated: String(second.updateTag) });
   });
 
+  it("caps registrations per serial at 10, evicting the oldest to make room", async () => {
+    const s = await bootStorage(statePath);
+    await s.saveTemplatePass({
+      serialNumber: "CAP-1", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local"
+    });
+    // Register 10 distinct devices with strictly increasing timestamps so the
+    // eviction order (oldest-first) is deterministic.
+    for (let i = 0; i < 10; i++) {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(Date.parse("2026-06-30T00:00:00.000Z") + i * 1000));
+      const { created } = await s.registerDevice({
+        deviceLibraryIdentifier: `DEV-${i}`, passTypeIdentifier: "pass.dev.local",
+        serialNumber: "CAP-1", pushToken: String(i).repeat(1)
+      });
+      expect(created).toBe(true);
+      vi.useRealTimers();
+    }
+    let devices = await s.devicesFor("pass.dev.local", "CAP-1");
+    expect(devices).toHaveLength(10);
+
+    // The 11th distinct device evicts DEV-0 (the oldest); count stays at 10.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.parse("2026-06-30T00:00:00.000Z") + 10 * 1000));
+    const { created } = await s.registerDevice({
+      deviceLibraryIdentifier: "DEV-10", passTypeIdentifier: "pass.dev.local",
+      serialNumber: "CAP-1", pushToken: "x"
+    });
+    vi.useRealTimers();
+    expect(created).toBe(true);
+
+    devices = await s.devicesFor("pass.dev.local", "CAP-1");
+    expect(devices).toHaveLength(10);
+    const ids = devices.map(d => d.deviceLibraryIdentifier).sort();
+    expect(ids).not.toContain("DEV-0");
+    expect(ids).toContain("DEV-10");
+  });
+
+  it("re-registration of an existing device does not evict others at the cap", async () => {
+    const s = await bootStorage(statePath);
+    await s.saveTemplatePass({
+      serialNumber: "CAP-2", template: "dev-sample", data: {}, groupId: "G@1", passTypeId: "pass.dev.local"
+    });
+    for (let i = 0; i < 10; i++) {
+      await s.registerDevice({
+        deviceLibraryIdentifier: `DEV-${i}`, passTypeIdentifier: "pass.dev.local",
+        serialNumber: "CAP-2", pushToken: "a".repeat(64)
+      });
+    }
+    // Re-registering an existing pair is idempotent (200-shaped) and must not
+    // push the count over — nor evict anyone.
+    const { created } = await s.registerDevice({
+      deviceLibraryIdentifier: "DEV-3", passTypeIdentifier: "pass.dev.local",
+      serialNumber: "CAP-2", pushToken: "b".repeat(64)
+    });
+    expect(created).toBe(false);
+    const devices = await s.devicesFor("pass.dev.local", "CAP-2");
+    expect(devices).toHaveLength(10);
+    expect(devices.find(d => d.deviceLibraryIdentifier === "DEV-3").pushToken).toBe("b".repeat(64));
+  });
+
   it("backfills old SQLite rows without update_tag and preserves lastModified", async () => {
     const legacyDb = new DatabaseSync(join(dir, "passes.sqlite"));
     legacyDb.exec(`

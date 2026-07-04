@@ -72,4 +72,37 @@ describe("readTemplateZip", () => {
   it("throws on a buffer that is not a zip", () => {
     expect(() => readTemplateZip(Buffer.from("not a zip"))).toThrow(/zip/i);
   });
+
+  // Overwrite the uncompressed-size field in an entry's central-directory header
+  // so it *declares* a huge size while the stored bytes stay tiny. adm-zip reads
+  // entry.header.size from the central directory, so the guard sees the lie; the
+  // local file data is untouched, so getData() (were it reached) would return the
+  // small real bytes — meaning a throw here can only come from the pre-inflate check.
+  function declareHugeSize(buf, entryName, size) {
+    const CD_SIG = 0x02014b50; // PK\x01\x02
+    for (let i = 0; i + 46 <= buf.length; i++) {
+      if (buf.readUInt32LE(i) !== CD_SIG) continue;
+      const nameLen = buf.readUInt16LE(i + 28);
+      const name = buf.toString("utf8", i + 46, i + 46 + nameLen);
+      if (name === entryName) {
+        buf.writeUInt32LE(size, i + 24); // uncompressed size
+        return buf;
+      }
+    }
+    throw new Error(`central-directory header for ${entryName} not found`);
+  }
+
+  it("rejects a zip that DECLARES more than the cap before inflating it", () => {
+    const buf = declareHugeSize(
+      zipOf({ "pass.json": PASS_JSON, "bomb.bin": "x" }),
+      "bomb.bin",
+      60 * 1024 * 1024 // > 50MB cap
+    );
+    expect(() => readTemplateZip(buf)).toThrow(/declares/);
+  });
+
+  it("still loads a normal template after the guard", () => {
+    const files = readTemplateZip(zipOf({ "pass.json": PASS_JSON, "icon.png": "png-bytes" }));
+    expect(Object.keys(files).sort()).toEqual(["icon.png", "pass.json"]);
+  });
 });

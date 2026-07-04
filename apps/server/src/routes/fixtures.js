@@ -1,21 +1,22 @@
 import { Router } from "express";
 import { readFile, readdir, writeFile, unlink } from "node:fs/promises";
 import { join, basename } from "node:path";
+import { asyncHandler } from "../util/async-handler.js";
 
 export const fixturesRouter = Router();
 const DIR = "fixtures";
 const safeName = (n) => n.replace(/[^a-zA-Z0-9._-]/g, "");
 
-fixturesRouter.get("/fixtures", async (_req, res) => {
+fixturesRouter.get("/fixtures", asyncHandler(async (_req, res) => {
   try {
     const files = (await readdir(DIR)).filter(f => f.endsWith(".json"));
     res.json(files.map(f => basename(f, ".json")));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
-fixturesRouter.get("/fixtures/:name", async (req, res) => {
+fixturesRouter.get("/fixtures/:name", asyncHandler(async (req, res) => {
   const name = safeName(req.params.name);
   try {
     const raw = await readFile(join(DIR, `${name}.json`), "utf8");
@@ -23,10 +24,10 @@ fixturesRouter.get("/fixtures/:name", async (req, res) => {
   } catch {
     res.status(404).json({ error: `fixture not found: ${name}` });
   }
-});
+}));
 
 // Save the current form state as a named template (control-plane: LAN/auth only).
-fixturesRouter.put("/fixtures/:name", async (req, res) => {
+fixturesRouter.put("/fixtures/:name", asyncHandler(async (req, res) => {
   const name = safeName(req.params.name);
   if (!name) return res.status(400).json({ error: "invalid name" });
   try {
@@ -35,9 +36,9 @@ fixturesRouter.put("/fixtures/:name", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-});
+}));
 
-fixturesRouter.delete("/fixtures/:name", async (req, res) => {
+fixturesRouter.delete("/fixtures/:name", asyncHandler(async (req, res) => {
   const name = safeName(req.params.name);
   try {
     await unlink(join(DIR, `${name}.json`));
@@ -45,4 +46,4 @@ fixturesRouter.delete("/fixtures/:name", async (req, res) => {
   } catch {
     res.status(404).json({ error: `template not found: ${name}` });
   }
-});
+}));

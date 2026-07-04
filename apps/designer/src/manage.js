@@ -76,6 +76,10 @@ export function mountManage(root, showDesigner) {
     const el = root.querySelector(`[data-status="${CSS.escape(serial)}"]`);
     if (el) el.textContent = msg;
   };
+  const setGrpStatus = (gid, msg) => {
+    const el = root.querySelector(`[data-grp-status="${CSS.escape(gid)}"]`);
+    if (el) el.textContent = msg;
+  };
 
   const shell = (inner) => `<div class="wpd-view wpd-manage"><div class="wpd-view-head wpd-manage-head"><h1>Manage boarding passes</h1>${inner.meta ? `<span class="mg-count">${inner.meta}</span>` : ""}</div>${inner.body}</div>`;
 
@@ -306,11 +310,30 @@ export function mountManage(root, showDesigner) {
     const { act, serial, grp } = t.dataset;
 
     if (act === "edit") {
-      const rec = await fetch(`/api/passes/${encodeURIComponent(serial)}`).then(r => r.json());
-      if (rec?.state) { replaceState(rec.state); renderForm(document.getElementById("form-pane")); showDesigner(); }
+      // Same defensive shape as pushOne/pushGroup: a network fault or non-2xx
+      // must surface, not silently drop the operator into a blank editor.
+      try {
+        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const rec = await r.json();
+        if (rec?.state) { replaceState(rec.state); renderForm(document.getElementById("form-pane")); showDesigner(); }
+      } catch (err) {
+        setStatus(serial, `✗ couldn't load pass — ${err.message}`);
+      }
       return;
     }
-    if (act === "del") { if (confirm(`Delete pass ${serial}?`)) { await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE" }); load(); } return; }
+    if (act === "del") {
+      if (!confirm(`Delete pass ${serial}?`)) return;
+      setStatus(serial, "Deleting…");
+      try {
+        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        load();   // only refresh (dropping the row) once the delete is confirmed
+      } catch (err) {
+        setStatus(serial, `✗ delete failed — ${err.message}`);
+      }
+      return;
+    }
 
     if (act === "grp-update") {
       const grpStatus = root.querySelector(`[data-grp-status="${CSS.escape(grp)}"]`);
@@ -331,7 +354,18 @@ export function mountManage(root, showDesigner) {
       if (j?.ok) { setChipEl(passChipEl(serial), "On Time"); recomputeTripChip(gid); }
       return;
     }
-    if (act === "grp-del")    { if (confirm(`Delete ALL passes in trip ${grp}?`)) { await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" }); load(); } return; }
+    if (act === "grp-del") {
+      if (!confirm(`Delete ALL passes in trip ${grp}?`)) return;
+      setGrpStatus(grp, "Deleting…");
+      try {
+        const r = await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        load();   // only refresh once the trip delete is confirmed
+      } catch (err) {
+        setGrpStatus(grp, `✗ delete failed — ${err.message}`);
+      }
+      return;
+    }
     if (act === "log-refresh") { loadLog(); return; }
   }, { signal });
 

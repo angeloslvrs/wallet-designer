@@ -11,6 +11,7 @@ import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
 import { bindingsForTemplate, sanitizeBindingEdits } from "../template-bindings.js";
+import { asyncHandler } from "../util/async-handler.js";
 
 export const templatesRouter = Router();
 
@@ -46,7 +47,7 @@ export async function handleTemplateList(_req, res) {
   }
   res.json(out);
 }
-templatesRouter.get("/templates", handleTemplateList);
+templatesRouter.get("/templates", asyncHandler(handleTemplateList));
 
 /** POST /api/templates/:id — body is the zipped .pkpasstemplate itself. */
 export async function handleTemplateUpload(req, res) {
@@ -83,7 +84,7 @@ export async function handleTemplateUpload(req, res) {
   }
 }
 
-templatesRouter.post("/templates/:id", raw({ type: () => true, limit: "20mb" }), handleTemplateUpload);
+templatesRouter.post("/templates/:id", raw({ type: () => true, limit: "20mb" }), asyncHandler(handleTemplateUpload));
 
 /**
  * DELETE /api/templates/:id — refuse (409) while any stored pass references
@@ -114,7 +115,7 @@ export async function handleTemplateDelete(req, res) {
   res.status(200).json({ ok: true, id });
 }
 
-templatesRouter.delete("/templates/:id", handleTemplateDelete);
+templatesRouter.delete("/templates/:id", asyncHandler(handleTemplateDelete));
 
 /**
  * PUT /api/templates/:id/bindings — replace the template's semanticKey →
@@ -138,4 +139,4 @@ export async function handleBindingsSave(req, res) {
   }
 }
 
-templatesRouter.put("/templates/:id/bindings", handleBindingsSave);
+templatesRouter.put("/templates/:id/bindings", asyncHandler(handleBindingsSave));

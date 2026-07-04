@@ -48,12 +48,31 @@ export function readTemplateZip(buf) {
     names = names.map(n => n.slice(n.indexOf("/") + 1));
   }
 
+  // Enforce the size cap against each entry's DECLARED uncompressed size before
+  // inflating anything — a small crafted zip can declare a huge size and OOM the
+  // process the moment getData() decompresses it. Sum the declared sizes too, so
+  // many small-but-huge entries can't slip past the per-entry check collectively.
+  let declared = 0;
+  entries.forEach(({ entry }, i) => {
+    const name = names[i];
+    if (!name || STALE_ROOT_FILES.has(name)) return;
+    const size = entry.header.size;
+    if (size > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error(`zip entry declares ${size} bytes (> ${MAX_UNCOMPRESSED_BYTES}) — not accepting it as a template`);
+    }
+    declared += size;
+    if (declared > MAX_UNCOMPRESSED_BYTES) {
+      throw new Error(`zip declares over ${MAX_UNCOMPRESSED_BYTES} bytes uncompressed — not accepting it as a template`);
+    }
+  });
+
   /** @type {Record<string, Buffer>} */
   const files = {};
   let total = 0;
   entries.forEach(({ entry }, i) => {
     const name = names[i];
     if (!name || STALE_ROOT_FILES.has(name)) return;
+    // Belt-and-suspenders: declared sizes can lie, so re-check after inflating.
     const data = entry.getData();
     total += data.length;
     if (total > MAX_UNCOMPRESSED_BYTES) {
