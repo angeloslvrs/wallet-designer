@@ -13,7 +13,14 @@ import { adminRouter } from "./routes/admin.js";
 import { templatesRouter } from "./routes/templates.js";
 
 const app = express();
-app.set("trust proxy", 1);           // 1 hop = the nginx-proxy-manager in front; gives real client IP
+// X-Forwarded-For trust: default is 1 hop (the nginx-proxy-manager in front),
+// which trusts ANY immediate peer — so a LAN host hitting :4317 directly could
+// spoof a private client IP past the access guard. Prod pins the proxy instead:
+// TRUST_PROXY=<ip|cidr>[,<ip|cidr>…] (the NPM LXC's address) honors X-Forwarded-For
+// only from that peer. Binding to 127.0.0.1 is NOT an option here — NPM proxies
+// from a separate LXC over the LAN (see docs/deploy.md).
+const trustProxy = process.env.TRUST_PROXY;
+app.set("trust proxy", trustProxy ? trustProxy.split(",").map(s => s.trim()) : 1);
 app.use(compression());              // gzip responses (the 1.4MB bundle → ~270KB) so the proxy can deliver it
 // No CORS by design: the SPA is served same-origin with the API, and Apple's
 // PassKit calls are server-to-server (no Origin header, CORS-exempt). A wildcard

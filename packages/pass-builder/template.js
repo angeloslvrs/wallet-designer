@@ -182,6 +182,9 @@ export function applyTemplateData(passJson, data = {}) {
 function deepMerge(base, patch) {
   const out = { ...base };
   for (const [k, v] of Object.entries(patch)) {
+    // Prototype-pollution guard: issue-time data.semantics is attacker-influenceable
+    // on the control plane, so never let a merge write __proto__/constructor/prototype.
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
     if (v === null) { delete out[k]; continue; }
     const bothObjects =
       v !== null && typeof v === "object" && !Array.isArray(v) &&

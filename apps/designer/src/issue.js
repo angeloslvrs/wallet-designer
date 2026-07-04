@@ -21,6 +21,37 @@ const SEMANTIC_KEYS = Object.keys(BOARDING_SEMANTICS);
 const SERIAL_PAD = 3;
 
 /**
+ * Copy text to the clipboard, reporting real success/failure. Prefers the async
+ * Clipboard API; falls back to a temporary textarea + execCommand("copy") when
+ * it's unavailable (e.g. a non-secure http:// LAN context, where
+ * navigator.clipboard is undefined).
+ * @returns {Promise<boolean>} true only when the copy actually landed
+ */
+async function copyToClipboard(text) {
+  if (text == null) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* fall through to the legacy path */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Compose the trip groupId the server requires for template passes,
  * e.g. ("RP247", "2026-06-20") → "RP247@2026-06-20".
  * @returns {string} empty when either piece is missing
@@ -845,7 +876,7 @@ export function mountIssue(root, showManage) {
     render();
   }
 
-  root.addEventListener("click", (e) => {
+  root.addEventListener("click", async (e) => {
     if (e.target?.dataset?.rosterEdit) return beginRosterEdit(e.target);
     const act = e.target?.dataset?.act;
     if (!act) return;
@@ -924,8 +955,8 @@ export function mountIssue(root, showManage) {
     if (act === "roster-del") return deleteRosterEntry(e.target.dataset.id);
     if (act === "row-save") return saveRowToRoster(Number(e.target.dataset.i));
     if (act === "copy-link") {
-      navigator.clipboard?.writeText(e.target.dataset.url);
-      e.target.textContent = "Copied ✓";
+      const ok = await copyToClipboard(e.target.dataset.url);
+      e.target.textContent = ok ? "Copied ✓" : "Copy failed — select & copy";
       return;
     }
     if (act === "issue") return issueAll();

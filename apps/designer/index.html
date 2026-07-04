@@ -3,6 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Content-Security-Policy. This meta tag ships in both dev and prod (Vite
+         copies index.html verbatim), so the policy must satisfy both.
+         - default-src 'self': everything is same-origin (SPA ↔ API) by default,
+           and this also covers scripts (only same-origin module scripts load).
+         - img-src adds data: (branding PNG data-URL uploads + previews) and
+           blob: (zxing decodes an uploaded photo via a blob: object URL).
+         - style-src adds 'unsafe-inline' (many inline style="" attrs + styles
+           Vite injects at runtime) and the Google Fonts stylesheet host.
+         - font-src adds the Google Fonts file host (fonts.gstatic.com).
+         - connect-src adds ws:/wss: for Vite's dev HMR socket (API is 'self'). -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss:"
+    />
     <title>Boarding Pass Studio</title>
     <link rel="icon" href="data:," />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

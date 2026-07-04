@@ -123,6 +123,26 @@ describe("applyTemplateData", () => {
   });
 });
 
+describe("deepMerge prototype-pollution guard", () => {
+  it("drops __proto__ in data.semantics without polluting Object.prototype", () => {
+    const payload = JSON.parse('{"semantics": {"__proto__": {"polluted": true}}}');
+    const out = applyTemplateData(skeleton(), payload);
+    expect(({}).polluted).toBeUndefined();
+    expect(Object.prototype.polluted).toBeUndefined();
+    expect(Object.hasOwn(out.semantics, "polluted")).toBe(false);
+    expect(Object.getPrototypeOf(out.semantics)).toBe(Object.prototype);
+  });
+
+  it("drops constructor/prototype keys nested in semantics", () => {
+    const payload = JSON.parse('{"semantics": {"constructor": {"x": 1}, "prototype": {"y": 2}}}');
+    const out = applyTemplateData(skeleton(), payload);
+    expect(Object.hasOwn(out.semantics, "constructor")).toBe(false);
+    expect(Object.hasOwn(out.semantics, "prototype")).toBe(false);
+    // Legitimate sibling keys still merge.
+    expect(out.semantics.airlineCode).toBe("RP");
+  });
+});
+
 describe("template expiry reserved key", () => {
   it("accepts expirationDate as a reserved key (does not throw as unknown)", () => {
     const passJson = { boardingPass: { primaryFields: [{ key: "depart", value: "MNL" }] }, semantics: {} };

@@ -130,14 +130,25 @@ function assetsCard(root) {
       if (!f) { setPath(path, ""); return; }
       const reader = new FileReader();
       reader.onload = () => {
-        setPath(path, reader.result);
+        const dataUrl = reader.result;
+        // The app only accepts PNG data URLs — reject anything else before it
+        // reaches state (an <input accept> is advisory; users can still pick
+        // other files). Decode via an Image to confirm it's a readable image.
+        if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/png")) {
+          setNote({ ok: false, msg: "Not a PNG — only PNG images are accepted." });
+          return;
+        }
         const img = new Image();
-        img.onload = () => setNote(validateAssetDims(spec, img.naturalWidth, img.naturalHeight));
-        img.onerror = () => setNote(null);
-        img.src = reader.result;
-        thumb.replaceChildren(h("img", { src: reader.result, alt: slotDef.label }));
-        clearBtn.hidden = false;
+        img.onload = () => {
+          setPath(path, dataUrl);
+          setNote(validateAssetDims(spec, img.naturalWidth, img.naturalHeight));
+          thumb.replaceChildren(h("img", { src: dataUrl, alt: slotDef.label }));
+          clearBtn.hidden = false;
+        };
+        img.onerror = () => setNote({ ok: false, msg: "Could not read this image — it may be corrupt." });
+        img.src = dataUrl;
       };
+      reader.onerror = () => setNote({ ok: false, msg: "Could not read this file." });
       reader.readAsDataURL(f);
       e.target.value = "";
     });

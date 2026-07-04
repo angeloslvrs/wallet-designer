@@ -32,9 +32,14 @@ pass `webServiceURL` callbacks.
   internet can't mint or edit passes, but you can use the configurator over WireGuard
   (your VPN IP is in a private range) or from the LAN.
 
-Requires `app.set("trust proxy", 1)` so the real client IP is read from NPM's
-`X-Forwarded-For`. Private ranges allowed: `10/8`, `192.168/16`, `172.16–31`,
-loopback, IPv6 ULA (`fc/fd`).
+Requires trusting NPM's `X-Forwarded-For` for the real client IP. Set
+`TRUST_PROXY=10.1.2.154` (the NPM LXC) in the box's `.env` so **only** NPM's
+forwarded header is honored — without it the server falls back to trusting one
+hop from *any* immediate peer, which would let a LAN host hitting `:4317`
+directly spoof a private client IP past the access guard. (Binding Express to
+`127.0.0.1` is not an option: NPM proxies from a separate LXC over the LAN.)
+Private ranges allowed: `10/8`, `192.168/16`, `172.16–31`, loopback, IPv6 ULA
+(`fc/fd`).
 
 ## Environment (`/opt/boardingpass/.env` — NOT in git)
 
@@ -47,6 +52,7 @@ PORT=4317
 WEB_SERVICE_URL=https://boardingpass.geloflix.com/api/wallet
 ADMIN_USER=gelo
 ADMIN_PASSWORD=<set-a-strong-password>               # remote Basic-Auth for the configurator
+TRUST_PROXY=10.1.2.154                               # the NPM LXC — only ITS X-Forwarded-For is honored
 # KEY_PASSPHRASE=<only if the signer key is encrypted>
 ```
 

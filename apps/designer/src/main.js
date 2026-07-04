@@ -56,11 +56,16 @@ function wireFixturePicker() {
 async function saveDesign() {
   const name = prompt("Save current design as:", state.meta.serialNumber || "my-design");
   if (!name) return;
-  const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
-    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
-  });
-  if (r.ok) { await refreshFixturePicker(); document.getElementById("build-status").textContent = `✓ saved design "${name}"`; }
-  else { alert("Could not save design"); }
+  const status = document.getElementById("build-status");
+  try {
+    const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
+    });
+    if (r.ok) { await refreshFixturePicker(); status.textContent = `✓ saved design "${name}"`; }
+    else { status.textContent = `⚠ could not save design "${name}" (${r.status})`; }
+  } catch (err) {
+    status.textContent = `⚠ could not save design — ${err.message}`;
+  }
 }
 
 // Issue / Manage / Design view toggle. The template→issue→manage flow is the
