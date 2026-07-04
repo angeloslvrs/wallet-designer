@@ -268,6 +268,41 @@ Gotchas discovered: the dev box `.env` here has `CERT_PROFILE=prod` without
 (DAD/MOM/REYES + one test save) were seeded into `state/passes.sqlite`
 (gitignored) — delete via the Issue view's manager if unwanted.
 
+## 2026-07-04 session — security/quality audit remediation T1–T18 (main, uncommitted)
+
+Executed the full remediation plan `docs/reviews/2026-07-04-audit-remediation-plan.md`
+(source: the same-day 4-reviewer audit). All 18 tasks landed; suite grew 392 → 419
+tests (62 files), `npm run check`, `build:designer`, and both headless pass-shape
+builds green. Orchestrated per the plan: Opus 4.8 subagents at per-task effort,
+Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
+(the T7 orphan-session guard and T9 signal-threading passed verification first try).
+
+- **Crash/DoS:** `util/async-handler.js` wraps every async route; central
+  `middleware/error-handler.js` (generic 500, logs server-side) + `unhandledRejection`
+  backstop in `index.js`. Zip uploads reject on *declared* uncompressed size before
+  inflation (`template-zip.js`). Registrations: pushToken must be 64-hex,
+  device id ≤128 chars, capped 10/serial evict-oldest. Public `GET /v1/passes` no
+  longer leaks `err.message`.
+- **APNs lifecycle (`apns.js`):** failed connect no longer cached forever;
+  `forceNewClient` destroys the old session with an identity guard so an orphan's
+  late close can't null the live promise; per-stream 10s watchdog so a stalled
+  push can't hang `deliver()`. Test seam `_setTestHooks`/`_resetTestHooks`;
+  covered by `tests/apns-lifecycle.test.js`.
+- **Concurrency/atomicity:** designer Issue/Manage fetches are tied to the mount's
+  abort signal (stale mount can no longer blank in-progress input —
+  `tests/stale-mount-race.test.js`); template re-upload stages to a temp dir,
+  validates, then atomically swaps; group-status applies per-member and returns
+  `{results, errors}` (partial failure = 200, surfaced in Manage); `created` flags
+  are decided inside the synchronous SQLite write helpers (no read-before-write race).
+- **Hardening:** PNG validation + reader.onerror on branding uploads; copy-link
+  reports real success/failure with an execCommand fallback; `deepMerge` drops
+  `__proto__`/`constructor`/`prototype`; `saveDesign()` failures surface inline;
+  CSP meta tag in `index.html` (self + data:/blob: images, Google Fonts, ws: for HMR).
+- **T18 (deploy):** binding to 127.0.0.1 was REJECTED — NPM proxies from a separate
+  LXC (10.1.2.154). Instead `TRUST_PROXY=<ip|cidr>` env pins X-Forwarded-For trust
+  (unset ⇒ old `trust proxy: 1` behavior). **Next deploy: add
+  `TRUST_PROXY=10.1.2.154` to the box's `.env`** (docs/deploy.md updated).
+
 ## Start here (next session)
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.

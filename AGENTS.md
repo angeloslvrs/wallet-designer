@@ -64,19 +64,23 @@ Two workflows run on every push to `main` (`.github/workflows/`):
 
 ### Cert profiles
 
-`CERT_PROFILE` in `.env` selects `certs/dev/` (self-signed, from `npm run init`; passes build but won't install on iOS) or `certs/prod/` (real Apple Pass Type ID cert — signs passes **and** authenticates to APNs; see `docs/cert-day.md`). With `CERT_PROFILE=prod` the server refuses to boot unless `WEB_SERVICE_URL` is a valid `https://` URL (`env-validate.js`) — on a box whose `.env` pins prod, run `CERT_PROFILE=dev npm run dev` for local work. Prod certs, `.env`, and `state/` are gitignored and live only on the deploy box. The server forces `passTypeId`/`teamId` from env onto every issued pass.
+`CERT_PROFILE` in `.env` selects `certs/dev/` (self-signed, from `npm run init`; passes build but won't install on iOS) or `certs/prod/` (real Apple Pass Type ID cert — signs passes **and** authenticates to APNs; see `docs/cert-day.md`). With `CERT_PROFILE=prod` the server refuses to boot unless `WEB_SERVICE_URL` is a valid `https://` URL (`env-validate.js`) — on a box whose `.env` pins prod, run `CERT_PROFILE=dev npm run dev` for local work. `npm run build:pass` signs too, so it likewise requires `CERT_PROFILE=dev` (dev certs come from `npm run init`) unless real prod certs are present. Prod certs, `.env`, and `state/` are gitignored and live only on the deploy box. The server forces `passTypeId`/`teamId` from env onto every issued pass.
 
 ### Security model (don't break these invariants)
 
-- `apps/server/src/middleware/guard.js` is the access boundary: `/api/wallet/*` is **public** (Apple devices call it from the internet; each request is authenticated per-pass with the `ApplePass {authenticationToken}` header, compared timing-safely). **Everything else** (SPA, `/api/build`, `/api/passes`, `/api/fixtures`, `/api/roster`, `/api/templates`) is the control plane — private-IP/LAN only, or admin Basic Auth (`ADMIN_USER`/`ADMIN_PASSWORD` env). Depends on `app.set("trust proxy", 1)` (exactly one proxy hop in front).
+- `apps/server/src/middleware/guard.js` is the access boundary: `/api/wallet/*` is **public** (Apple devices call it from the internet; each request is authenticated per-pass with the `ApplePass {authenticationToken}` header, compared timing-safely). **Everything else** (SPA, `/api/build`, `/api/passes`, `/api/fixtures`, `/api/roster`, `/api/templates`) is the control plane — private-IP/LAN only, or admin Basic Auth (`ADMIN_USER`/`ADMIN_PASSWORD` env). Depends on Express's trust-proxy setting: `TRUST_PROXY=<ip|cidr>` in env pins `X-Forwarded-For` trust to the actual reverse proxy (prod sets the NPM LXC's IP; see `docs/deploy.md`); unset falls back to `1` (any single hop — dev only).
 - No CORS on purpose — SPA is same-origin with the API, and PassKit calls are server-to-server. Don't add a wildcard.
 - A pass's `authenticationToken` must stay **stable per serial** across re-issues — including across FormState ↔ template shape changes — rotating it 401s copies already installed on devices (see `storage.js`).
 - **Server-controlled pass identity (both shapes).** `serialNumber`/`passTypeIdentifier`/`teamIdentifier`/`authenticationToken`/`webServiceURL` are forced server-side in `pass-build.js` for **both** FormState and template passes — never trusted from the stored state or the template bundle. `webServiceURL` in particular **must be HTTPS** (from the `WEB_SERVICE_URL` env): a pass that still carries the designer's dev default `http://localhost:4317/api/wallet` is rejected by iOS at install. (Regression once shipped: FormState passes skipped this override, leaked the localhost URL, and couldn't be added to Wallet.)
 - All token/credential comparisons go through `src/util/timing-safe.js`; user-supplied strings in the designer go through `src/esc.js` before hitting innerHTML.
 
-### Production deploy
+### Production deploy (LXC)
 
 In production a single Express process serves the built SPA from `apps/designer/dist` and the API on one port, so one origin covers the UI, `/api`, and the pass `webServiceURL` callbacks. The dist bundle is gitignored — build locally with `npm run build:designer` and rsync it; the box runs prod deps only (no Vite). Full runbook (LXC + Nginx Proxy Manager + pm2, redeploy steps, caching gotchas): `docs/deploy.md`.
+
+- **The box**: LXC at `root@10.1.2.237`, app dir `/opt/boardingpass`, pm2 process `boardingpass`, port 4317, public URL `https://boardingpass.geloflix.com`. It's reachable only when the VPN/route is up — `ssh: No route to host` means the VPN is down: **stop and ask the user**; don't burn commands diagnosing ssh config.
+- **No git on the box** — deploys go via rsync: ship `apps/server/` and `packages/pass-builder/` (exclude `.env` and `node_modules`; also `packages/pass-schema/` and the rebuilt `apps/designer/dist/` if touched — exact commands in `docs/deploy.md`), then on the box `npm install --omit=dev` (if deps changed) and `pm2 restart boardingpass`.
+- **Verify after deploy**: `curl https://boardingpass.geloflix.com/api/profile` (health), and shasum-compare a deployed hashed asset against the local `apps/designer/dist` copy.
 
 ## Design docs & context
 
