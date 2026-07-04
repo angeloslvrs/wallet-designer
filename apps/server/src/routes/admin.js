@@ -215,21 +215,20 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
  * a pass with this serial already existed and was OVERWRITTEN. Apple keys a
  * pass by serialNumber + passTypeId, so re-posting a serial UPDATES that pass
  * rather than creating a second one; surfacing created:false lets the issue UI
- * flag an accidental clobber instead of it passing silently. The existence
- * check must run BEFORE the save.
+ * flag an accidental clobber instead of it passing silently. `created` comes
+ * from the store helper, which decides it atomically with the write (no
+ * read-before-write race — see savePass/saveTemplatePass).
  * @param {object} body full FormState, or { template, serialNumber, data, groupId }
  */
 export async function registerPass(body = {}) {
   const isTemplate = typeof body?.template === "string";
-  const serialNumber = isTemplate ? body.serialNumber : body?.meta?.serialNumber;
-  const created = serialNumber ? !(await getPassRecord(serialNumber)) : true;
   const rec = isTemplate ? await issueTemplatePass(body) : await savePass(body);
   return {
     serialNumber: isTemplate ? body.serialNumber : body.meta.serialNumber,
     authenticationToken: rec.authenticationToken,
     groupId: rec.groupId,
     lastModified: rec.lastModified,
-    created,
+    created: rec.created,
     ...(rec.template && { template: rec.template })
   };
 }
@@ -343,21 +342,31 @@ adminRouter.post("/groups/:groupId/status", asyncHandler(async (req, res) => {
   if (invalid.length) return res.status(400).json({ error: invalid.join("; "), fields: invalid });
   const members = await passesInGroup(req.params.groupId);
   if (!members.length) return res.status(404).json({ error: "no passes in this group" });
-  try {
-    const results = [];
-    for (const { serial } of members) {
+  // Apply per-member so one corrupt pass can't abort the whole trip: each member
+  // updates + pushes in its own try/catch (sequential — the applies mutate the
+  // shared store, so ordering stays predictable and no member is half-applied by
+  // a concurrent write). Partial failures still return HTTP 200 with the touched
+  // passes in `results` and the failed ones in `errors` — the caller needs the
+  // partial outcome, not a bare 500 that hides which passes were updated.
+  const results = [];
+  const errors = [];
+  for (const { serial } of members) {
+    try {
       const { rec, skipped } = await applyStatusToStoredPass(serial, req.body ?? {});
       const push = await pushPass(rec, serial);
       results.push({
         serial, passenger: passengerOf(rec), push,
         ...(skipped.length && { skippedFields: skipped })
       });
+    } catch (err) {
+      errors.push({ serial, error: err.message });
     }
-    const sent = results.reduce((n, r) => n + r.push.sent, 0);
-    res.json({ ok: true, count: members.length, sent, results });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
+  const sent = results.reduce((n, r) => n + r.push.sent, 0);
+  res.json({
+    ok: true, count: results.length, sent, results,
+    ...(errors.length && { errors })
+  });
 }));
 
 // GET /api/passes/:serial/pkpass  →  download the signed .pkpass for a stored pass
@@ -432,9 +441,10 @@ adminRouter.post("/roster", asyncHandler(async (req, res) => {
   const invalid = validateRosterBody(req.body ?? {});
   if (invalid) return res.status(400).json({ error: invalid });
   const { id, label, semantics, prefs } = req.body;
-  const created = !(id && (await listRoster()).some(en => en.id === id));
+  // `entry.created` is decided atomically with the upsert inside saveRosterEntry
+  // (non-enumerable, so the JSON body is unchanged) — no read-before-write race.
   const entry = await saveRosterEntry({ id, label, semantics, prefs });
-  res.status(created ? 201 : 200).json(entry);
+  res.status(entry.created ? 201 : 200).json(entry);
 }));
 
 // DELETE /api/roster/:id  →  remove one saved passenger

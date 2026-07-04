@@ -93,11 +93,13 @@ export function mountManage(root, showDesigner) {
     </div>`;
 
   async function loadLog() {
+    if (signal.aborted) return;
     const el = root.querySelector("#mg-log");
     if (!el) return;
     let log = [];
-    try { log = await fetch("/api/log?limit=50").then(r => r.json()); }
-    catch { el.innerHTML = `<p class="mg-empty">API offline.</p>`; return; }
+    try { log = await fetch("/api/log?limit=50", { signal }).then(r => r.json()); }
+    catch { if (signal.aborted) return; el.innerHTML = `<p class="mg-empty">API offline.</p>`; return; }
+    if (signal.aborted) return;
     if (!Array.isArray(log) || !log.length) {
       el.innerHTML = `<p class="mg-empty">No device logs yet — they arrive when an iPhone hits a problem with a pass.</p>`;
       return;
@@ -184,11 +186,16 @@ export function mountManage(root, showDesigner) {
     </div>`;
 
   async function load() {
+    // A stale mount (aborted on a tab switch) must not blank the DOM the newer
+    // mount now owns — bail before any write on an aborted signal, and re-check
+    // after the fetch so a late resolve can't re-render over the top.
+    if (signal.aborted) return;
     editorValues = {};   // fresh editors on every (re)load
     root.innerHTML = shell({ body: `<p class="mg-empty">Loading…</p>` });
     let list;
-    try { list = await fetch("/api/passes").then(r => r.json()); }
-    catch { root.innerHTML = shell({ body: `<p class="mg-empty">API offline.</p>` }); return; }
+    try { list = await fetch("/api/passes", { signal }).then(r => r.json()); }
+    catch { if (signal.aborted) return; root.innerHTML = shell({ body: `<p class="mg-empty">API offline.</p>` }); return; }
+    if (signal.aborted) return;
 
     if (!Array.isArray(list) || !list.length) {
       root.innerHTML = shell({ body: `<p class="mg-empty">Nothing issued yet — build or issue passes in the Designer.</p>` + logCard() });
@@ -241,8 +248,9 @@ export function mountManage(root, showDesigner) {
   async function pushOne(serial, body) {
     setStatus(serial, "Pushing…");
     const j = await fetch(`/api/passes/${encodeURIComponent(serial)}/status`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
     }).then(r => r.json()).catch(() => ({}));
+    if (signal.aborted) return {};
     setStatus(serial, describePushResult(j));
     return j;
   }
@@ -251,8 +259,9 @@ export function mountManage(root, showDesigner) {
     const el = root.querySelector(`[data-grp-status="${CSS.escape(gid)}"]`);
     if (el) el.textContent = "Pushing…";
     const j = await fetch(`/api/groups/${encodeURIComponent(gid)}/status`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
     }).then(r => r.json()).catch(() => ({}));
+    if (signal.aborted) return {};
     if (el) el.textContent = describePushResult(j);
     return j;
   }
@@ -313,11 +322,13 @@ export function mountManage(root, showDesigner) {
       // Same defensive shape as pushOne/pushGroup: a network fault or non-2xx
       // must surface, not silently drop the operator into a blank editor.
       try {
-        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`);
+        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`, { signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const rec = await r.json();
+        if (signal.aborted) return;
         if (rec?.state) { replaceState(rec.state); renderForm(document.getElementById("form-pane")); showDesigner(); }
       } catch (err) {
+        if (signal.aborted) return;
         setStatus(serial, `✗ couldn't load pass — ${err.message}`);
       }
       return;
@@ -326,10 +337,11 @@ export function mountManage(root, showDesigner) {
       if (!confirm(`Delete pass ${serial}?`)) return;
       setStatus(serial, "Deleting…");
       try {
-        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE" });
+        const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE", signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         load();   // only refresh (dropping the row) once the delete is confirmed
       } catch (err) {
+        if (signal.aborted) return;
         setStatus(serial, `✗ delete failed — ${err.message}`);
       }
       return;
@@ -358,10 +370,11 @@ export function mountManage(root, showDesigner) {
       if (!confirm(`Delete ALL passes in trip ${grp}?`)) return;
       setGrpStatus(grp, "Deleting…");
       try {
-        const r = await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE" });
+        const r = await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE", signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         load();   // only refresh once the trip delete is confirmed
       } catch (err) {
+        if (signal.aborted) return;
         setGrpStatus(grp, `✗ delete failed — ${err.message}`);
       }
       return;

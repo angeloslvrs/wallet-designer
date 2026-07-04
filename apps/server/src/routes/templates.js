@@ -4,7 +4,8 @@
 // Control plane: the access guard keeps this LAN/Basic-Auth only.
 
 import { raw, Router } from "express";
-import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
 import { discoverBindings, loadTemplate, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
@@ -58,14 +59,18 @@ export async function handleTemplateUpload(req, res) {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: "send the zipped .pkpasstemplate as the raw request body (Content-Type: application/zip)" });
   }
+  const dir = templateDir(id);
+  // Stage the new bundle in a sibling temp dir (same filesystem, so the final
+  // rename is atomic) and validate it there. A re-upload must not touch the
+  // existing bundle until the replacement is proven loadable — a mid-write
+  // failure would otherwise brick every already-issued pass that rebuilds from
+  // it on device fetch (there'd be NO bundle on disk).
+  const tmpDir = join(templatesRoot(), `.tmp-${id}-${randomBytes(6).toString("hex")}`);
   try {
     const files = readTemplateZip(req.body);
-    const dir = templateDir(id);
-    // Replace wholesale — a re-upload must not leave stale assets behind.
-    await rm(dir, { recursive: true, force: true });
-    const root = resolve(dir);
+    const root = resolve(tmpDir);
     for (const [name, buf] of Object.entries(files)) {
-      const dest = resolve(join(dir, name));
+      const dest = resolve(join(tmpDir, name));
       // Independent of readTemplateZip's own checks: nothing escapes the bundle dir.
       if (dest !== root && !dest.startsWith(root + sep)) {
         throw new Error(`zip entry escapes the template directory: ${name}`);
@@ -73,14 +78,24 @@ export async function handleTemplateUpload(req, res) {
       await mkdir(dirname(dest), { recursive: true });
       await writeFile(dest, buf);
     }
-    const { passJson } = await loadTemplate(dir);
+    // Validate by actually loading the staged bundle — if this throws, the
+    // existing bundle is still on disk and untouched.
+    const { passJson } = await loadTemplate(tmpDir);
     // (Re-)discover bindings for the fresh bundle — a re-upload may have
     // renamed field keys, so stored bindings are recomputed, not kept.
     const bindings = discoverBindings(passJson);
+    // Swap last, and as narrow a window as possible: drop the old bundle
+    // (replace wholesale — no stale assets survive) then rename the staged one
+    // into place, back-to-back.
+    await rm(dir, { recursive: true, force: true });
+    await rename(tmpDir, dir);
     await saveTemplateBindings(id, bindings);
     res.status(201).json({ id, fieldKeys: templateFieldKeys(passJson), bindings, files: Object.keys(files) });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  } finally {
+    // Clean up the staging dir if it survived (i.e. the swap never renamed it away).
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 

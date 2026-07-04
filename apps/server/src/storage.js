@@ -279,6 +279,12 @@ export async function savePass(state) {
     ...mutationStamp(existing)
   };
   writePass(serial, rec);
+  // `created` is decided from the SAME synchronous `existing` read that guards the
+  // write (DatabaseSync is fully synchronous — no await between getRow and
+  // writePass), so it's atomic with the upsert: two concurrent saves of one new
+  // serial can't both report created (the second sees the first's row). Callers
+  // must trust this flag instead of doing their own read-before-write.
+  rec.created = existing == null;
   return rec;
 }
 
@@ -306,6 +312,7 @@ export async function saveTemplatePass({ serialNumber, template, data = {}, grou
     ...mutationStamp(existing)
   };
   writePass(serialNumber, rec);
+  rec.created = existing == null;   // atomic with the write — see savePass.
   return rec;
 }
 
@@ -506,11 +513,18 @@ export async function listRoster() {
 /**
  * Upsert a saved passenger. A missing id creates a new entry (id generated
  * server-side); an existing id replaces that entry's label/semantics/prefs.
- * @returns {Promise<{id: string, label?: string, semantics: object, prefs?: object, updatedAt: string}>}
+ * The returned entry carries a non-enumerable `created` flag (true when the row
+ * was brand new) decided atomically with the write — DatabaseSync is fully
+ * synchronous, so the existence check and the upsert run with no await between,
+ * and two concurrent upserts of one id can't both report created. It's
+ * non-enumerable so the entry's serialized shape (list equality, JSON response
+ * body) is unchanged — only the route's 201-vs-200 status code reads it.
+ * @returns {Promise<{id: string, label?: string, semantics: object, prefs?: object, updatedAt: string, created: boolean}>}
  */
 export async function saveRosterEntry({ id, label, semantics, prefs } = {}) {
   open();
   const entryId = (id ?? "").trim() || `p_${randomBytes(6).toString("hex")}`;
+  const created = db.prepare("SELECT 1 FROM roster WHERE id = ?").get(entryId) == null;
   db.prepare(`
     INSERT INTO roster (id, label, semantics_json, prefs_json, updated_at)
     VALUES (?, ?, ?, ?, ?)
@@ -526,7 +540,8 @@ export async function saveRosterEntry({ id, label, semantics, prefs } = {}) {
     prefs !== undefined && prefs !== null ? JSON.stringify(prefs) : null,
     new Date().toISOString()
   );
-  return rowToRosterEntry(db.prepare("SELECT * FROM roster WHERE id = ?").get(entryId));
+  const entry = rowToRosterEntry(db.prepare("SELECT * FROM roster WHERE id = ?").get(entryId));
+  return Object.defineProperty(entry, "created", { value: created, enumerable: false });
 }
 
 /** Delete a saved passenger. Returns false when the id is unknown. */

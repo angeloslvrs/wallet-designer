@@ -53,6 +53,30 @@ describe("roster storage — upsert / list / delete", () => {
     expect("prefs" in saved).toBe(false);
   });
 
+  it("reports created via a non-enumerable flag decided atomically with the write", async () => {
+    // New id -> created:true; re-upserting the same id -> created:false. The flag
+    // is the store's single source of truth (route reads it for 201-vs-200), and
+    // it's non-enumerable so it never leaks into the serialized entry shape.
+    const first = await store.saveRosterEntry({ id: "p_fixed", semantics: { passengerName: "A/ONE" } });
+    expect(first.created).toBe(true);
+    expect(Object.keys(first)).not.toContain("created");           // stays out of the JSON body
+    expect(JSON.parse(JSON.stringify(first))).not.toHaveProperty("created");
+    const again = await store.saveRosterEntry({ id: "p_fixed", semantics: { passengerName: "A/TWO" } });
+    expect(again.created).toBe(false);
+  });
+
+  it("exactly one of two concurrent upserts of the same new id reports created", async () => {
+    // The race the fix closes: with a read-before-write in the route, both could
+    // see "absent" and both 201. Now the flag comes from the write helper, so a
+    // pair of interleaved upserts yields exactly one created:true.
+    const [a, b] = await Promise.all([
+      store.saveRosterEntry({ id: "p_race", semantics: { passengerName: "R/ONE" } }),
+      store.saveRosterEntry({ id: "p_race", semantics: { passengerName: "R/TWO" } })
+    ]);
+    expect([a.created, b.created].filter(Boolean)).toHaveLength(1);
+    expect((await store.listRoster()).filter(e => e.id === "p_race")).toHaveLength(1);
+  });
+
   it("lists entries in insertion order and deletes by id", async () => {
     const a = await store.saveRosterEntry({ semantics: { passengerName: "A/ONE" } });
     const b = await store.saveRosterEntry({ semantics: { passengerName: "B/TWO" } });

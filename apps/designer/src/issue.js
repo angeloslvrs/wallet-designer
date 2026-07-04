@@ -682,11 +682,12 @@ export function mountIssue(root, showManage) {
         const i = Number(btn.dataset.scanRow);
         syncFromInputs();
         const text = await scanBarcode();
-        if (!text) return;
+        if (signal.aborted || !text) return;
         let parsed = null;
         try { parsed = parseBCBP(text); } catch { /* not BCBP */ }
         if (!parsed) { alert("Not a recognized boarding pass — barcode not autofilled."); return; }
         if (!(await showBcbpPreview(parsed))) return;
+        if (signal.aborted) return;
         rows[i] = {
           ...rows[i],
           semantics: { ...(rows[i].semantics ?? {}), ...bcbpToSemantics(parsed) },
@@ -768,6 +769,7 @@ export function mountIssue(root, showManage) {
     if (!canvases.length) return;
     let bwipjs;
     try { ({ default: bwipjs } = await import("bwip-js")); } catch { return; }
+    if (signal.aborted) return;
     for (const c of canvases) {
       try { bwipjs.toCanvas(c, { bcid: "qrcode", text: c.dataset.qr, scale: 2 }); } catch { /* ignore */ }
       c.removeAttribute("data-qr");
@@ -799,10 +801,11 @@ export function mountIssue(root, showManage) {
       let r, j;
       try {
         r = await fetch("/api/passes", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
         });
         j = await r.json().catch(() => ({}));
-      } catch { setRowStatus(i, "✗ API offline"); continue; }
+      } catch { if (signal.aborted) return; setRowStatus(i, "✗ API offline"); continue; }
+      if (signal.aborted) return;
       if (r.ok) { okCount++; existingSerials.add(j.serialNumber ?? body.serialNumber); setRowStatus(i, walletAffordance(j.serialNumber, j.created === false)); }
       else setRowStatus(i, esc(describeIssueResult(false, j)));
     }
@@ -813,23 +816,30 @@ export function mountIssue(root, showManage) {
   }
 
   async function load() {
+    // A stale mount (aborted on a tab switch) must not blank the DOM the newer
+    // mount now owns — bail before any write on an aborted signal, and re-check
+    // after every await so a late-resolving fetch can't re-render over the top.
+    if (signal.aborted) return;
     root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">Loading templates…</p></div>`;
-    try { templates = await fetch("/api/templates").then(r => r.json()); }
-    catch { root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">API offline.</p></div>`; return; }
+    try { templates = await fetch("/api/templates", { signal }).then(r => r.json()); }
+    catch { if (signal.aborted) return; root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">API offline.</p></div>`; return; }
+    if (signal.aborted) return;
     if (!Array.isArray(templates)) { renderEmpty(); return; }
     bindingDrafts = Object.fromEntries(templates.filter(t => !t.error).map(t =>
       [t.id, Object.fromEntries(Object.entries(t.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]))]));
     if (!templates.length) { renderEmpty(); return; }
     // Existing serials → warn before an issue would silently overwrite a pass.
     try {
-      const passes = await fetch("/api/passes").then(r => r.json());
+      const passes = await fetch("/api/passes", { signal }).then(r => r.json());
       existingSerials = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
     } catch { existingSerials = new Set(); }
+    if (signal.aborted) return;
     // Saved passengers for the chips strip + manager.
     try {
-      const r = await fetch("/api/roster").then(r => r.json());
+      const r = await fetch("/api/roster", { signal }).then(r => r.json());
       roster = Array.isArray(r) ? r : [];
     } catch { roster = []; }
+    if (signal.aborted) return;
     selected ??= (templates.find(t => !t.error) ?? templates[0]).id;
     reSuggestSerials();
     render();
@@ -942,13 +952,15 @@ export function mountIssue(root, showManage) {
     try {
       r = await fetch(`/api/templates/${encodeURIComponent(id)}/bindings`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bindingDrafts[id] ?? {})
+        body: JSON.stringify(bindingDrafts[id] ?? {}), signal
       });
       j = await r.json().catch(() => ({}));
-    } catch { if (status) status.textContent = "✗ API offline"; return; }
+    } catch { if (signal.aborted) return; if (status) status.textContent = "✗ API offline"; return; }
+    if (signal.aborted) return;
     if (!r.ok) { if (status) status.textContent = `✗ ${j.error ?? r.status}`; return; }
     syncFromInputs();
     await load();
+    if (signal.aborted) return;
     const el = root.querySelector(`[data-bind-status="${CSS.escape(id)}"]`);
     if (el) el.textContent = `✓ saved ${Object.keys(j.bindings ?? {}).length} binding(s)`;
   }
@@ -962,13 +974,15 @@ export function mountIssue(root, showManage) {
     let r, j;
     try {
       r = await fetch(`/api/templates/${encodeURIComponent(id)}`, {
-        method: "POST", headers: { "Content-Type": "application/zip" }, body: await file.arrayBuffer()
+        method: "POST", headers: { "Content-Type": "application/zip" }, body: await file.arrayBuffer(), signal
       });
       j = await r.json().catch(() => ({}));
-    } catch { status.textContent = "✗ API offline"; return; }
+    } catch { if (signal.aborted) return; status.textContent = "✗ API offline"; return; }
+    if (signal.aborted) return;
     if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
     syncFromInputs();
     await load();
+    if (signal.aborted) return;
     const el = $("#tpl-status");
     if (el) el.textContent = `✓ uploaded "${id}" (${(j.fieldKeys ?? []).length} field keys)`;
   }
@@ -978,13 +992,15 @@ export function mountIssue(root, showManage) {
     const status = $("#tpl-status");
     let r, j;
     try {
-      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
+      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: "DELETE", signal });
       j = await r.json().catch(() => ({}));
-    } catch { status.textContent = "✗ API offline"; return; }
+    } catch { if (signal.aborted) return; status.textContent = "✗ API offline"; return; }
+    if (signal.aborted) return;
     if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
     if (selected === id) selected = null;
     syncFromInputs();
     await load();
+    if (signal.aborted) return;
     const el = $("#tpl-status");
     if (el) el.textContent = `✓ deleted "${id}"`;
   }
@@ -996,10 +1012,11 @@ export function mountIssue(root, showManage) {
     let r, j;
     try {
       r = await fetch("/api/roster", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
       });
       j = await r.json().catch(() => ({}));
-    } catch { alert("API offline — passenger not saved"); return null; }
+    } catch { if (signal.aborted) return null; alert("API offline — passenger not saved"); return null; }
+    if (signal.aborted) return null;
     if (!r.ok) { alert(`Could not save passenger: ${j.error ?? r.status}`); return null; }
     const i = roster.findIndex(en => en.id === j.id);
     roster = i >= 0 ? roster.map(en => (en.id === j.id ? j : en)) : [...roster, j];
@@ -1045,8 +1062,9 @@ export function mountIssue(root, showManage) {
     const entry = roster.find(en => en.id === id);
     if (!confirm(`Delete saved passenger ${entry?.label ?? entry?.semantics?.passengerName ?? id}?`)) return;
     let r;
-    try { r = await fetch(`/api/roster/${encodeURIComponent(id)}`, { method: "DELETE" }); }
-    catch { alert("API offline"); return; }
+    try { r = await fetch(`/api/roster/${encodeURIComponent(id)}`, { method: "DELETE", signal }); }
+    catch { if (signal.aborted) return; alert("API offline"); return; }
+    if (signal.aborted) return;
     if (!r.ok && r.status !== 404) { alert(`Could not delete (${r.status})`); return; }
     roster = roster.filter(en => en.id !== id);
     syncFromInputs();
@@ -1084,6 +1102,7 @@ export function mountIssue(root, showManage) {
       if (field === "ff") { if (v) next.semantics.membershipProgramNumber = v; else delete next.semantics.membershipProgramNumber; }
       if (!Object.keys(next.semantics).length) { alert("A saved passenger needs at least one semantic value (e.g. the name)."); render(); return; }
       await upsertRoster(next);
+      if (signal.aborted) return;
       render();
     };
     input.addEventListener("blur", commit);

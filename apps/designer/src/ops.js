@@ -66,5 +66,10 @@ export function describePushResult(j) {
   const head = j.results ? `✓ ${j.count} pass(es), ${sent} device(s)` : `✓ pushed ${sent} device(s)`;
   const failNote = failed ? ` · ⚠ ${failed} failed` : "";
   const pruneNote = pruned ? ` · pruned ${pruned} stale` : "";
-  return head + failNote + pruneNote + skippedNote;
+  // Group updates report per-pass apply failures (a corrupt member that couldn't
+  // be updated at all) separately from push-delivery failures above.
+  const errNote = j.errors?.length
+    ? ` · ⚠ ${j.errors.length} not updated: ${j.errors.map(e => e.serial).join(", ")}`
+    : "";
+  return head + failNote + pruneNote + errNote + skippedNote;
 }
