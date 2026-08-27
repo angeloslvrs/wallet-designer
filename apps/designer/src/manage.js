@@ -113,21 +113,28 @@ export function mountManage(root, showDesigner) {
 
   // One status editor (trip-wide or per-pass), parameterized by scope + its
   // action buttons. Date fields render the typed picker (mounted post-render);
-  // everything else is a plain input or a select.
-  function statusEditorHtml(kind, id, actsHtml) {
+  // everything else is a plain input or a select. `current` (per-pass editors
+  // only — a trip spans several passes with no single current value) shows
+  // what's already live: a real placeholder/hint, never a submittable value,
+  // so leaving a field untouched still means "don't change this" per
+  // buildStatusBody (ops.js) — only fields the operator actually types into
+  // are sent.
+  function statusEditorHtml(kind, id, actsHtml, current) {
     const fields = STATUS_FIELDS.map(([key, label, ph, options]) => {
+      const cur = current?.[key];
       let control;
       if (options) {
         control = `<select data-f="${esc(key)}" title="${esc(label)}">${options.map(o =>
-          `<option value="${esc(o)}">${esc(o || `${label}: (no change)`)}</option>`).join("")}</select>`;
+          `<option value="${esc(o)}">${esc(o || (cur ? `${label}: (no change — ${cur})` : `${label}: (no change)`))}</option>`).join("")}</select>`;
       } else if (semanticKind(key) === "date") {
         // ISO-8601 schedule field → datetime-local + offset picker, mounted
         // post-render so a malformed date can't be typed.
         control = `<div class="mg-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" title="${esc(label)}"></div>`;
       } else {
-        control = `<input data-f="${esc(key)}" placeholder="${esc(ph)}" title="${esc(label)}" />`;
+        control = `<input data-f="${esc(key)}" placeholder="${esc(cur || ph)}" title="${esc(label)}" />`;
       }
-      return `<span class="mg-field"><label class="mg-f-label">${esc(label)}</label>${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
+      const hint = (semanticKind(key) === "date" && cur) ? ` <span class="mg-f-current">now ${esc(fmtWhen(cur))}</span>` : "";
+      return `<span class="mg-field"><label class="mg-f-label">${esc(label)}${hint}</label>${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
     }).join("");
     return `<div class="mg-editor" data-scope="${esc(kind)}" data-scope-id="${esc(id)}">${fields}<div class="mg-editor-acts">${actsHtml}</div></div>`;
   }
@@ -159,7 +166,8 @@ export function mountManage(root, showDesigner) {
   function passRow(p) {
     const passEditor = statusEditorHtml("pass", p.serial,
       `<button data-act="pass-update" data-serial="${esc(p.serial)}" class="wpd-ghost is-primary">Update · push</button>` +
-      `<button data-act="pass-clear" data-serial="${esc(p.serial)}" class="wpd-ghost">Clear delay/status</button>`);
+      `<button data-act="pass-clear" data-serial="${esc(p.serial)}" class="wpd-ghost">Clear delay/status</button>`,
+      p.current);
     return `
       <div class="mg-row" data-row="${esc(p.serial)}">
         ${chipHtml(p.status, `data-chip-pass="${esc(p.serial)}"`)}

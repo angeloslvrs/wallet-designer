@@ -14,7 +14,8 @@ beforeEach(() => {
   const listResp = [{
     serial: SERIAL, groupId: "5J5057@2026-06-14",
     passenger: "SOLIVERES/ANGELO", seat: "14A",
-    lastModified: "Sat, 14 Jun 2026 00:00:00 GMT", deviceCount: 1, template: "cebpac"
+    lastModified: "Sat, 14 Jun 2026 00:00:00 GMT", deviceCount: 1, template: "cebpac",
+    current: { departureGate: "B9", currentBoardingDate: "2026-06-14T07:30:00-07:00" }
   }];
   globalThis.fetch = async (url, opts) => {
     const u = String(url);
@@ -54,5 +55,22 @@ describe("Manage — per-pass inline status editor", () => {
     expect(pushedTo).toHaveLength(1);
     expect(pushedTo[0].url).toContain(encodeURIComponent(SERIAL));
     expect(pushedTo[0].body).toEqual({ departureGate: "C12" });
+  });
+
+  it("shows the pass's current value as a placeholder/hint, never a submittable one", async () => {
+    mountManage(root, () => {});
+    await flush();
+    const row = root.querySelector(`.mg-row[data-row="${SERIAL}"]`);
+    const editor = row.querySelector('.mg-editor[data-scope="pass"]');
+    const gate = editor.querySelector('input[data-f="departureGate"]');
+    expect(gate.placeholder).toBe("B9");
+    expect(gate.value).toBe("");                      // shown, not pre-filled
+    expect(editor.querySelector(".mg-f-current")?.textContent).toContain("Jun 14");
+
+    // Leaving every field untouched must still push nothing (buildStatusBody
+    // drops empties) — the current-value hint must never be submitted.
+    row.querySelector('button[data-act="pass-update"]').click();
+    await flush();
+    expect(pushedTo).toHaveLength(0);
   });
 });

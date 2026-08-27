@@ -304,6 +304,7 @@ label { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 700; lett
 .mg-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .mg-field input, .mg-field select { width: 100%; }
 .mg-f-label { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--wpd-ink); }
+.mg-f-current { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--wpd-faint); margin-left: 4px; }
 .mg-editor-label { font-family: var(--wpd-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--wpd-faint); margin: 6px 0 2px; }
 #issue-pane .mg-editor-acts { padding: 12px 0 0; border-top: none; }
 

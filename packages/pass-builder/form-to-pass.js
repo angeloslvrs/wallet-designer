@@ -36,6 +36,11 @@ export function formStateToPassJson(s) {
     backgroundColor: branding.backgroundColor,
     labelColor: branding.labelColor,
     preferredStyleSchemes: ["semanticBoardingPass", "boardingPass"],
+    // Apple's live flight-data feed is authoritative over pushed semantics for a
+    // recognized real flight — including departureGate, which it otherwise blanks
+    // out until the airline's own feed reports a gate. Exclude it so our status
+    // updates always win.
+    liveDataConfiguration: { excludedSemantics: ["departureGate"] },
     barcodes: [{ format: barcode.format, message: barcode.message, messageEncoding: "iso-8859-1", altText: barcode.altText }],
     boardingPass,
     semantics: emitSemantics(s.semantics, ios.wifi),

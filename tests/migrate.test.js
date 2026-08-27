@@ -83,8 +83,10 @@ describe("round-trip: new emitter on migrated state == frozen legacy emitter", (
   // ALL passes — see expiry.js / tests/expiry.test.js. Those derived date fields
   // are intentionally different from the frozen legacy output and orthogonal to
   // migration, so they're excluded here; migration faithfulness is still
-  // asserted byte-for-byte for everything else.
-  const stripDerivedDates = ({ expirationDate, relevantDate, relevantDates, ...rest }) => rest;
+  // asserted byte-for-byte for everything else. Likewise liveDataConfiguration
+  // (excludes departureGate from Apple's live flight-data override) is a new,
+  // always-on addition the frozen legacy emitter never produced.
+  const stripDerivedDates = ({ expirationDate, relevantDate, relevantDates, liveDataConfiguration, ...rest }) => rest;
   it("reproduces legacy pass.json byte-for-byte (excluding derived expiry/relevance)", () => {
     for (const old of [oldBase, oldRich]) {
       expect(stripDerivedDates(formStateToPassJson(migrateFormState(old)))).toEqual(stripDerivedDates(legacyFormStateToPassJson(old)));

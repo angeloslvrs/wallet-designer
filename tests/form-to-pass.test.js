@@ -34,6 +34,11 @@ describe("formStateToPassJson (new shape)", () => {
     expect(p.barcodes[0]).toEqual({ format: "PKBarcodeFormatQR", message: "RP247-SFOJFK-14A-0042", messageEncoding: "iso-8859-1", altText: "RP247 14A" });
   });
 
+  it("excludes departureGate from Apple's live flight data override", () => {
+    const p = formStateToPassJson(base);
+    expect(p.liveDataConfiguration).toEqual({ excludedSemantics: ["departureGate"] });
+  });
+
   it("builds boardingPass.*Fields straight from displayFields (verbatim, incl. extra props)", () => {
     const p = formStateToPassJson({ ...base, displayFields: { ...base.displayFields,
       auxiliary: [{ key: "boarding", label: "BOARDING", value: "2026-06-01T07:30:00-07:00", dateStyle: "PKDateStyleNone", timeStyle: "PKDateStyleShort" }] } });

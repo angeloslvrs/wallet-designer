@@ -264,6 +264,26 @@ export const statusOf = (rec) => {
   const v = (ts !== null && typeof ts === "object") ? ts.value : ts;
   return (v ?? "").toString().trim() || "On Time";
 };
+const unwrap = (raw) => (raw !== null && typeof raw === "object") ? raw.value : raw;
+// Current values for the Manage "Update" editor's fields, so the UI can show
+// what's already live instead of a generic example. Same semantics source as
+// statusOf; delay note lives in the additionalInfoFields "delay" row, whose
+// location differs by shape (template: top-level; FormState: under iOS26).
+export const currentFieldsOf = (rec) => {
+  const sem = rec.data ? rec.data.semantics : migrateFormState(rec.state)?.semantics;
+  const infoFields = rec.data ? rec.data.additionalInfoFields : migrateFormState(rec.state)?.iOS26?.additionalInfoFields;
+  return {
+    departureGate: unwrap(sem?.departureGate),
+    currentBoardingDate: unwrap(sem?.currentBoardingDate),
+    currentDepartureDate: unwrap(sem?.currentDepartureDate),
+    currentArrivalDate: unwrap(sem?.currentArrivalDate),
+    transitProvider: unwrap(sem?.transitProvider),
+    securityScreening: unwrap(sem?.securityScreening),
+    delayed: infoFields?.find(f => f.key === "delay")?.value,
+    transitStatus: unwrap(sem?.transitStatus),
+    transitStatusReason: unwrap(sem?.transitStatusReason)
+  };
+};
 
 // GET /api/passes  →  all issued passes, with their group + device count
 adminRouter.get("/passes", asyncHandler(async (_req, res) => {
@@ -277,6 +297,7 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
     status: statusOf(rec),
     lastModified: rec.lastModified,
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
+    current: currentFieldsOf(rec),
     ...(rec.template && { template: rec.template })
   })));
 }));
