@@ -124,6 +124,22 @@ describe("SQLite storage", () => {
     }
   });
 
+  it("updatePassData is a no-op (no lastModified/updateTag bump) when the mutator changes nothing", async () => {
+    const s = await bootStorage(statePath);
+    const first = await s.saveTemplatePass({
+      serialNumber: "NOOP-1", template: "dev-sample", data: { gate: "A1" },
+      groupId: "G@1", passTypeId: "pass.dev.local"
+    });
+    const resubmit = await s.updatePassData("NOOP-1", data => ({ ...data, gate: "A1" }));
+    expect(resubmit.changed).toBe(false);
+    expect(resubmit.updateTag).toBe(first.updateTag);
+    expect(resubmit.lastModified).toBe(first.lastModified);
+
+    const real = await s.updatePassData("NOOP-1", data => ({ ...data, gate: "A2" }));
+    expect(real.changed).toBe(true);
+    expect(real.updateTag).toBe(first.updateTag + 1);
+  });
+
   it("lists only registrations with update tags greater than sinceTag", async () => {
     const s = await bootStorage(statePath);
     const first = await s.saveTemplatePass({

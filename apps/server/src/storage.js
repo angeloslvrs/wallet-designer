@@ -357,14 +357,23 @@ export async function getPass(passTypeId, serial) {
   return rec;
 }
 
+// A no-op edit (resubmitting values that already match — e.g. clicking
+// "Update · push" again, or a status pushed twice) must not bump lastModified/
+// updateTag or trigger a push: doing so wakes every device for content that
+// didn't change, and iOS logs it ("the pass was unchanged" / "ignored
+// if-modified-since" once a second no-op bump races the device's re-fetch).
+// `rec.changed` is a transient, unpersisted flag the caller checks — never
+// written to the store or echoed verbatim into an API response.
 export async function updatePassState(serial, mutator) {
   open();
   const rec = rowToRec(getRow(serial));
   if (!rec) return null;
-  rec.state = mutator(rec.state);
+  const nextState = mutator(rec.state);
+  if (JSON.stringify(nextState) === JSON.stringify(rec.state)) return { ...rec, changed: false };
+  rec.state = nextState;
   Object.assign(rec, mutationStamp(rec));
   writePass(serial, rec);
-  return rec;
+  return { ...rec, changed: true };
 }
 
 /** Template-pass twin of updatePassState: mutates rec.data instead of rec.state. */
@@ -372,10 +381,12 @@ export async function updatePassData(serial, mutator) {
   open();
   const rec = rowToRec(getRow(serial));
   if (!rec || rec.template == null) return null;
-  rec.data = mutator(rec.data ?? {});
+  const nextData = mutator(rec.data ?? {});
+  if (JSON.stringify(nextData) === JSON.stringify(rec.data ?? {})) return { ...rec, changed: false };
+  rec.data = nextData;
   Object.assign(rec, mutationStamp(rec));
   writePass(serial, rec);
-  return rec;
+  return { ...rec, changed: true };
 }
 
 /**

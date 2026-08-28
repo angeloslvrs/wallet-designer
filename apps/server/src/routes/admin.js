@@ -347,7 +347,9 @@ adminRouter.post("/passes/:serial/status", asyncHandler(async (req, res) => {
   try {
     const result = await applyStatusToStoredPass(req.params.serial, req.body ?? {});
     if (!result) return res.status(404).json({ error: "pass not registered — POST /api/passes first" });
-    const push = await pushPass(result.rec, req.params.serial);
+    // A no-op update (resubmitted values identical to what's already stored)
+    // must not wake devices for content that didn't change.
+    const push = result.rec.changed ? await pushPass(result.rec, req.params.serial) : { sent: 0, failures: [], unregistered: [] };
     res.json({
       ok: true, lastModified: result.rec.lastModified, push,
       ...(result.skipped.length && { skippedFields: result.skipped })
@@ -374,7 +376,7 @@ adminRouter.post("/groups/:groupId/status", asyncHandler(async (req, res) => {
   for (const { serial } of members) {
     try {
       const { rec, skipped } = await applyStatusToStoredPass(serial, req.body ?? {});
-      const push = await pushPass(rec, serial);
+      const push = rec.changed ? await pushPass(rec, serial) : { sent: 0, failures: [], unregistered: [] };
       results.push({
         serial, passenger: passengerOf(rec), push,
         ...(skipped.length && { skippedFields: skipped })
