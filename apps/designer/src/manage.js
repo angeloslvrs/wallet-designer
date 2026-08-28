@@ -124,16 +124,23 @@ export function mountManage(root, showDesigner) {
       const cur = current?.[key];
       let control;
       if (options) {
+        // The current value is shown as a label hint (like the date fields), not
+        // crammed into the option text — a long status + reason pair overflowed
+        // and truncated mid-word inside the select's fixed width.
         control = `<select data-f="${esc(key)}" title="${esc(label)}">${options.map(o =>
-          `<option value="${esc(o)}">${esc(o || (cur ? `${label}: (no change — ${cur})` : `${label}: (no change)`))}</option>`).join("")}</select>`;
+          `<option value="${esc(o)}">${esc(o || "(no change)")}</option>`).join("")}</select>`;
       } else if (semanticKind(key) === "date") {
-        // ISO-8601 schedule field → datetime-local + offset picker, mounted
+        // ISO-8601 schedule field → date + time + offset picker, mounted
         // post-render so a malformed date can't be typed.
         control = `<div class="mg-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" title="${esc(label)}"></div>`;
       } else {
         control = `<input data-f="${esc(key)}" placeholder="${esc(cur || ph)}" title="${esc(label)}" />`;
       }
-      const hint = (semanticKind(key) === "date" && cur) ? ` <span class="mg-f-current">now ${esc(fmtWhen(cur))}</span>` : "";
+      // Plain text fields already show their current value as a placeholder;
+      // only date pickers (whose control can't hold placeholder text) and
+      // selects (whose "no change" option can't fit it) need this hint.
+      const showHint = cur && (semanticKind(key) === "date" || Boolean(options));
+      const hint = showHint ? ` <span class="mg-f-current">now ${esc(semanticKind(key) === "date" ? fmtWhen(cur) : cur)}</span>` : "";
       return `<span class="mg-field"><label class="mg-f-label">${esc(label)}${hint}</label>${control}<span class="field-err" data-ferr="${esc(key)}"></span></span>`;
     }).join("");
     return `<div class="mg-editor" data-scope="${esc(kind)}" data-scope-id="${esc(id)}">${fields}<div class="mg-editor-acts">${actsHtml}</div></div>`;

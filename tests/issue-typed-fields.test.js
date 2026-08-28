@@ -36,9 +36,10 @@ describe("Issue tab — fields render in their expected input type", () => {
 
     // text field → plain text input
     expect(root.querySelector('input[data-shared-key="gate"]')).toBeTruthy();
-    // date field → datetime-local picker (not a text box)
-    const dateInput = root.querySelector('[data-typed-shared="boardingTime"] input[type="datetime-local"]');
+    // date field → separate date + time pickers (not a text box)
+    const dateInput = root.querySelector('[data-typed-shared="boardingTime"] input[type="date"]');
     expect(dateInput).toBeTruthy();
+    expect(root.querySelector('[data-typed-shared="boardingTime"] input[type="time"]')).toBeTruthy();
     expect(root.querySelector('input[data-shared-key="boardingTime"]')).toBeNull();
   });
 
@@ -49,7 +50,7 @@ describe("Issue tab — fields render in their expected input type", () => {
     root.querySelector('button[data-act="to-individual"][data-key="boardingTime"]').click();
     await flush();
 
-    const rowPicker = root.querySelector('.iss-row [data-typed-key="boardingTime"] input[type="datetime-local"]');
+    const rowPicker = root.querySelector('.iss-row [data-typed-key="boardingTime"] input[type="date"]');
     expect(rowPicker).toBeTruthy();
   });
 });

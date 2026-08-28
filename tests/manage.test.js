@@ -33,12 +33,13 @@ beforeEach(() => {
 afterEach(() => { root.remove(); delete globalThis.fetch; });
 
 describe("Manage status editor — typed ISO-8601 date inputs", () => {
-  it("renders the schedule fields as datetime-local pickers, not free text", async () => {
+  it("renders the schedule fields as separate date + time pickers, not free text", async () => {
     mountManage(root, () => {});
     await flush();
     const ph = root.querySelector('[data-typed-status="currentBoardingDate"]');
     expect(ph).toBeTruthy();
-    expect(ph.querySelector('input[type="datetime-local"]')).toBeTruthy();
+    expect(ph.querySelector('input[type="date"]')).toBeTruthy();
+    expect(ph.querySelector('input[type="time"]')).toBeTruthy();
     // The date key must no longer be a raw text field that accepts any string.
     expect(root.querySelector('input[data-f="currentBoardingDate"]')).toBeNull();
   });
@@ -48,9 +49,12 @@ describe("Manage status editor — typed ISO-8601 date inputs", () => {
     await flush();
     const card = root.querySelector('.mg-card[data-card="5J5057@2026-06-14"]');
     const typed = card.querySelector('[data-typed-status="currentBoardingDate"]');
-    const dt = typed.querySelector('input[type="datetime-local"]');
+    const date = typed.querySelector('input[type="date"]');
+    const time = typed.querySelector('input[type="time"]');
     const off = typed.querySelector('input[type="text"]');
-    dt.value = "2026-06-14T15:10"; off.value = "+09:00"; ev(off, "input");
+    date.value = "2026-06-14"; ev(date, "input");
+    time.value = "15:10"; ev(time, "input");
+    off.value = "+09:00"; ev(off, "input");
     const gate = card.querySelector('input[data-f="departureGate"]');
     gate.value = "56"; ev(gate, "input");
     card.querySelector('button[data-act="grp-update"]').click();

@@ -1,8 +1,8 @@
 // Shared typed-input helpers. Pure functions here are unit-tested; the DOM
 // renderer (renderTypedInput) is added in a later task.
 
-// ISO-8601 <-> datetime-local. <input type=datetime-local> only edits the
-// wall-clock part, so the UTC offset is parsed/preserved separately.
+// ISO-8601 <-> separate date/time inputs. <input type=date>/<input type=time>
+// only edit the wall-clock part, so the UTC offset is parsed/preserved separately.
 export const localUtcOffset = (date = new Date()) => {
   const minutes = -date.getTimezoneOffset();
   const sign = minutes >= 0 ? "+" : "-";
@@ -110,23 +110,30 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       wrap.append(inp, dl); break;
     }
     case "date": {
-      wrap.style.cssText = "display:flex;gap:6px;align-items:center";
+      wrap.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
       const { local, offset } = splitIso(value);
-      const dt = el("input", { type: "datetime-local", step: "60", value: local });
+      const [localDate = "", localTime = ""] = local ? local.split("T") : [];
+      const dateInp = el("input", { type: "date", value: localDate });
+      const timeInp = el("input", { type: "time", step: "60", value: localTime });
       const off = el("input", { type: "text", value: offset, placeholder: localUtcOffset(), title: "UTC offset" });
       off.pattern = "Z|[+-][0-9]{2}:[0-9]{2}";
       off.maxLength = 6;
-      off.style.cssText = "width:78px;flex:none"; dt.style.flex = "1";
+      dateInp.style.cssText = "flex:1 1 118px;min-width:0";
+      timeInp.style.cssText = "flex:1 1 90px;min-width:0";
+      off.style.cssText = "width:78px;flex:none";
+      const currentLocal = () => (dateInp.value && timeInp.value ? `${dateInp.value}T${timeInp.value}` : "");
       // Until the user sets the offset, keep it filled with the EDITED date's
       // local offset, so it tracks DST for whatever date they type.
       let offsetTouched = Boolean(offset);
       const sync = () => {
-        if (!offsetTouched && dt.value) off.value = offsetForLocal(dt.value);
-        fire(joinIso(dt.value, off.value.trim()));
+        const local = currentLocal();
+        if (!offsetTouched && local) off.value = offsetForLocal(local);
+        fire(joinIso(local, off.value.trim()));
       };
-      dt.addEventListener("input", sync);
-      off.addEventListener("input", () => { offsetTouched = true; fire(joinIso(dt.value, off.value.trim())); });
-      wrap.append(dt, off); break;
+      dateInp.addEventListener("input", sync);
+      timeInp.addEventListener("input", sync);
+      off.addEventListener("input", () => { offsetTouched = true; fire(joinIso(currentLocal(), off.value.trim())); });
+      wrap.append(dateInp, timeInp, off); break;
     }
     case "number": {
       const inp = el("input", { type: "number", value: value ?? "" });

@@ -12,20 +12,23 @@ function mount(opts) {
 describe("renderTypedInput", () => {
   it("date: edits wall-clock + offset, emits ISO with offset preserved", () => {
     const { el, get } = mount({ type: "date", value: "2026-06-13T07:30:00-07:00" });
-    const [dt, off] = el.querySelectorAll("input");
-    expect(dt.value).toBe("2026-06-13T07:30");
+    const [dateInp, timeInp, off] = el.querySelectorAll("input");
+    expect(dateInp.value).toBe("2026-06-13");
+    expect(timeInp.value).toBe("07:30");
     expect(off.value).toBe("-07:00");
-    dt.value = "2026-06-13T09:45"; dt.dispatchEvent(new Event("input", { bubbles: true }));
+    timeInp.value = "09:45"; timeInp.dispatchEvent(new Event("input", { bubbles: true }));
     expect(get()).toBe("2026-06-13T09:45:00-07:00");
   });
   it("date: blank widget hints the offset, then autofills the edited date's offset on input", () => {
     const { el, get } = mount({ type: "date", value: "" });
-    const [dt, off] = el.querySelectorAll("input");
-    expect(dt.value).toBe("");
+    const [dateInp, timeInp, off] = el.querySelectorAll("input");
+    expect(dateInp.value).toBe("");
+    expect(timeInp.value).toBe("");
     expect(off.value).toBe("");
     expect(off.placeholder).toBe(localUtcOffset());
     expect(off.title).toBe("UTC offset");
-    dt.value = "2026-06-13T09:45"; dt.dispatchEvent(new Event("input", { bubbles: true }));
+    dateInp.value = "2026-06-13"; dateInp.dispatchEvent(new Event("input", { bubbles: true }));
+    timeInp.value = "09:45"; timeInp.dispatchEvent(new Event("input", { bubbles: true }));
     const expected = localUtcOffset(new Date("2026-06-13T09:45"));
     expect(off.value).toBe(expected);
     expect(get()).toBe(`2026-06-13T09:45:00${expected}`);

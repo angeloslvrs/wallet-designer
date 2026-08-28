@@ -8,8 +8,9 @@ describe("renderSemanticsEditor", () => {
     document.body.appendChild(el);
     expect(el.querySelector('[data-sem="airlineCode"]')).toBeTruthy();
     expect(el.querySelector('[data-sem="passengerName"]')).toBeTruthy();
-    // a required date semantic is present with the datetime widget
-    expect(el.querySelector('[data-sem="originalBoardingDate"] input[type="datetime-local"]')).toBeTruthy();
+    // a required date semantic is present with the date + time widgets
+    expect(el.querySelector('[data-sem="originalBoardingDate"] input[type="date"]')).toBeTruthy();
+    expect(el.querySelector('[data-sem="originalBoardingDate"] input[type="time"]')).toBeTruthy();
   });
 });
 
