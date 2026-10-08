@@ -285,9 +285,33 @@ export const currentFieldsOf = (rec) => {
   };
 };
 
+// Route + flight identity for the Flights board (both shapes, from semantics).
+// Cities are optional (recommended semantics); codes are the required ones.
+// For template passes the device sees the bundle's baked semantics overlaid
+// with the stored ones (a stored null DELETES a baked key), so `base` — the
+// template's pass.json semantics — makes the readout match the device.
+export const routeOf = (rec, base) => {
+  const stored = rec.data ? rec.data.semantics : migrateFormState(rec.state)?.semantics;
+  const sem = { ...(rec.data ? base : null), ...stored };
+  const str = (v) => { const u = unwrap(v); return (u ?? "").toString().trim() || undefined; };
+  const airline = str(sem?.airlineCode), number = str(sem?.flightNumber);
+  return {
+    from: str(sem?.departureAirportCode), to: str(sem?.destinationAirportCode),
+    fromCity: str(sem?.departureCityName), toCity: str(sem?.destinationCityName),
+    flight: airline && number ? `${airline} ${number}` : str(sem?.flightCode)
+  };
+};
+
 // GET /api/passes  →  all issued passes, with their group + device count
 adminRouter.get("/passes", asyncHandler(async (_req, res) => {
   const snap = await snapshot();
+  // Baked template semantics, loaded once per distinct template (for routeOf).
+  const baseSem = {};
+  for (const rec of Object.values(snap.passes)) {
+    if (!rec.template || rec.template in baseSem) continue;
+    try { baseSem[rec.template] = (await loadTemplate(templateDir(rec.template))).passJson.semantics ?? {}; }
+    catch { baseSem[rec.template] = {}; }   // missing bundle: readout falls back to stored semantics
+  }
   res.json(Object.entries(snap.passes).map(([serial, rec]) => ({
     serial,
     groupId: rec.groupId,
@@ -298,6 +322,7 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
     lastModified: rec.lastModified,
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     current: currentFieldsOf(rec),
+    route: routeOf(rec, baseSem[rec.template]),
     ...(rec.template && { template: rec.template })
   })));
 }));

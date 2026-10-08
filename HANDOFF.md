@@ -325,3 +325,41 @@ Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
      renders today); true hi-dpi @2x/@3x via in-browser canvas downscale; replace the
      `alert()` in `issue.js`'s scan handler with an inline note.
 3. Apple PR #4 comment still parked (external, unrelated to the above).
+
+## 2026-10-09 session — UI/UX overhaul, direction chosen + Phase 1 shipped (branch `ui-overhaul`)
+
+**Decision:** the SPA is being rebuilt on direction **F "Studio dark"** — B's flights-first
+departures board + C's rounded three-pane studio canvas, iOS-dark palette with a light theme.
+Six interactive mockups live in `docs/mockups/` (A–F; `compare.html` shows them side by side,
+`f-studio-dark.html` is the reference). Spec with IA, tokens, API changes and five phases:
+`docs/superpowers/specs/2026-10-09-ui-overhaul-studio-dark.md`.
+
+**Phase 1 done (tokens + shell + Flights board):**
+- `styles.css`: new `:root` tokens (dark) + `[data-theme=light]`; legacy `--wpd-*` tokens
+  remapped onto the theme so the untouched Issue/Design views render on the dark shell.
+- `index.html` / `main.js`: glass masthead with a segmented nav (Flights · Issue · Design ·
+  Device log) and a sliding thumb, theme toggle (`theme.js`, `localStorage wpd:theme`,
+  `prefers-color-scheme` seeds it), `#view` hash deep-links. Flights is the landing view.
+  The inline pre-paint theme script was removed: it violated the CSP (`default-src 'self'`).
+- `flights.js` replaces `manage.js`: departures board (`flightsFrom(list)` folds the flat
+  pass list into one row per trip: flight label, gate, destination, departs/boards, most-severe
+  status pill, passes · on-device bar) + docked control panel (status keys writing into a
+  hidden `transitStatus` input, reason, gate, typed boarding/departure/arrival pickers, "More"
+  for transit/security/delay, Push to N devices, Clear, Delete flight, passenger list with
+  per-pass editor/Add-to-Wallet/Delete). Same `data-act` / `data-f` / `data-typed-status` /
+  `data-chip-*` / `data-status` contracts as before; tests ported to `tests/flights*.test.js`
+  (+ `stale-mount-race`). `log.js` is the Device log page.
+- Server: `GET /api/passes` items gain `route: {from,to,fromCity,toCity,flight}` (`routeOf` in
+  `routes/admin.js`). For template passes it overlays stored semantics on the bundle's baked
+  ones (stored `null` deletes) so the board matches the device; the route loads each distinct
+  template once per request.
+- 437 tests green, SPA builds. Verified live in both themes with seeded dev-sample passes.
+
+**Next (Phase 2):** Templates shelf (`/api/library` listing `.pkpasstemplate` bundles AND
+studio designs with `kind`), Bindings review screen extracted from `issue.js`'s drawer; then
+Phase 3 rebuilds Issue as the three-pane canvas (template → flight → passengers → issued,
+incl. issuing from a studio design) and deletes `issue.js`.
+
+Gotcha: the Claude desktop preview launcher (`.claude/launch.json`, `designer-dev`) injects
+`PORT=4318` from its `port` field, so the API lands on 4318 (serving the built dist) and Vite
+hops to 4319 — preview the live SPA at :4319. Plain `npm run dev` uses `.env` (API :4317, Vite :4318).

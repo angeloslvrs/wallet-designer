@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,24 +19,31 @@
     />
     <title>Boarding Pass Studio</title>
     <link rel="icon" href="data:," />
+    <meta name="color-scheme" content="dark light" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="app-shell">
       <header id="masthead">
         <div class="wpd-masthead-brand">Boarding Pass Studio</div>
-        <nav id="view-tabs">
-          <button data-view="designer">Design</button>
-          <button data-view="issue" class="active">Issue</button>
-          <button data-view="manage">Manage</button>
+        <nav id="view-tabs" class="seg" aria-label="Views">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" data-view="flights" class="active">Flights</button>
+          <button type="button" data-view="issue">Issue</button>
+          <button type="button" data-view="designer">Design</button>
+          <button type="button" data-view="log">Device log</button>
         </nav>
-        <span id="profile-badge">…</span>
+        <div class="masthead-right">
+          <span id="profile-badge">…</span>
+          <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle light / dark theme">☀</button>
+        </div>
       </header>
 
       <div id="app-main">
+        <section id="flights-pane"></section>
         <main hidden>
           <section id="form-pane"></section>
           <section id="preview-pane">
@@ -56,8 +63,8 @@
             <div id="build-status"></div>
           </section>
         </main>
-        <section id="manage-pane" hidden></section>
-        <section id="issue-pane"></section>
+        <section id="issue-pane" hidden></section>
+        <section id="log-pane" hidden></section>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

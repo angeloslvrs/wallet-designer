@@ -3,18 +3,19 @@ import { renderForm } from "./form.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
 import { wireBuildButton } from "./build.js";
-// Issue and Manage are the heavy non-default views (they pull in bwip-js /
-// @zxing/browser transitively). They're loaded on demand — see wireViewTabs —
-// so a first paint on the Designer view doesn't pay for the issue/scanner deps.
+import { initTheme } from "./theme.js";
+// Flights is the landing view (light; no barcode deps). Issue and Design's
+// heavy deps (bwip-js / @zxing/browser) are reached only via dynamic import()
+// from their own modules, so first paint never pays for them.
 
 async function showProfile() {
   const badge = document.getElementById("profile-badge");
   try {
     const r = await fetch("/api/profile").then(r => r.json());
-    badge.textContent = r.profile === "prod" ? "PROD CERT" : "DEV CERT";
+    badge.textContent = r.profile === "prod" ? "prod cert" : "dev cert";
     badge.classList.remove("is-err");
   } catch {
-    badge.textContent = "API OFFLINE";
+    badge.textContent = "API offline";
     badge.classList.add("is-err");
   }
 }
@@ -68,39 +69,49 @@ async function saveDesign() {
   }
 }
 
-// Issue / Manage / Design view toggle. The template→issue→manage flow is the
-// front door; the hand-designer is the secondary "Design (advanced)" tab.
-function wireViewTabs(initialView = "issue") {
+// Masthead segmented control: Flights (landing) · Issue · Design · Device log.
+// Views are code-split: import() on first show, then mount. Because import()
+// is async, the user could switch again before it resolves — `activeView`
+// records the current selection so a stale import doesn't mount a pane the
+// user has already navigated away from. Every mount still calls its module's
+// own root._mountAbort teardown (abort-on-remount contract).
+function wireViewTabs(initialView = "flights") {
   const tabs = document.getElementById("view-tabs");
-  const main = document.querySelector("main");
-  const managePane = document.getElementById("manage-pane");
-  const issuePane = document.getElementById("issue-pane");
-  // The heavy views are code-split: import() the module the first time its tab
-  // is shown, then mount. Because import() is async, the user could switch tabs
-  // again before it resolves — `activeView` records the current selection so a
-  // stale import doesn't mount a pane the user has already navigated away from.
-  // Each mount still calls the module's own root._mountAbort teardown, so the
-  // abort-on-remount contract is unchanged whether the module is fresh or cached.
+  const panes = {
+    flights: document.getElementById("flights-pane"),
+    designer: document.querySelector("main"),
+    issue: document.getElementById("issue-pane"),
+    log: document.getElementById("log-pane")
+  };
   let activeView = null;
-  const loadManage = () => import("./manage.js").then(m => m.mountManage);
-  const loadIssue = () => import("./issue.js").then(m => m.mountIssue);
+  const loaders = {
+    flights: () => import("./flights.js").then(m => (root) => m.mountFlights(root, { showIssue: () => show("issue") })),
+    issue:   () => import("./issue.js").then(m => (root) => m.mountIssue(root, () => show("flights"))),
+    log:     () => import("./log.js").then(m => (root) => m.mountLog(root))
+  };
+  const moveThumb = () => {
+    const thumb = tabs.querySelector(".seg-thumb");
+    const active = tabs.querySelector("button.active");
+    if (!thumb || !active) return;
+    thumb.style.width = `${active.offsetWidth}px`;
+    thumb.style.transform = `translateX(${active.offsetLeft}px)`;
+  };
   const show = (view) => {
     activeView = view;
-    main.hidden = view !== "designer";
-    managePane.hidden = view !== "manage";
-    issuePane.hidden = view !== "issue";
+    for (const [k, pane] of Object.entries(panes)) pane.hidden = k !== view;
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
-    if (view === "manage") loadManage().then(mount => { if (activeView === "manage") mount(managePane, () => show("designer")); });
-    if (view === "issue") loadIssue().then(mount => { if (activeView === "issue") mount(issuePane, () => show("manage")); });
+    moveThumb();
+    if (view !== "designer") loaders[view]().then(mount => { if (activeView === view) mount(panes[view]); });
+    history.replaceState(null, "", `#${view}`);
   };
   tabs.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
-  show(initialView);   // land on the issue flow, not the hand-designer
+  addEventListener("resize", moveThumb);
+  document.fonts?.ready.then(moveThumb);
+  const fromHash = location.hash.slice(1);
+  show(panes[fromHash] ? fromHash : initialView);
 }
 
 // Click a field on the live pass preview → jump to + focus its editor input.
-// The preview fields carry data-fieldkey (from the built pass); the Design
-// editor's display-field value inputs carry the same key. A no-op when a
-// clicked field has no matching editor input (e.g. a derived/iOS-26 field).
 function wireClickToEdit() {
   const stage = document.getElementById("preview-stage");
   if (!stage) return;
@@ -124,7 +135,8 @@ async function maybeLoadFromUrl() {
   try { await loadFixture(f); } catch (err) { console.warn(err.message); }
 }
 
-document.documentElement.dataset.build = "20260610a"; // changes bundle hash → busts stale caches
+document.documentElement.dataset.build = "20261009a"; // changes bundle hash → busts stale caches
+initTheme();
 showProfile();
 await maybeLoadFromUrl();
 renderForm(document.getElementById("form-pane"));
@@ -137,7 +149,7 @@ document.getElementById("reset-btn").addEventListener("click", () => {
 wireFixturePicker();
 refreshFixturePicker();
 document.getElementById("save-tpl-btn").addEventListener("click", saveDesign);
-wireViewTabs();
+wireViewTabs(new URLSearchParams(location.search).get("fixture") ? "designer" : "flights");
 wireClickToEdit();
 renderActiveTab();
 subscribe(() => renderActiveTab());

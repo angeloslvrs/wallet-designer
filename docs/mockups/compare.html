@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Compare directions — same screen, side by side</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}body{margin:0;background:#1a1a1a;color:#ddd;font-family:-apple-system,Helvetica,Arial,sans-serif;min-height:100vh}
+.bar{display:flex;align-items:center;gap:18px;padding:12px 20px;background:#000;position:sticky;top:0;z-index:5;border-bottom:1px solid #333}
+.bar b{font:700 12px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:#fff}
+.seg{display:flex;gap:2px;background:#222;padding:3px;border-radius:8px}
+.seg a{padding:6px 12px;border-radius:6px;font:11px var(--mono);color:#999;cursor:pointer}.seg a.on{background:#fff;color:#000}
+.bar .r{margin-left:auto;display:flex;gap:10px;align-items:center;font:11px var(--mono);color:#888}
+.bar .r a{color:#ccc;cursor:pointer;border:1px solid #444;padding:5px 9px;border-radius:6px}.bar .r a.on{background:#fff;color:#000;border-color:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;padding:18px}
+.grid.one{grid-template-columns:1fr}.grid.three{grid-template-columns:repeat(3,1fr)}
+.cell{background:#000;border-radius:10px;overflow:hidden;border:1px solid #333;position:relative}
+.cell .ttl{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;font:11px var(--mono);color:#aaa;border-bottom:1px solid #222}
+.cell .ttl b{color:#fff;letter-spacing:.1em}.cell .ttl a{color:#8ab4ff;cursor:pointer}
+.frame{position:relative;width:100%;aspect-ratio:1340/860;overflow:hidden}
+.frame iframe{position:absolute;top:0;left:0;width:1340px;height:860px;border:0;transform-origin:0 0;pointer-events:auto}
+.note{padding:0 20px 20px;font:12px var(--mono);color:#777}
+</style></head><body>
+<div class="bar"><b>Compare</b>
+ <div class="seg" id="screens"></div>
+ <div class="r"><span>show</span><a data-dir="a" class="on">A</a><a data-dir="b" class="on">B</a><a data-dir="c" class="on">C</a><a data-dir="d" class="on">D</a><a data-dir="e" class="on">E</a><a data-dir="f" class="on">F</a><span style="margin-left:10px">cols</span><a data-cols="1">1</a><a data-cols="2" class="on">2</a><a data-cols="3">3</a></div>
+</div>
+<div class="grid" id="grid"></div>
+<div class="note">Each cell is the live prototype, scaled to fit. Click inside to interact; the screen picker reloads every cell to the same screen. B has no "home" (its templates view is called "templates") and no "flights"/"issue" by those names, so the mapping below translates.</div>
+<script>
+const DIRS={a:{f:"a-manifest-rail.html",n:"A · Manifest, evolved"},b:{f:"b-departure-board.html",n:"B · Departure board"},c:{f:"c-studio-canvas.html",n:"C · Studio canvas"},d:{f:"d-recommended.html",n:"D · Recommended"},e:{f:"e-split-flap.html",n:"E · Split-flap board"},f:{f:"f-studio-dark.html",n:"F · Studio dark (B × C)"}};
+const SCREENS=[["home","Templates"],["bindings","Bindings"],["flight","Flight step"],["issue","Passengers"],["done","Issued"],["flights","Flights / board"],["design","Design"],["log","Device log"]];
+const MAP={b:{home:"templates",issue:"wizard",flights:"board",done:"detail"},e:{flights:"board"}};
+let screen=location.hash.slice(1)||"home", show=new Set("abcdef"), cols=2;
+const sg=document.getElementById("screens"); sg.innerHTML=SCREENS.map(([k,l])=>`<a data-s="${k}" class="${k===screen?"on":""}">${l}</a>`).join("");
+function render(){
+  const g=document.getElementById("grid"); g.className="grid "+(cols===1?"one":cols===3?"three":"");
+  g.innerHTML=[..."abcdef"].filter(k=>show.has(k)).map(k=>{ const s=(MAP[k]&&MAP[k][screen])||screen; const url=`${DIRS[k].f}#${s}`; return `<div class="cell"><div class="ttl"><b>${DIRS[k].n}</b><a href="${url}" target="_blank">open ↗</a></div><div class="frame"><iframe src="${url}" loading="lazy"></iframe></div></div>`; }).join("");
+  scale();
+}
+function scale(){ document.querySelectorAll(".frame").forEach(f=>{ const s=f.clientWidth/1340; f.querySelector("iframe").style.transform=`scale(${s})`; }); }
+document.addEventListener("click",e=>{ const s=e.target.closest("[data-s]"); if(s){ screen=s.dataset.s; location.hash=screen; sg.querySelectorAll("a").forEach(a=>a.classList.toggle("on",a.dataset.s===screen)); render(); }
+ const d=e.target.closest("[data-dir]"); if(d){ const k=d.dataset.dir; show.has(k)?show.delete(k):show.add(k); d.classList.toggle("on",show.has(k)); render(); }
+ const c=e.target.closest("[data-cols]"); if(c){ cols=+c.dataset.cols; document.querySelectorAll("[data-cols]").forEach(x=>x.classList.toggle("on",x===c)); render(); } });
+window.addEventListener("resize",scale); render();
+</script>
+</body></html>

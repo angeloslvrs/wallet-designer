@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountIssue } from "../apps/designer/src/issue.js";
-import { mountManage } from "../apps/designer/src/manage.js";
+import { mountFlights } from "../apps/designer/src/flights.js";
 
 // Stale-mount race: each view mounts into the SAME reused pane element and aborts
 // the previous mount's AbortController on re-mount. A data-load fetch started by
@@ -117,7 +117,7 @@ describe("Issue — stale mount's load() must not blank the new mount", () => {
   });
 });
 
-describe("Manage — stale mount's load() must not blank the new mount", () => {
+describe("Flights — stale mount's load() must not blank the new mount", () => {
   it("a late-resolving passes fetch from the aborted mount does not re-render over typed input", async () => {
     const firstPasses = deferred();
     let passesCalls = 0;
@@ -127,17 +127,16 @@ describe("Manage — stale mount's load() must not blank the new mount", () => {
         passesCalls++;
         return passesCalls === 1 ? firstPasses.promise : Promise.resolve({ json: async () => LIST });
       }
-      if (u.startsWith("/api/log")) return Promise.resolve({ json: async () => [] });
       throw new Error(`unexpected fetch: ${u}`);
     };
 
     // First mount — stuck on the deferred passes fetch.
-    mountManage(root, () => {});
+    mountFlights(root, {});
     await flush();
     expect(root.textContent).toMatch(/Loading…/);
 
     // Re-mount — aborts the first mount's signal.
-    mountManage(root, () => {});
+    mountFlights(root, {});
     await flush();
 
     // The user types into the freshly-rendered status editor.
@@ -153,6 +152,6 @@ describe("Manage — stale mount's load() must not blank the new mount", () => {
     // Same node (no re-render) and the typed value survives; the card is intact.
     expect(root.querySelector('input[data-f="departureGate"]')).toBe(gate);
     expect(gate.value).toBe("56");
-    expect(root.querySelector('.mg-card[data-card="5J@2026-06-14"]')).toBeTruthy();
+    expect(root.querySelector('.fl-panel[data-panel="5J@2026-06-14"]')).toBeTruthy();
   });
 });

@@ -1,0 +1,267 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Direction A — Manifest, evolved (interactive)</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_proto.css?v=4">
+<style>
+:root{--bg:#F6F6F3;--ink:#111;--rule:#111;--soft:#D9D9D3;--muted:#62625C;--faint:#8F8F88;--card:#fff;--accent:#1F4BD8;--ok:#0C8A52;--warn:#C07C00;--err:#CF2B43;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--sans:"Helvetica Neue",Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);font-family:var(--sans);color:var(--ink);font-size:14px}
+.proto-nav{position:fixed;bottom:14px;right:14px;z-index:40;display:flex;gap:4px;background:#111;padding:4px;opacity:.9}
+.proto-nav a{color:#bbb;font:11px var(--mono);padding:5px 8px;cursor:pointer}.proto-nav a.active{background:#fff;color:#111}
+.shell{display:grid;grid-template-columns:208px 1fr;min-height:100vh}
+.rail{border-right:1px solid var(--rule);padding:18px 0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;background:var(--bg)}
+.brand{font:700 12px var(--mono);letter-spacing:.12em;text-transform:uppercase;padding:0 20px 18px;border-bottom:1px solid var(--rule)}
+.nav{position:relative}
+.nav a{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;color:var(--ink);font-size:14px;border-bottom:1px solid var(--soft);cursor:pointer;position:relative;z-index:1;transition:color .25s}
+.nav a.active{color:#fff}.nav a small{font:10px var(--mono);color:var(--faint)}.nav a.active small{color:#aaa}.nav .num{font:10px var(--mono);color:var(--faint);margin-right:10px}.nav a.active .num{color:#888}
+.nav .railpill{position:absolute;left:0;right:0;height:49px;background:var(--ink);transition:transform .4s cubic-bezier(.2,.8,.2,1);z-index:0}
+.rail .foot{margin-top:auto;padding:14px 20px;font:10px var(--mono);color:var(--muted);border-top:1px solid var(--soft);line-height:1.8}
+.pill{display:inline-flex;align-items:center;gap:6px;font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ok)}
+.main{padding:28px 40px 60px;min-width:0}
+.head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--rule);padding-bottom:14px;margin-bottom:24px}
+h1{font-size:26px;font-weight:600;margin:0;letter-spacing:-.01em}
+.sub{font:11px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.btn{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:11px 16px;border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,background .2s,color .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:3px 3px 0 var(--ink)}.btn:active{transform:none;box-shadow:none}
+.btn.primary{background:var(--ink);color:#fff}.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}.btn.accent:hover{box-shadow:3px 3px 0 var(--ink)}.btn.ghost{border-color:var(--soft)}.btn.sm{padding:7px 10px;font-size:11px}
+.eyebrow{font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.tcard{background:var(--card);border:1px solid var(--soft);padding:18px;display:flex;flex-direction:column;gap:14px;transition:border-color .25s,transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s;cursor:pointer}
+.tcard:hover{border-color:var(--ink);transform:translateY(-2px);box-shadow:4px 4px 0 var(--ink)}.tcard:hover .pass{transform:rotate(-1deg) scale(1.02)}
+.tcard .thumb{display:flex;justify-content:center;background:#EEEEE9;padding:16px 0}
+.tcard .meta{display:flex;justify-content:space-between;align-items:center}.tcard .name{font-weight:600;font-size:15px}
+.tcard .kind{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.tcard .kind.designer{color:var(--accent)}
+.tcard .acts{display:flex;gap:10px;border-top:1px solid var(--soft);padding-top:12px;align-items:center}
+.tcard .acts a{font:11px var(--mono);color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}.tcard .acts a.go{margin-left:auto;color:var(--accent);font-weight:700}
+.tcard.new{border:1px dashed var(--faint);background:transparent;align-items:center;justify-content:center;color:var(--muted);min-height:300px;gap:8px}.tcard.new:hover{box-shadow:none;transform:none;border-color:var(--ink)}
+.tcard.new b{font:300 36px var(--mono);transition:transform .3s}.tcard.new:hover b{transform:rotate(90deg)}
+.chip{display:inline-block;font:10px var(--mono);padding:3px 7px;border:1px solid var(--soft);margin-right:6px;color:var(--muted)}.chip.warn{color:var(--warn);border-color:var(--warn)}
+.stepper{display:flex;margin:0 0 26px;border:1px solid var(--rule);position:relative}
+.stepper a{flex:1;padding:12px 16px;font:11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);border-right:1px solid var(--soft);display:flex;gap:10px;align-items:center;cursor:pointer;position:relative;z-index:1;transition:color .25s}
+.stepper a:last-child{border-right:0}.stepper a.done{color:var(--ink)}.stepper a.done:before{content:"✓";color:var(--ok)}.stepper a.active{color:#fff}.stepper a.active:before{content:"→"}
+.stepper .steppill{position:absolute;top:0;bottom:0;border-radius:0;box-shadow:none;background:var(--ink);transition:transform .4s cubic-bezier(.2,.8,.2,1),width .4s;z-index:0}
+.two{display:grid;grid-template-columns:1fr 340px;gap:40px}
+.f{display:grid;grid-template-columns:repeat(3,1fr);gap:16px 20px}
+.f label,.lab{display:block;font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.in{width:100%;height:40px;border:1px solid #C9C9C1;background:#fff;padding:0 10px;font:14px var(--sans);display:flex;align-items:center;transition:border-color .2s,box-shadow .2s}
+.in:hover{border-color:var(--ink)}.in.ok{border-color:var(--ink)}.in.focus{border-color:var(--accent);box-shadow:0 0 0 3px #E3E9FF}.in.e{border-color:var(--err)}.in.ph{color:var(--faint)}.in.mono{font:12px var(--mono)}
+.hint{font:10px var(--mono);color:var(--faint);margin-top:4px}.f .wide{grid-column:span 3}.f .w2{grid-column:span 2}
+.tbl{width:100%;border-collapse:collapse;margin-top:24px;font-size:13px}
+.tbl th{text-align:left;font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--rule)}
+.tbl td{padding:10px;border-bottom:1px solid var(--soft);transition:background .2s}.tbl tr:hover td{background:#fff}.tbl tr.on td{background:#fff;box-shadow:inset 3px 0 0 var(--accent)}.tbl tr.err td:nth-child(3){color:var(--err)}
+.tbl .m{font:12px var(--mono);color:var(--muted)}
+.src{display:flex;border:1px solid var(--ink);width:max-content;margin-bottom:14px}.src span{padding:8px 14px;font:11px var(--mono);text-transform:uppercase;letter-spacing:.06em;cursor:pointer;color:var(--muted);transition:all .2s}.src span.on{background:var(--ink);color:#fff}
+.paste{border:1px dashed var(--faint);padding:12px;font:11px var(--mono);color:var(--faint);line-height:1.6;background:#fff;transition:border-color .2s}.paste:hover{border-color:var(--accent)}.paste b{display:block;font:600 13px var(--sans);color:var(--ink);margin-bottom:4px}.paste a{color:var(--accent);font-family:var(--sans);font-size:12px;cursor:pointer}
+.roster{display:flex;gap:8px;flex-wrap:wrap}.roster .chip{cursor:pointer;transition:all .2s;padding:7px 10px}.roster .chip:hover{border-color:var(--ink);color:var(--ink)}
+.side{border-left:1px solid var(--soft);padding-left:28px;position:sticky;top:28px;align-self:start}
+.side .sec{font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--soft)}.kv span{color:var(--muted)}.kv a{color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.ptabs{display:flex;gap:0;border:1px solid var(--soft);width:max-content;margin-bottom:12px}.ptabs span{padding:6px 12px;font:11px var(--mono);color:var(--muted);cursor:pointer;transition:all .2s}.ptabs span.active{background:var(--ink);color:#fff}
+.footer{position:sticky;bottom:0;margin:36px -40px -60px;padding:16px 40px;border-top:1px solid var(--rule);background:var(--bg);display:flex;justify-content:space-between;align-items:center;z-index:5}
+.footer .state{font:11px var(--mono);color:var(--muted)}
+.rows{border-top:1px solid var(--rule)}
+.trip{display:grid;grid-template-columns:120px 1fr 160px 120px 160px 40px;align-items:center;padding:16px 12px;margin:0 -12px;border-bottom:1px solid var(--soft);gap:16px;cursor:pointer;transition:background .2s,box-shadow .2s}
+.trip:hover{background:#fff}.trip.sel{background:#fff;box-shadow:inset 3px 0 0 var(--ink)}
+.trip .fl{font:700 18px var(--mono)}.trip .rt{font-size:14px}.trip .rt small{display:block;font:10px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.st{display:inline-flex;align-items:center;gap:6px;font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;transition:color .3s}
+.st.ontime{color:var(--ok)}.st.boarding{color:var(--accent)}.st.delayed{color:var(--warn)}.st.cancelled{color:var(--err)}
+.trip .n{font:12px var(--mono);color:var(--muted)}.trip .n b{color:var(--ink);font-size:16px;display:block}.trip .chev{font:18px var(--mono);color:var(--faint);text-align:right}
+.drawer{position:fixed;right:0;top:0;bottom:0;width:440px;background:#fff;border-left:1px solid var(--rule);padding:28px;box-shadow:-20px 0 40px rgba(0,0,0,.06);transform:translateX(100%);transition:transform .45s cubic-bezier(.2,.8,.2,1);z-index:15;overflow:auto}
+.drawer.open{transform:none}.drawer h2{font-size:18px;margin:0 0 4px}.drawer .sub{margin-bottom:22px}.drawer .x{position:absolute;top:24px;right:24px;cursor:pointer;font:14px var(--mono);color:var(--muted)}
+.drawer .f{grid-template-columns:1fr 1fr}
+.stat{display:flex;border:1px solid var(--ink);margin-bottom:16px}.stat span{flex:1;text-align:center;padding:9px 0;font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);cursor:pointer;transition:all .25s;border-right:1px solid var(--soft)}.stat span:last-child{border-right:0}.stat span.on{background:var(--ink);color:#fff}
+.list{margin-top:24px;border-top:1px solid var(--rule)}.list div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--soft);font-size:13px}.list span{font:11px var(--mono);color:var(--muted)}
+.timeline{margin-top:18px;font:11px var(--mono);color:var(--muted);line-height:2}.timeline b{color:var(--ink);font-weight:500;margin-right:8px}
+.has-drawer .main{padding-right:470px}
+.has-drawer .trip{grid-template-columns:100px minmax(200px,1fr) 120px 80px 100px 24px;gap:12px}
+.finish{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:70vh;gap:14px;text-align:center}
+.finish .cards{display:flex;gap:18px;margin-top:20px}.finish .dc{background:#fff;border:1px solid var(--soft);padding:18px;width:240px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.finish .nm{font-weight:600;font-size:13px}.finish .sr{font:11px var(--mono);color:var(--muted)}
+.wallet{display:inline-flex;align-items:center;gap:8px;background:#000;color:#fff;border-radius:6px;padding:7px 12px;font-size:12px;font-weight:500}.wallet i{width:18px;height:13px;border-radius:2px;background:linear-gradient(90deg,#f24 0 25%,#fb2 25% 50%,#2c8 50% 75%,#28f 75%);display:inline-block}
+.design{display:grid;grid-template-columns:1fr 380px;gap:40px}
+.dtabs{display:flex;gap:0;border-bottom:1px solid var(--rule);margin-bottom:22px}.dtabs span{padding:10px 16px;font:11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .25s}.dtabs span.on{color:var(--ink);border-color:var(--ink)}
+.card{background:#fff;border:1px solid var(--soft);padding:18px;margin-bottom:18px}.card .eyebrow{margin-bottom:12px}
+.sw{display:flex;gap:8px}.sw i{width:28px;height:28px;cursor:pointer;border:2px solid transparent;transition:transform .2s}.sw i:hover{transform:scale(1.12)}.sw i.on{border-color:var(--ink)}
+.slot{display:flex;gap:12px;align-items:center;padding:10px;border:1px dashed #C9C9C1;margin-bottom:8px;font-size:12px;color:var(--muted);transition:all .2s;cursor:pointer}.slot:hover{border-color:var(--ink);color:var(--ink)}.slot i{width:36px;height:36px;background:#EDEDE8;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.slot b{display:block;color:var(--ink);font-weight:500}
+.fld{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--soft);margin-bottom:6px;font-size:12px;background:#fff;cursor:grab;transition:all .2s}.fld:hover{border-color:var(--ink);transform:translateX(2px)}.fld span{font:11px var(--mono);color:var(--muted)}
+.preview{position:sticky;top:28px;display:flex;flex-direction:column;align-items:center;gap:12px;align-self:start}
+.caption{font:10px var(--mono);color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.bind{width:100%;border-collapse:collapse;font-size:13px}.bind th{text-align:left;font:10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--rule)}.bind td{padding:10px;border-bottom:1px solid var(--soft);vertical-align:middle}
+.bind code{font:12px var(--mono)}.bind .sel{height:34px;border:1px solid #C9C9C1;background:#fff;padding:0 8px;display:flex;align-items:center;justify-content:space-between;font:12px var(--mono);width:220px;transition:border-color .2s}.bind .sel:hover{border-color:var(--ink)}.bind .sel.g{border-color:var(--warn);background:#FFF8E8}
+.conf{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase}.conf.hi{color:var(--ok)}.conf.lo{color:var(--warn)}.conf.un{color:var(--faint)}
+.log .lr{display:grid;grid-template-columns:80px 90px 1fr 90px;gap:16px;padding:10px 12px;border-bottom:1px solid var(--soft);font:12px var(--mono);transition:background .2s}.log .lr:hover{background:#fff}.log .lr:first-child{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--rule)}.log .ok{color:var(--ok)}.log .w{color:var(--warn)}.log .e{color:var(--err)}
+</style></head><body>
+<div class="proto-nav"><a data-go="home">1 Templates</a><a data-go="bindings">2 Bindings</a><a data-go="flight">3 Flight</a><a data-go="issue">4 Passengers</a><a data-go="done">5 Done</a><a data-go="flights">6 Flights</a><a data-go="design">7 Design</a><a data-go="log">8 Log</a></div>
+<div class="shell">
+ <aside class="rail">
+  <div class="brand">Boarding Pass Studio</div>
+  <nav class="nav"><div class="railpill"></div>
+   <a data-go="home" data-rail="home"><span><span class="num">01</span>Templates</span><small>3</small></a>
+   <a data-go="flight" data-rail="issue"><span><span class="num">02</span>Issue</span><small>draft</small></a>
+   <a data-go="flights" data-rail="flights"><span><span class="num">03</span>Flights</span><small>4 live</small></a>
+   <a data-go="log" data-rail="log"><span><span class="num">04</span>Device log</span></a>
+  </nav>
+  <div class="foot"><span class="pill live">prod cert · APNs</span><br>boardingpass.geloflix.com<br><span data-clock>06:02:41</span> MNL</div>
+ </aside>
+ <div id="main-host">
+
+ <section data-screen="home" data-rail="home"><div class="main">
+  <div class="head"><div><h1>Templates</h1><div class="sub">A template is a look + default fields. Pass Designer exports and Studio designs, together.</div></div><div style="display:flex;gap:10px"><button class="btn ghost" data-go="bindings">Upload .pkpasstemplate</button><button class="btn primary" data-go="design">New template</button></div></div>
+  <div class="grid stagger">
+   <div class="tcard" data-go="flight"><div class="thumb" id="a1"></div><div class="meta"><div><div class="name">cebpac</div><div class="kind">Pass Designer · 11 fields</div></div><span class="chip">14 issued</span></div><div class="acts"><a data-go="bindings">Bindings</a><a>Duplicate</a><a>Delete</a><a class="go">Issue →</a></div></div>
+   <div class="tcard" data-go="flight"><div class="thumb" id="a2"></div><div class="meta"><div><div class="name">Rocket Partners</div><div class="kind designer">Built in Studio · 12 fields</div></div><span class="chip">2 issued</span></div><div class="acts"><a data-go="design">Edit design</a><a>Duplicate</a><a>Delete</a><a class="go">Issue →</a></div></div>
+   <div class="tcard" data-go="bindings"><div class="thumb" id="a3"></div><div class="meta"><div><div class="name">odyssey</div><div class="kind">Pass Designer · 14 fields</div></div><span class="chip warn">2 bindings guessed</span></div><div class="acts"><a>Bindings</a><a>Duplicate</a><a>Delete</a><a class="go" style="color:var(--warn)">Review →</a></div></div>
+   <div class="tcard new" data-go="design"><b>+</b><div>Start from scratch in Studio</div><div style="font:10px var(--mono)">or drop a .pkpasstemplate here</div></div>
+  </div>
+ </div></section>
+
+ <section data-screen="bindings" data-rail="home"><div class="main">
+  <div class="head"><div><h1>odyssey · bindings</h1><div class="sub">Uploaded just now · 14 fields · 2 guesses need a look</div></div><div style="display:flex;gap:10px"><button class="btn ghost" data-go="home">Later</button><button class="btn primary" data-go="home">Confirm bindings</button></div></div>
+  <div class="two">
+   <div class="stagger">
+    <p style="font-size:13px;color:var(--muted);margin:0 0 14px;max-width:560px">Apple's semantic tags are fixed. Your template's field keys are yours. We matched them from the sample values in the bundle; anything ambiguous is flagged. Unbound tags still render on iOS 26, they just won't update a visible field.</p>
+    <table class="bind"><tr><th>Apple semantic</th><th>→ template field</th><th>Confidence</th><th>Sample</th></tr>
+     <tr><td><code>passengerName</code></td><td><div class="sel">passenger <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m" style="font:12px var(--mono);color:var(--muted)">SURNAME/GIVEN</td></tr>
+     <tr><td><code>departureAirportCode</code></td><td><div class="sel">origin <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td style="font:12px var(--mono);color:var(--muted)">TPE</td></tr>
+     <tr><td><code>destinationAirportCode</code></td><td><div class="sel">dest <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td style="font:12px var(--mono);color:var(--muted)">MNL</td></tr>
+     <tr><td><code>currentBoardingDate</code></td><td><div class="sel g">boardingTime <span>▾</span></div></td><td><span class="conf lo">±120 s</span></td><td style="font:12px var(--mono);color:var(--muted)">2026-06-01T07:28</td></tr>
+     <tr><td><code>seatNumber</code></td><td><div class="sel g">seat <span>▾</span></div></td><td><span class="conf lo">composite</span></td><td style="font:12px var(--mono);color:var(--muted)">14A → row 14 · A</td></tr>
+     <tr><td><code>departureGate</code></td><td><div class="sel">gate <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td style="font:12px var(--mono);color:var(--muted)">C4</td></tr>
+     <tr><td><code>boardingSequenceNumber</code></td><td><div class="sel">seq <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td style="font:12px var(--mono);color:var(--muted)">044</td></tr>
+     <tr><td><code>transitStatus</code></td><td><div class="sel" style="color:var(--faint)">— unbound <span>▾</span></div></td><td><span class="conf un">none</span></td><td style="font:12px var(--mono);color:var(--muted)">renders via Live Activity</td></tr>
+    </table>
+   </div>
+   <aside class="side stagger">
+    <div class="sec">Preview · sample values</div><div id="a4"></div>
+    <div class="sec" style="margin-top:22px">Bundle</div>
+    <div class="kv"><span>pass.json</span>14 fields</div><div class="kv"><span>Images</span>icon@2x, logo@2x, strip@2x</div><div class="kv"><span>Base icon.png</span><span style="color:var(--ok)">synthesized</span></div><div class="kv"><span>tooling.json</span>ignored</div>
+   </aside>
+  </div>
+ </div></section>
+
+ <section data-screen="flight" data-rail="issue"><div class="main">
+  <div class="head"><div><h1>Issue passes</h1><div class="sub">cebpac · new trip</div></div><button class="btn ghost">Save draft</button></div>
+  <div class="stepper segwrap"><div class="steppill segpill"></div><a class="done" data-go="home">1 Template</a><a class="active">2 Flight</a><a data-go="issue">3 Passengers</a><a data-go="done">4 Review &amp; issue</a></div>
+  <div class="two">
+   <div class="stagger">
+    <div class="f">
+     <div><label>Airline</label><div class="in ok">5J</div></div><div><label>Flight number</label><div class="in focus">5056</div></div><div><label>Trip id</label><div class="in mono">5J5056-2026-10-14</div><div class="hint">serials become 5J5056-2026-10-14-001 …</div></div>
+     <div><label>From</label><div class="in ok">MNL</div><div class="hint">3-letter IATA</div></div><div><label>To</label><div class="in ok">NRT</div></div><div><label>Gate · terminal</label><div class="in">12 · T3</div></div>
+     <div><label>Boarding</label><div class="in">14 Oct 2026 · 06:10</div></div><div><label>Departure</label><div class="in">14 Oct 2026 · 06:40</div></div><div><label>Arrival</label><div class="in">14 Oct 2026 · 11:55</div></div>
+     <div><label>Time zone · from</label><div class="in">Asia/Manila +08</div></div><div><label>Time zone · to</label><div class="in">Asia/Tokyo +09</div></div><div><label>Pass expiry</label><div class="in ph">blank = arrival + 1 day</div></div>
+     <div class="wide" style="margin-top:8px"><span class="lab">Per-passenger instead</span><div class="roster"><span class="chip">gate</span><span class="chip">boarding</span><span class="chip">seat ✓</span><span class="chip">sequence ✓</span><span class="chip">fare class</span></div><div class="hint">Click a field to move it to the passenger row. Seat and sequence are always per passenger.</div></div>
+    </div>
+   </div>
+   <aside class="side stagger">
+    <div class="sec">Preview · shared values</div><div id="a5"></div>
+    <div class="sec" style="margin-top:22px">Derived</div>
+    <div class="kv"><span>Duration</span>4 h 15 m</div><div class="kv"><span>relevantDate</span>boarding 06:10</div><div class="kv"><span>expirationDate</span>15 Oct 11:55</div><div class="kv"><span>Semantics</span><a>11 of 14 bound</a></div>
+   </aside>
+  </div>
+  <div class="footer"><span class="state">All required fields set</span><div><button class="btn ghost" data-go="home">← Template</button> &nbsp; <button class="btn accent" data-go="issue">Passengers →</button></div></div>
+ </div></section>
+
+ <section data-screen="issue" data-rail="issue"><div class="main">
+  <div class="head"><div><h1>Issue passes</h1><div class="sub">cebpac · trip 5J5056-2026-10-14</div></div><button class="btn ghost">Save draft</button></div>
+  <div class="stepper segwrap"><div class="steppill segpill"></div><a class="done" data-go="home">1 Template</a><a class="done" data-go="flight">2 Flight</a><a class="active">3 Passengers</a><a data-go="done">4 Review &amp; issue</a></div>
+  <div class="two">
+   <div class="stagger">
+    <div class="src" data-tabs="src"><span class="on" data-tab="scan">Scan / paste</span><span data-tab="type">Type</span><span data-tab="roster">Roster</span><span data-tab="csv">CSV</span></div>
+    <div data-pane-group="src" data-pane="scan" class="paste"><b>Paste a boarding-pass barcode (BCBP)</b>M1SOLIVERES/ANGELO  E5J5056 MNLNRT5J 5056 288Y014A0042 100…<br><a>Name, flight, seat and sequence autofill · or use the iPhone camera →</a></div>
+    <div data-pane-group="src" data-pane="type" hidden class="f"><div><label>Passenger</label><div class="in ph">SURNAME/GIVEN</div></div><div><label>Seat</label><div class="in ph">14C</div></div><div><label>Sequence</label><div class="in ph">045</div></div></div>
+    <div data-pane-group="src" data-pane="roster" hidden><span class="lab">Saved passengers</span><div class="roster"><span class="chip">A. Soliveres · 14A</span><span class="chip">M. Soliveres · 14B</span><span class="chip">J. Reyes</span><span class="chip">L. Tan</span><span class="chip">+ manage roster</span></div></div>
+    <div data-pane-group="src" data-pane="csv" hidden class="paste"><b>Drop a CSV</b>columns: passenger, seat, sequence, serial (optional)</div>
+    <table class="tbl"><tr><th>#</th><th>Passenger</th><th>Seat</th><th>Seq</th><th>Serial</th><th></th></tr>
+     <tr class="on" data-pax="SOLIVERES/A|14A|042"><td class="m">1</td><td>SOLIVERES / ANGELO</td><td>14A</td><td>042</td><td class="m">5J5056-2026-10-14-001</td><td><span class="chip">roster</span></td></tr>
+     <tr data-pax="SOLIVERES/M|14B|043"><td class="m">2</td><td>SOLIVERES / MARIA</td><td>14B</td><td>043</td><td class="m">5J5056-2026-10-14-002</td><td></td></tr>
+     <tr class="err" data-pax="REYES/J|—|044"><td class="m">3</td><td>REYES / JUAN</td><td>15</td><td>044</td><td class="m">5J5056-2026-10-14-003</td><td><span class="chip warn">seat needs a letter</span></td></tr>
+    </table>
+    <div style="margin-top:14px"><button class="btn ghost sm">+ Add row</button></div>
+   </div>
+   <aside class="side stagger">
+    <div class="ptabs"><span class="active" data-flip="#af1">Front</span><span data-flip="#af1">Back</span><span>iOS 26</span></div>
+    <div id="af1"></div>
+    <div class="caption" style="margin-top:8px" data-pager>SOLIVERES/A · 1 of 3</div>
+    <div class="sec" style="margin-top:22px">Flight (step 2)</div>
+    <div class="kv"><span>Route</span>MNL → NRT</div><div class="kv"><span>Departs</span>14 Oct · 06:40 +08</div><div class="kv"><span>Gate</span>12 · T3</div><div class="kv"><span>Expires</span>arrival + 1 day</div>
+   </aside>
+  </div>
+  <div class="footer"><span class="state">2 ready · 1 needs a fix</span><div><button class="btn ghost" data-go="flight">← Flight</button> &nbsp; <button class="btn accent" data-go="done">Review 2 passes →</button></div></div>
+ </div></section>
+
+ <section data-screen="done" data-rail="issue"><div class="main">
+  <div class="head"><div><h1>Issue passes</h1><div class="sub">cebpac · trip 5J5056-2026-10-14</div></div></div>
+  <div class="stepper segwrap"><div class="steppill segpill"></div><a class="done" data-go="home">1 Template</a><a class="done" data-go="flight">2 Flight</a><a class="done" data-go="issue">3 Passengers</a><a class="active">4 Review &amp; issue</a></div>
+  <div class="finish stagger">
+   <svg class="ring" viewBox="0 0 72 72"><circle class="c" cx="36" cy="36" r="34" stroke="#0C8A52"/><path d="M22 37l10 10 18-20" stroke="#0C8A52" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s .9s ease-out forwards"/></svg>
+   <h1 style="margin-top:8px">2 passes issued</h1><div class="sub">Signed · prod cert · stored under trip 5J5056-2026-10-14</div>
+   <div class="cards"><div class="dc"><div class="qr"></div><div class="nm">SOLIVERES / ANGELO</div><div class="sr">…-001</div><span class="wallet"><i></i>Add to Apple Wallet</span></div><div class="dc"><div class="qr"></div><div class="nm">SOLIVERES / MARIA</div><div class="sr">…-002</div><span class="wallet"><i></i>Add to Apple Wallet</span></div></div>
+   <div style="display:flex;gap:10px;margin-top:16px"><button class="btn ghost">Copy all links</button><button class="btn ghost" data-go="issue">Add more passengers</button><button class="btn primary" data-go="flights">Open 5J 5056 →</button></div>
+  </div>
+ </div></section>
+
+ <section data-screen="flights" data-rail="flights" class="has-drawer"><div class="main">
+  <div class="head"><div><h1>Flights</h1><div class="sub">4 upcoming · 11 passes · 9 on devices</div></div><div><span class="chip" style="color:var(--ink);border-color:var(--ink)">Upcoming</span><span class="chip">Past · 6</span></div></div>
+  <div class="rows stagger">
+   <div class="trip sel" data-drawer="#ad"><div class="fl">5J 5056</div><div class="rt">Manila → Tokyo Narita<small>Tue 14 Oct · dep 06:40 · gate 12</small></div><span class="st boarding live" data-status-target>Boarding</span><div class="n">passes<b>3</b></div><div class="n">on devices<b>3 / 3</b></div><div class="chev">›</div></div>
+   <div class="trip" data-drawer="#ad"><div class="fl">RP 247</div><div class="rt">San Francisco → New York JFK<small>Wed 15 Oct · dep 08:15 · gate B12</small></div><span class="st ontime">On time</span><div class="n">passes<b>2</b></div><div class="n">on devices<b>1 / 2</b></div><div class="chev">›</div></div>
+   <div class="trip" data-drawer="#ad"><div class="fl">BR 262</div><div class="rt">Taipei → Manila<small>Fri 17 Oct · dep 10:05 · gate C4</small></div><span class="st delayed">Delayed 45m</span><div class="n">passes<b>4</b></div><div class="n">on devices<b>4 / 4</b></div><div class="chev">›</div></div>
+   <div class="trip" data-drawer="#ad"><div class="fl">5J 5057</div><div class="rt">Tokyo Narita → Manila<small>Sun 19 Oct · dep 14:05 · gate —</small></div><span class="st ontime">On time</span><div class="n">passes<b>2</b></div><div class="n">on devices<b>1 / 2</b></div><div class="chev">›</div></div>
+  </div>
+ </div>
+ <aside class="drawer open" id="ad"><span class="x" data-close="#ad">✕ close</span>
+  <h2>5J 5056 · MNL → NRT</h2><div class="sub">Tue 14 Oct · 3 passes · last push 2 min ago</div>
+  <span class="lab">Status</span><div class="stat"><span data-status="ontime">On time</span><span class="on" data-status="boarding">Boarding</span><span data-status="delayed">Delayed</span><span data-status="cancelled">Cancelled</span></div>
+  <div class="f"><div><label>Gate</label><div class="in ok">12</div></div><div><label>Terminal</label><div class="in ok">3</div></div><div><label>Boarding</label><div class="in ok">06:10</div></div><div><label>Departure</label><div class="in ok">06:40</div></div><div style="grid-column:span 2"><label>Reason (optional)</label><div class="in ph">e.g. crew availability</div></div></div>
+  <div style="margin-top:18px;display:flex;gap:10px;align-items:center"><button class="btn accent" data-push="Pushed to 3 devices · Live Activity updated">Push to 3 devices</button><span class="hint" style="margin:0">updates every pass on this trip</span></div>
+  <div class="list"><div>SOLIVERES / ANGELO <span>14A · on device</span></div><div>SOLIVERES / MARIA <span>14B · on device</span></div><div>REYES / JUAN <span>15C · on device</span></div></div>
+  <div style="margin-top:16px;display:flex;gap:14px"><a style="font:11px var(--mono);text-decoration:underline;cursor:pointer" data-go="issue">Add passenger</a><a style="font:11px var(--mono);text-decoration:underline;cursor:pointer" data-go="log">Device log for this trip</a></div>
+  <div class="timeline"><b>06:00</b>push ok · 3 devices<br><b>05:41</b>iPhone registered …-003<br><b>05:12</b>issued 3 passes</div>
+ </aside></section>
+
+ <section data-screen="design" data-rail="home"><div class="main">
+  <div class="head"><div><h1>Rocket Partners</h1><div class="sub">Studio design · unsaved changes</div></div><div style="display:flex;gap:10px"><button class="btn ghost">Export .pkpass</button><button class="btn primary" data-go="home">Save template</button></div></div>
+  <div class="design">
+   <div class="stagger">
+    <div class="dtabs"><span class="on">Look</span><span>Fields</span><span>Flight data</span><span>Barcode</span><span>Advanced</span></div>
+    <div class="card"><div class="eyebrow">Brand</div><div class="f"><div class="w2"><label>Organization</label><div class="in">Rocket Partners Airlines</div></div><div><label>Logo text</label><div class="in">Rocket Partners</div></div><div class="wide"><label>Background</label><div class="sw"><i class="on" style="background:#14205A"></i><i style="background:#0F5B5A"></i><i style="background:#8A1C2B"></i><i style="background:#1C1C1E"></i><i style="background:#B7410E"></i><i style="background:#fff;border:1px solid #ddd"></i><i style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)"></i></div></div></div></div>
+    <div class="card"><div class="eyebrow">Images</div><div class="slot"><i>▣</i><div><b>Logo</b>PNG · up to 160×50 pt</div></div><div class="slot"><i>◼</i><div><b>Icon</b>29×29 pt · required by iOS</div></div><div class="slot"><i>▬</i><div><b>Footer</b>above the barcode</div></div><div class="slot"><i>◆</i><div><b>Primary logo</b>iOS 26 expanded view</div></div></div>
+    <div class="card"><div class="eyebrow">Fields on the front · click a field on the preview to jump here</div><div class="fld">Gate <span>header · gate</span></div><div class="fld">Seat <span>header · seat</span></div><div class="fld">Origin → Dest <span>primary</span></div><div class="fld">Passenger <span>secondary</span></div><div class="fld">Flight <span>secondary</span></div><div class="fld">Boards <span>aux · date</span></div><div class="fld">Seq <span>aux</span></div><a style="font:11px var(--mono);text-decoration:underline;cursor:pointer">+ add field</a></div>
+   </div>
+   <aside class="preview stagger">
+    <div class="ptabs"><span class="active" data-flip="#af2">Front</span><span data-flip="#af2">Back</span><span>iOS 26 detail</span></div>
+    <div id="af2"></div>
+    <div class="caption">Apple-faithful preview · not skinned</div>
+    <div class="kv" style="width:100%"><span>Semantics</span>12 of 14 bound</div><div class="kv" style="width:100%"><span>iOS 26 layout</span><span style="color:var(--ok)">eligible</span></div>
+   </aside>
+  </div>
+ </div></section>
+
+ <section data-screen="log" data-rail="log"><div class="main">
+  <div class="head"><div><h1>Device log</h1><div class="sub">PassKit web service + APNs · newest first</div></div><button class="btn ghost">Refresh</button></div>
+  <div class="log stagger">
+   <div class="lr"><div>Time</div><div>Source</div><div>Event</div><div>Result</div></div>
+   <div class="lr"><div>06:00:12</div><div>apns</div><div>push · 5J5056 · 3 devices</div><div class="ok">200 ok</div></div>
+   <div class="lr"><div>06:00:13</div><div>device</div><div>GET /v1/passes/…-001 → rebuilt .pkpass</div><div class="ok">200</div></div>
+   <div class="lr"><div>06:00:13</div><div>device</div><div>GET /v1/passes/…-002</div><div class="ok">200</div></div>
+   <div class="lr"><div>05:41:50</div><div>device</div><div>register …-003 on iPhone 88e2</div><div class="ok">201</div></div>
+   <div class="lr"><div>05:12:08</div><div>admin</div><div>issued 3 passes · cebpac · 5J5056</div><div class="ok">ok</div></div>
+   <div class="lr"><div>04:58:33</div><div>device</div><div>/v1/log "Pass has expired" · RP-001</div><div class="w">warn</div></div>
+   <div class="lr"><div>03:10:01</div><div>apns</div><div>push · BR262 · device 9ac1 gone</div><div class="e">410 pruned</div></div>
+  </div>
+ </div></section>
+ </div>
+</div>
+<script src="_proto.js?v=4"></script>
+<script>
+const RP={brand:"Rocket Partners",from:"SFO",fromCity:"San Francisco",to:"JFK",toCity:"New York",flight:"RP 247",boards:"10:30",seq:"0042",gate:"B12"};
+document.getElementById("a1").innerHTML=P.pass({size:"sm"});
+document.getElementById("a2").innerHTML=P.pass({size:"sm",...RP});
+document.getElementById("a3").innerHTML=P.pass({size:"sm",cls:"teal",brand:"Odyssey Air",from:"TPE",fromCity:"Taipei",to:"MNL",toCity:"Manila",name:"—",flight:"OD 118",boards:"—",seq:"—",gate:"—",seat:"—"});
+document.getElementById("a4").innerHTML=P.pass({size:"md",cls:"teal",brand:"Odyssey Air",from:"TPE",fromCity:"Taipei",to:"MNL",toCity:"Manila",name:"SURNAME/G",flight:"OD 118",boards:"07:28",seq:"044",gate:"C4"});
+document.getElementById("a5").innerHTML=P.pass({size:"md",name:"—",seat:"—",seq:"—"});
+document.getElementById("af1").innerHTML=P.pass({flip:true});
+document.getElementById("af2").innerHTML=P.pass({flip:true,...RP,name:"ANGELO SOLIVERES",boards:"10:30 PM"});
+// rail highlight follows the screen's data-rail
+const railSync=()=>{ const on=document.querySelector("[data-screen].on"); const key=on?.dataset.rail; const links=[...document.querySelectorAll(".nav a")]; links.forEach(a=>a.classList.toggle("active",a.dataset.rail===key)); const a=links.find(x=>x.dataset.rail===key); const p=document.querySelector(".railpill"); if(a&&p) p.style.transform=`translateY(${a.offsetTop}px)`; };
+document.addEventListener("click",()=>setTimeout(railSync,0)); P.init(); railSync();
+</script>
+</body></html>

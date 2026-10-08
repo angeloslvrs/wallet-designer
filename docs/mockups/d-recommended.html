@@ -1,0 +1,322 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Direction D — Recommended: Studio canvas × Manifest</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="_proto.css?v=4">
+<style>
+:root{--bg:#F6F6F3;--card:#fff;--ink:#111;--muted:#62625C;--faint:#9A9A93;--line:#E2E2DC;--rule:#111;--accent:#1F4BD8;--accent-soft:#EAF0FF;--ok:#0C8A52;--warn:#C07C00;--err:#CF2B43;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--sans:Inter,-apple-system,"Helvetica Neue",Arial,sans-serif;--r:6px}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px}
+.proto-nav{position:fixed;bottom:14px;left:14px;z-index:40;display:flex;gap:4px;background:#111;padding:4px;border-radius:8px;opacity:.85}
+.proto-nav a{color:#bbb;font:11px var(--mono);padding:5px 8px;border-radius:5px;text-decoration:none;cursor:pointer}.proto-nav a.active{background:#fff;color:#111}
+.mast{height:56px;display:flex;align-items:center;gap:24px;padding:0 24px;background:rgba(246,246,243,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--rule);position:sticky;top:0;z-index:20}
+.mast .brand{font:700 11px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.mast .brand small{display:block;font-weight:400;color:var(--muted);letter-spacing:.06em;text-transform:none;margin-top:1px}
+.seg{display:flex;background:#E9E9E3;padding:3px;border-radius:9px;margin:0 auto}
+.seg a{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;display:flex;gap:7px;align-items:center;transition:color .25s}
+.seg a.active{color:var(--ink)}
+.seg a .n{font:600 10px var(--mono);width:16px;height:16px;border-radius:50%;background:#D6D6CF;color:#444;display:inline-flex;align-items:center;justify-content:center}
+.seg a.active .n{background:var(--ink);color:#fff}.seg a.done .n{background:var(--ok);color:#fff}
+.mast .right{display:flex;gap:10px;align-items:center}
+.pill{font:500 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ok);padding:5px 9px;border:1px solid #BFE5D0;border-radius:999px;background:#EAF7EF}
+.btn{font:600 13px var(--sans);padding:9px 15px;border-radius:var(--r);border:1px solid var(--ink);background:#fff;color:var(--ink);cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s,background .2s}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.1)}.btn:active{transform:translateY(0)}
+.btn.primary{background:var(--ink);color:#fff}.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}.btn.ghost{border-color:var(--line);background:transparent}
+.btn.sm{padding:6px 11px;font-size:12px}
+.back{font:500 12px var(--mono);color:var(--muted);text-decoration:none;cursor:pointer}.back:hover{color:var(--ink)}
+.wrap{padding:36px 48px;max-width:1280px;margin:0 auto}
+h1{font-size:26px;font-weight:600;letter-spacing:-.02em;margin:0 0 6px}
+.sub{color:var(--muted);font-size:14px;margin-bottom:26px}
+.eyebrow{font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.shelf{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.tc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s,border-color .3s;cursor:pointer}
+.tc:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,.09);border-color:#C9C9C1}
+.tc:hover .pass{transform:rotate(-1.2deg) scale(1.03)}
+.tc .thumb{display:flex;justify-content:center;padding:14px 0 6px;background:#F1F1EC;border-radius:8px}
+.tc .t{font-weight:600;font-size:15px}.tc .k{font-size:12px;color:var(--muted);margin-top:2px}
+.tc .kind{display:inline-block;font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border:1px solid var(--line);border-radius:4px;color:var(--muted)}
+.tc .kind.studio{color:var(--accent);border-color:#C9D6FF;background:var(--accent-soft)}
+.tc .kind.warn{color:var(--warn);border-color:#F1D9A8;background:#FFF6E3}
+.tc .acts{margin-top:auto;display:flex;gap:8px;align-items:center;padding-top:12px;border-top:1px solid var(--line)}
+.tc .acts a{font:500 12px var(--sans);color:var(--muted);cursor:pointer}.tc .acts a:hover{color:var(--ink)}
+.tc .acts .go{margin-left:auto}
+.tc.new{border-style:dashed;align-items:center;justify-content:center;color:var(--muted);background:transparent;gap:6px;min-height:330px}
+.tc.new b{font:300 40px var(--sans);color:var(--faint);transition:transform .3s}.tc.new:hover b{transform:rotate(90deg)}
+.flights{margin-top:40px}
+.frow{display:grid;grid-template-columns:110px 1fr 150px 110px 130px 110px;gap:16px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:8px;transition:transform .25s,box-shadow .25s,border-color .25s;cursor:pointer}
+.frow:hover{transform:translateX(3px);border-color:#C9C9C1;box-shadow:0 6px 20px rgba(0,0,0,.06)}
+.frow.sel{border-color:var(--ink);box-shadow:inset 3px 0 0 var(--ink)}
+.frow .f{font:600 16px var(--mono)}.frow .d{color:var(--muted);font-size:12px;margin-top:2px}
+.st{display:inline-flex;align-items:center;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+.st.boarding{color:var(--accent)}.st.delayed{color:var(--warn)}.st.cancelled{color:var(--err)}.st.ontime{color:var(--ok)}
+.frow .n{font-size:13px}.frow .n small{display:block;color:var(--muted);font-size:11px}
+.frow .chev{text-align:right;color:var(--faint);font-size:12px;font-weight:500}
+.ws{display:grid;grid-template-columns:380px 1fr 300px;height:calc(100vh - 56px);min-height:720px}
+.ws .l{background:var(--card);border-right:1px solid var(--line);padding:24px 22px;overflow:auto}
+.ws .r{background:var(--card);border-left:1px solid var(--line);padding:24px 22px;overflow:auto}
+.ws .c{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;position:relative;background:radial-gradient(ellipse at 50% 42%,#FFFFFF 0,var(--bg) 68%)}
+.ws h2{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px}.ws .sub{margin-bottom:16px;font-size:13px}
+.src{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.src span{flex:1;text-align:center;padding:8px 0;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;transition:background .2s,color .2s}
+.src span.on{background:var(--ink);color:#fff}
+.paste{border:1px dashed #C9C9C1;border-radius:var(--r);padding:12px 14px;font:11px var(--mono);color:var(--faint);line-height:1.6;background:#FAFAF8;transition:border-color .2s,background .2s}
+.paste:hover{border-color:var(--accent);background:var(--accent-soft)}
+.paste b{display:block;font:600 13px var(--sans);color:var(--ink);margin-bottom:3px}
+.paste a{color:var(--accent);font-family:var(--sans);font-size:12px}
+.plist{margin-top:18px}
+.plist .p{display:flex;align-items:center;gap:12px;padding:11px 10px;border-radius:8px;margin:0 -10px;cursor:pointer;transition:background .2s,transform .2s}
+.plist .p:hover{background:#F3F3EF;transform:translateX(2px)}.plist .p.on{background:var(--accent-soft)}
+.plist .av{width:32px;height:32px;border-radius:50%;background:#EDEDE8;display:flex;align-items:center;justify-content:center;font:600 11px var(--mono);color:var(--muted);transition:background .2s,color .2s}
+.plist .p.on .av{background:var(--accent);color:#fff}
+.plist .nm{font-weight:500;font-size:13px}.plist .nm small{display:block;font:11px var(--mono);color:var(--muted);margin-top:2px}
+.plist .rt{margin-left:auto;font:500 11px var(--mono);color:var(--ok)}.plist .p.err .rt{color:var(--err)}.plist .p.err .av{box-shadow:0 0 0 2px var(--err) inset}
+.plist .add{display:flex;align-items:center;gap:12px;padding:11px 10px;color:var(--accent);font-weight:500;font-size:13px;cursor:pointer}
+.plist .add .av{background:var(--accent-soft);color:var(--accent);font-size:18px}
+.ptabs{display:flex;gap:2px;background:#E9E9E3;padding:3px;border-radius:8px;font-size:12px}
+.ptabs span{padding:5px 12px;border-radius:6px;color:var(--muted);cursor:pointer;font-weight:500;transition:all .25s}.ptabs span.active{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hint{font-size:12px;color:var(--muted)}
+.pager{position:absolute;bottom:22px;display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
+.pager b{width:28px;height:28px;border-radius:50%;background:#fff;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-weight:500;cursor:pointer;transition:all .2s}.pager b:hover{border-color:var(--ink)}
+.r h3{font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+.kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}.kv span{color:var(--muted)}.kv a{color:var(--accent);font-weight:500;cursor:pointer}
+.r label{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px}
+.in{height:36px;border:1px solid var(--line);border-radius:var(--r);padding:0 10px;display:flex;align-items:center;background:#FAFAF8;transition:border-color .2s,box-shadow .2s;font-size:13px}
+.in:hover{border-color:#C9C9C1}.in.focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}.in.e{border-color:var(--err);background:#FFF3F2}
+.in.mono{font:12px var(--mono)}
+.err{font-size:11px;color:var(--err);margin-top:4px}
+.finish{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 56px);gap:16px;text-align:center}
+.finish h1{margin:12px 0 0}
+.finish .cards{display:flex;gap:18px;margin-top:22px}
+.finish .dc{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;width:240px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.finish .dc .nm{font-weight:600;font-size:13px}.finish .dc .sr{font:11px var(--mono);color:var(--muted)}
+.wallet{display:inline-flex;align-items:center;gap:8px;background:#000;color:#fff;border-radius:6px;padding:7px 12px;font-size:12px;font-weight:500}
+.wallet i{width:18px;height:13px;border-radius:2px;background:linear-gradient(90deg,#f24 0 25%,#fb2 25% 50%,#2c8 50% 75%,#28f 75%);display:inline-block}
+.drawer{position:fixed;top:56px;right:0;bottom:0;width:440px;background:#fff;border-left:1px solid var(--rule);padding:28px;box-shadow:-24px 0 48px rgba(0,0,0,.08);transform:translateX(100%);transition:transform .45s cubic-bezier(.2,.8,.2,1);z-index:15;overflow:auto}
+.drawer.open{transform:none}
+.drawer h2{font-size:18px;margin:0 0 4px;font-weight:600}.drawer .sub{margin-bottom:18px;font-size:12px;color:var(--muted)}
+.drawer .x{position:absolute;top:22px;right:22px;cursor:pointer;color:var(--muted);font-size:18px}
+.stat{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+.stat span{flex:1;text-align:center;padding:9px 0;font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);cursor:pointer;transition:all .25s}
+.stat span.on{background:var(--ink);color:#fff}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.plan{margin-top:20px;border-top:1px solid var(--rule)}
+.plan div{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px}.plan span{font:11px var(--mono);color:var(--muted)}
+.timeline{margin-top:18px;font:11px var(--mono);color:var(--muted);line-height:2}.timeline b{color:var(--ink);font-weight:500;margin-right:8px}
+.dtabs{display:flex;gap:18px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.dtabs span{padding:8px 0;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .25s}.dtabs span.on{color:var(--ink);border-color:var(--ink)}
+.sw{display:flex;gap:8px}.sw i{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .2s}.sw i:hover{transform:scale(1.12)}.sw i.on{border-color:var(--ink)}
+.slot{display:flex;gap:12px;align-items:center;padding:10px;border:1px dashed #C9C9C1;border-radius:var(--r);margin-bottom:8px;font-size:12px;color:var(--muted);transition:all .2s;cursor:pointer}.slot:hover{border-color:var(--ink);color:var(--ink)}
+.slot i{width:36px;height:36px;border-radius:4px;background:#EDEDE8;display:inline-flex;align-items:center;justify-content:center;font-size:16px}
+.slot b{display:block;color:var(--ink);font-weight:500}
+.fld{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);margin-bottom:6px;font-size:12px;background:#fff;cursor:grab;transition:all .2s}.fld:hover{border-color:var(--ink);transform:translateX(2px)}
+.fld span{font:11px var(--mono);color:var(--muted)}
+.has-drawer .wrap{padding-right:480px}
+.log{font:12px var(--mono)}
+.log .lr{display:grid;grid-template-columns:70px 90px 1fr 80px;gap:16px;padding:10px 14px;border-bottom:1px solid var(--line);background:#fff}
+.log .lr:first-child{background:transparent;color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.log .ok{color:var(--ok)}.log .w{color:var(--warn)}.log .e{color:var(--err)}
+.bind{width:100%;border-collapse:collapse;font-size:13px}.bind th{text-align:left;font:500 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}.bind td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}.bind code{font:12px var(--mono)}.bind .m{font:12px var(--mono);color:var(--muted)}
+.bind .sel{height:34px;border:1px solid var(--line);background:#fff;padding:0 8px;display:flex;align-items:center;justify-content:space-between;font:12px var(--mono);width:210px;border-radius:var(--r,6px);transition:border-color .2s}.bind .sel:hover{border-color:var(--ink)}.bind .sel.g{border-color:#E0B457;background:#FFF8E8}
+.conf{font:500 10px var(--mono);letter-spacing:.08em;text-transform:uppercase}.conf.hi{color:var(--ok,#0C8A52)}.conf.lo{color:var(--warn,#C07C00)}.conf.un{color:var(--faint)}
+.f3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 18px}.f3 label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.two{display:grid;grid-template-columns:1fr 340px;gap:40px}.sidep{border-left:1px solid var(--line);padding-left:28px}
+.chips span{display:inline-block;font:500 11px var(--mono);padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--muted);margin:0 6px 6px 0;cursor:pointer;transition:all .2s}.chips span:hover{border-color:var(--ink);color:var(--ink)}.chips span.on{border-color:var(--accent,#1F4BD8);color:var(--accent,#1F4BD8)}
+</style></head><body>
+<div class="proto-nav"><a data-go="home">1 Home</a><a data-go="bindings">1b Bindings</a><a data-go="flight">2a Flight</a><a data-go="issue">2 Issue</a><a data-go="done">3 Done</a><a data-go="flights">4 Flights</a><a data-go="design">5 Design</a><a data-go="log">6 Log</a></div>
+
+<!-- ===== 1 HOME ===== -->
+<section data-screen="home">
+ <header class="mast"><div class="brand">Boarding Pass Studio<small>boardingpass.geloflix.com</small></div>
+  <nav class="seg segwrap"><div class="segpill"></div><a data-go="home" class="active">Templates</a><a data-go="flights">Flights</a><a data-go="log">Device log</a></nav>
+  <div class="right"><span class="pill live">prod · APNs</span><button class="btn ghost">Upload .pkpasstemplate</button><button class="btn primary" data-go="design">New design</button></div></header>
+ <div class="wrap">
+  <h1>Start with a template</h1><div class="sub">Pass Designer exports and Studio designs live on one shelf. Pick one, add passengers, issue.</div>
+  <div class="shelf stagger">
+   <div class="tc" data-go="issue"><div class="thumb" id="t1"></div><div><div class="t">Cebu Pacific</div><div class="k">cebpac · 11 fields · 14 live passes</div></div><div><span class="kind">Pass Designer</span></div><div class="acts"><a>Bindings</a><a>Duplicate</a><a class="go btn accent sm">Issue →</a></div></div>
+   <div class="tc" data-go="issue"><div class="thumb" id="t2"></div><div><div class="t">Rocket Partners</div><div class="k">12 fields · 2 live passes</div></div><div><span class="kind studio">Studio design</span></div><div class="acts"><a data-go="design">Edit design</a><a>Duplicate</a><a class="go btn accent sm">Issue →</a></div></div>
+   <div class="tc"><div class="thumb" id="t3"></div><div><div class="t">Odyssey Air</div><div class="k">odyssey · 14 fields · not issued yet</div></div><div><span class="kind warn">2 bindings to confirm</span></div><div class="acts"><a>Bindings</a><a>Duplicate</a><a class="go btn sm">Review →</a></div></div>
+   <div class="tc new" data-go="design"><b>+</b><div style="font-weight:500;color:var(--ink)">Design a new look</div><div class="hint">or drop a .pkpasstemplate here</div></div>
+  </div>
+  <div class="flights stagger">
+   <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div><div class="eyebrow">Live now</div><h2 style="margin:4px 0 0;font-size:18px">Flights</h2></div><a data-go="flights" class="back">All flights →</a></div>
+   <div class="frow" data-go="flights"><div class="f">5J 5056</div><div>Manila → Tokyo Narita<div class="d">Today · 06:40 · gate 12 · cebpac</div></div><span class="st boarding live">Boarding</span><div class="n">3 passes</div><div class="n">3 on devices<small>last push 2 min ago</small></div><div class="chev">Update ›</div></div>
+   <div class="frow" data-go="flights"><div class="f">BR 262</div><div>Taipei → Manila<div class="d">Fri · 10:05 · gate C4 · odyssey</div></div><span class="st delayed">Delayed 45m</span><div class="n">4 passes</div><div class="n">4 on devices<small>last push 1 h ago</small></div><div class="chev">Update ›</div></div>
+   <div class="frow" data-go="flights"><div class="f">RP 247</div><div>San Francisco → New York<div class="d">Wed · 08:15 · gate B12 · Rocket Partners</div></div><span class="st ontime">On time</span><div class="n">2 passes</div><div class="n">1 on device<small>1 never added</small></div><div class="chev">Update ›</div></div>
+  </div>
+ </div>
+</section>
+
+<!-- ===== 2 ISSUE ===== -->
+<section data-screen="issue">
+ <header class="mast"><a class="back" data-go="home">← Templates</a><div class="brand" style="margin-left:-6px">5J 5056 · 14 Oct<small>cebpac</small></div>
+  <nav class="seg segwrap" style="margin:0 auto"><div class="segpill"></div><a class="done"><span class="n">✓</span>Template</a><a class="done"><span class="n">✓</span>Flight</a><a class="active"><span class="n">3</span>Passengers</a><a><span class="n">4</span>Issue</a></nav>
+  <div class="right"><button class="btn ghost">Save draft</button><button class="btn accent" data-go="done">Issue 2 passes →</button></div></header>
+ <div class="ws">
+  <aside class="l stagger">
+   <h2>Passengers</h2><div class="sub">Scan or paste a boarding pass. Flight details are already filled from step 2.</div>
+   <div class="src" data-tabs="src"><span class="on" data-tab="scan">Scan / paste</span><span data-tab="type">Type</span><span data-tab="roster">Roster</span></div>
+   <div data-pane-group="src" data-pane="scan" class="paste"><b>Paste a BCBP barcode</b>M1SOLIVERES/ANGELO  E5J5056 MNLNRT5J 5056 288Y014A0042 100…<br><a>or use the iPhone camera →</a></div>
+   <div data-pane-group="src" data-pane="type" hidden><div class="f3" style="grid-template-columns:1.6fr 1fr 1fr"><div><label>Passenger</label><div class="in" style="color:var(--faint)">SURNAME/GIVEN</div></div><div><label>Seat</label><div class="in" style="color:var(--faint)">14C</div></div><div><label>Seq</label><div class="in" style="color:var(--faint)">045</div></div></div></div>
+<div data-pane-group="src" data-pane="roster" hidden><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px">Saved passengers</label><div class="chips"><span>A. Soliveres · 14A</span><span>M. Soliveres · 14B</span><span>J. Reyes</span><span>L. Tan</span><span>+ manage</span></div></div>
+   <div class="plist">
+    <div class="p on" data-pax="SOLIVERES/A|14A|042"><div class="av">AS</div><div class="nm">SOLIVERES / ANGELO<small>14A · seq 042 · …-001</small></div><div class="rt">ready</div></div>
+    <div class="p" data-pax="SOLIVERES/M|14B|043"><div class="av">MS</div><div class="nm">SOLIVERES / MARIA<small>14B · seq 043 · …-002</small></div><div class="rt">ready</div></div>
+    <div class="p err" data-pax="REYES/J|—|044"><div class="av">JR</div><div class="nm">REYES / JUAN<small>seat missing · …-003</small></div><div class="rt">fix</div></div>
+    <div class="add"><div class="av">+</div>Add passenger</div>
+   </div>
+  </aside>
+  <main class="c">
+   <div class="ptabs"><span class="active" data-flip="#flip1">Front</span><span data-flip="#flip1">Back</span><span>iOS 26 detail</span><span>Lock screen</span></div>
+   <div id="flip1"></div>
+   <div class="hint">Click a field on the pass to edit it. Front / Back flips the card.</div>
+   <div class="pager"><b>‹</b><span data-pager>SOLIVERES/A · 1 of 3</span><b>›</b></div>
+  </main>
+  <aside class="r stagger">
+   <h3>This passenger</h3>
+   <label>Passenger name</label><div class="in" data-bind="name">SOLIVERES/A</div>
+   <label>Seat</label><div class="in focus" data-bind="seat">14A</div>
+   <label>Sequence</label><div class="in" data-bind="seq">042</div>
+   <label>Serial</label><div class="in mono">5J5056-20261014-001</div>
+   <h3 style="margin-top:26px">From the flight</h3>
+   <div class="kv"><span>Route</span>MNL → NRT</div><div class="kv"><span>Departs</span>06:40 +08</div><div class="kv"><span>Boards</span>06:10</div><div class="kv"><span>Gate</span>12 · T3</div><div class="kv"><span>Expires</span>arrival + 1 day</div>
+   <div class="kv"><span>Semantics</span><a>12 bound ›</a></div>
+  </aside>
+ </div>
+</section>
+
+<!-- ===== 3 DONE ===== -->
+<section data-screen="done">
+ <header class="mast"><a class="back" data-go="home">← Templates</a><div class="brand" style="margin-left:-6px">5J 5056 · 14 Oct<small>cebpac</small></div>
+  <nav class="seg segwrap" style="margin:0 auto"><div class="segpill"></div><a class="done"><span class="n">✓</span>Template</a><a class="done"><span class="n">✓</span>Flight</a><a class="done"><span class="n">✓</span>Passengers</a><a class="active"><span class="n">4</span>Issue</a></nav>
+  <div class="right"><button class="btn ghost" data-go="flights">Go to flight</button></div></header>
+ <div class="finish stagger">
+  <svg class="ring" viewBox="0 0 72 72"><circle class="c" cx="36" cy="36" r="34" stroke="#0C8A52"/><path class="k" d="M22 37l10 10 18-20" stroke="#0C8A52" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s .9s ease-out forwards"/></svg>
+  <h1>2 passes issued</h1><div class="sub">Signed with the prod cert. Scan on iPhone, or share the links. They'll update over push from the Flights page.</div>
+  <div class="cards">
+   <div class="dc"><div class="qr"></div><div class="nm">SOLIVERES / ANGELO</div><div class="sr">5J5056-20261014-001</div><span class="wallet"><i></i>Add to Apple Wallet</span></div>
+   <div class="dc"><div class="qr"></div><div class="nm">SOLIVERES / MARIA</div><div class="sr">5J5056-20261014-002</div><span class="wallet"><i></i>Add to Apple Wallet</span></div>
+  </div>
+  <div style="display:flex;gap:10px;margin-top:18px"><button class="btn">Copy all links</button><button class="btn" data-go="issue">Add more passengers</button><button class="btn primary" data-go="flights">Open 5J 5056 →</button></div>
+ </div>
+</section>
+
+<!-- ===== 4 FLIGHTS ===== -->
+<section data-screen="flights" class="has-drawer">
+ <header class="mast"><div class="brand">Boarding Pass Studio<small>boardingpass.geloflix.com</small></div>
+  <nav class="seg segwrap"><div class="segpill"></div><a data-go="home">Templates</a><a data-go="flights" class="active">Flights</a><a data-go="log">Device log</a></nav>
+  <div class="right"><span class="pill live">prod · APNs</span><span style="font:500 14px var(--mono)" data-clock>06:02:41</span><button class="btn primary" data-go="issue">New flight</button></div></header>
+ <div class="wrap">
+  <h1>Flights</h1><div class="sub">4 upcoming · 11 passes · 9 on devices. Click a flight to update it; changes push to every device on the trip.</div>
+  <div class="stagger">
+   <div class="frow sel" data-drawer="#fd"><div class="f">5J 5056</div><div>Manila → Tokyo Narita<div class="d">Tue 14 Oct · 06:40 · gate 12 · T3</div></div><span class="st boarding live" data-status-target>Boarding</span><div class="n">3 passes</div><div class="n">3 on devices<small>last push 2 min ago</small></div><div class="chev">Update ›</div></div>
+   <div class="frow" data-drawer="#fd"><div class="f">BR 262</div><div>Taipei → Manila<div class="d">Fri 17 Oct · 10:05 · gate C4</div></div><span class="st delayed">Delayed 45m</span><div class="n">4 passes</div><div class="n">4 on devices<small>last push 1 h ago</small></div><div class="chev">Update ›</div></div>
+   <div class="frow" data-drawer="#fd"><div class="f">RP 247</div><div>San Francisco → New York JFK<div class="d">Wed 15 Oct · 08:15 · gate B12</div></div><span class="st ontime">On time</span><div class="n">2 passes</div><div class="n">1 on device<small>1 never added</small></div><div class="chev">Update ›</div></div>
+   <div class="frow" data-drawer="#fd"><div class="f">5J 5057</div><div>Tokyo Narita → Manila<div class="d">Sun 19 Oct · 14:05 · gate —</div></div><span class="st ontime">On time</span><div class="n">2 passes</div><div class="n">1 on device<small>—</small></div><div class="chev">Update ›</div></div>
+   <div style="margin-top:28px" class="eyebrow">Past · 6 flights</div>
+  </div>
+ </div>
+ <aside class="drawer open" id="fd"><span class="x" data-close="#fd">✕</span>
+  <h2>5J 5056 · MNL → NRT</h2><div class="sub">Tue 14 Oct · 3 passes · 3 on devices · last push 2 min ago</div>
+  <div class="eyebrow" style="margin-bottom:8px">Status</div>
+  <div class="stat"><span data-status="ontime">On time</span><span class="on" data-status="boarding">Boarding</span><span data-status="delayed">Delayed</span><span data-status="cancelled">Cancelled</span></div>
+  <div class="g2"><div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Gate</label><div class="in">12</div></div><div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Terminal</label><div class="in">3</div></div>
+   <div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Boarding</label><div class="in">06:10</div></div><div><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:4px">Departure</label><div class="in">06:40</div></div></div>
+  <label style="display:block;font-size:11px;color:var(--muted);margin:12px 0 4px">Reason shown on device (optional)</label><div class="in" style="color:var(--faint)">e.g. crew availability</div>
+  <div style="margin-top:16px;display:flex;gap:10px;align-items:center"><button class="btn accent" data-push="Pushed to 3 devices · Live Activity updated">Push to 3 devices</button><span class="hint">iOS 26 shows a Live Activity</span></div>
+  <div class="plan"><div>SOLIVERES / ANGELO <span>14A · on device</span></div><div>SOLIVERES / MARIA <span>14B · on device</span></div><div>REYES / JUAN <span>15C · on device</span></div></div>
+  <div style="margin-top:14px;display:flex;gap:16px"><a class="back" data-go="issue">+ Add passengers</a><a class="back">Share Add-to-Wallet links</a></div>
+  <div class="timeline"><b>06:00</b>push ok · 3 devices<br><b>05:41</b>iPhone registered …-003<br><b>05:12</b>issued 3 passes</div>
+ </aside>
+</section>
+
+<!-- ===== 5 DESIGN ===== -->
+<section data-screen="design">
+ <header class="mast"><a class="back" data-go="home">← Templates</a><div class="brand" style="margin-left:-6px">Rocket Partners<small>Studio design · unsaved changes</small></div>
+  <nav class="seg segwrap" style="margin:0 auto"><div class="segpill"></div><a class="active">Look</a><a>Fields</a><a>Flight data</a><a>Barcode</a><a>Advanced</a></nav>
+  <div class="right"><button class="btn ghost">Export .pkpass</button><button class="btn primary" data-go="home">Save template</button></div></header>
+ <div class="ws">
+  <aside class="l stagger">
+   <h2>Look</h2><div class="sub">Brand, colors and images. The preview is the real Wallet renderer.</div>
+   <label style="display:block;font-size:11px;color:var(--muted);margin:10px 0 4px">Organization</label><div class="in">Rocket Partners Airlines</div>
+   <label style="display:block;font-size:11px;color:var(--muted);margin:10px 0 4px">Logo text</label><div class="in">Rocket Partners</div>
+   <div class="eyebrow" style="margin:18px 0 8px">Background</div>
+   <div class="sw"><i class="on" style="background:#14205A"></i><i style="background:#0F5B5A"></i><i style="background:#8A1C2B"></i><i style="background:#1C1C1E"></i><i style="background:#B7410E"></i><i style="background:#fff;border:1px solid #ddd"></i><i style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)"></i></div>
+   <div class="eyebrow" style="margin:18px 0 8px">Images</div>
+   <div class="slot"><i>▣</i><div><b>Logo</b>PNG · up to 160×50 pt</div></div>
+   <div class="slot"><i>◼</i><div><b>Icon</b>29×29 pt · required by iOS</div></div>
+   <div class="slot"><i>▬</i><div><b>Footer</b>above the barcode</div></div>
+   <div class="slot"><i>◆</i><div><b>Primary logo</b>iOS 26 expanded view</div></div>
+  </aside>
+  <main class="c">
+   <div class="ptabs"><span class="active" data-flip="#flip2">Front</span><span data-flip="#flip2">Back</span><span>iOS 26 detail</span></div>
+   <div id="flip2"></div>
+   <div class="hint">Hover a field to see its key · click to edit · drag to reorder in Fields</div>
+  </main>
+  <aside class="r stagger">
+   <h3>Fields on the front</h3>
+   <div class="fld">Gate <span>header · gate</span></div><div class="fld">Seat <span>header · seat</span></div><div class="fld">Origin → Dest <span>primary</span></div><div class="fld">Passenger <span>secondary</span></div><div class="fld">Flight <span>secondary</span></div><div class="fld">Boards <span>aux · date</span></div><div class="fld">Seq <span>aux</span></div>
+   <a class="back" style="display:block;margin-top:8px">+ Add field</a>
+   <h3 style="margin-top:26px">Apple semantics</h3>
+   <div class="kv"><span>Bound</span>12 of 14</div><div class="kv"><span>Required</span><span style="color:var(--ok)">all present</span></div><div class="kv"><span>iOS 26 layout</span><span style="color:var(--ok)">eligible</span></div>
+  </aside>
+ </div>
+</section>
+
+<!-- ===== 6 LOG ===== -->
+<section data-screen="log">
+ <header class="mast"><div class="brand">Boarding Pass Studio<small>boardingpass.geloflix.com</small></div>
+  <nav class="seg segwrap"><div class="segpill"></div><a data-go="home">Templates</a><a data-go="flights">Flights</a><a data-go="log" class="active">Device log</a></nav>
+  <div class="right"><span class="pill live">prod · APNs</span><button class="btn ghost">Refresh</button></div></header>
+ <div class="wrap">
+  <h1>Device log</h1><div class="sub">Everything iPhones report back through the PassKit web service, plus our pushes. Newest first.</div>
+  <div class="log stagger">
+   <div class="lr"><div>Time</div><div>Source</div><div>Event</div><div>Result</div></div>
+   <div class="lr"><div>06:00:12</div><div>apns</div><div>push · 5J5056 · 3 devices</div><div class="ok">200 ok</div></div>
+   <div class="lr"><div>06:00:13</div><div>device</div><div>GET /v1/passes/…-001 → rebuilt .pkpass</div><div class="ok">200</div></div>
+   <div class="lr"><div>06:00:13</div><div>device</div><div>GET /v1/passes/…-002</div><div class="ok">200</div></div>
+   <div class="lr"><div>05:41:50</div><div>device</div><div>register …-003 on iPhone 7d3f…</div><div class="ok">201</div></div>
+   <div class="lr"><div>05:12:08</div><div>admin</div><div>issued 3 passes · cebpac · 5J5056</div><div class="ok">ok</div></div>
+   <div class="lr"><div>04:58:33</div><div>device</div><div>/v1/log: "Pass has expired" · RP-001</div><div class="w">warn</div></div>
+   <div class="lr"><div>03:10:01</div><div>apns</div><div>push · BR262 · device 9ac1… gone</div><div class="e">410 pruned</div></div>
+  </div>
+ </div>
+</section>
+
+
+<section data-screen="flight">
+ <header class="mast"><a class="back" data-go="home">← Templates</a><div class="brand" style="margin-left:-6px">New trip<small>cebpac</small></div><nav class="seg segwrap" style="margin:0 auto"><div class="segpill"></div><a class="done" data-go="home"><span class="n">✓</span>Template</a><a class="active"><span class="n">2</span>Flight</a><a data-go="issue"><span class="n">3</span>Passengers</a><a data-go="done"><span class="n">4</span>Issue</a></nav><div class="right"><button class="btn ghost">Save draft</button><button class="btn accent" data-go="issue">Passengers →</button></div></header>
+ <div class="wrap">
+  <h1>Flight</h1><div class="sub">Shared by every pass on this trip. Anything can be moved to the passenger row instead.</div>
+  <div class="two">
+   <div class="stagger"><div class="f3">
+ <div><label>Airline</label><div class="in">5J</div></div><div><label>Flight number</label><div class="in focus">5056</div></div><div><label>Trip id</label><div class="in mono">5J5056-2026-10-14</div></div>
+ <div><label>From</label><div class="in">MNL</div></div><div><label>To</label><div class="in">NRT</div></div><div><label>Gate · terminal</label><div class="in">12 · T3</div></div>
+ <div><label>Boarding</label><div class="in">14 Oct 2026 · 06:10</div></div><div><label>Departure</label><div class="in">14 Oct 2026 · 06:40</div></div><div><label>Arrival</label><div class="in">14 Oct 2026 · 11:55</div></div>
+ <div><label>Time zone · from</label><div class="in">Asia/Manila +08</div></div><div><label>Time zone · to</label><div class="in">Asia/Tokyo +09</div></div><div><label>Pass expiry</label><div class="in" style="color:var(--faint)">blank = arrival + 1 day</div></div>
+</div>
+<div style="margin-top:18px"><label style="display:block;font-size:11px;color:var(--muted);margin-bottom:6px">Per-passenger instead</label><div class="chips"><span>gate</span><span>boarding</span><span class="on">seat ✓</span><span class="on">sequence ✓</span><span>fare class</span></div><div style="font-size:11px;color:var(--faint)">Click a field to move it to the passenger row. Seat and sequence are always per passenger.</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:18px;border-top:1px solid var(--line)"><span style="font:11px var(--mono);color:var(--muted)">All required fields set</span><div><button class="btn ghost" data-go="home">← Template</button> &nbsp; <button class="btn accent" data-go="issue">Passengers →</button></div></div>
+   </div>
+   <aside class="sidep stagger"><div style="font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Preview · shared values</div><div id="dp5"></div><div style="font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:22px 0 6px">Derived</div><div class="kv"><span>Duration</span>4 h 15 m</div><div class="kv"><span>relevantDate</span>boarding 06:10</div><div class="kv"><span>expirationDate</span>15 Oct 11:55</div><div class="kv"><span>Semantics</span><a>11 of 14 bound</a></div></aside>
+  </div>
+ </div>
+</section>
+<section data-screen="bindings">
+ <header class="mast"><div class="brand">Boarding Pass Studio<small>boardingpass.geloflix.com</small></div><nav class="seg segwrap"><div class="segpill"></div><a data-go="home" class="active">Templates</a><a data-go="flights">Flights</a><a data-go="log">Device log</a></nav><div class="right"><span class="pill live">prod · APNs</span></div></header>
+ <div class="wrap">
+  <h1>odyssey · bindings</h1><div class="sub">Uploaded just now · 14 fields · 2 guesses need a look. Apple's semantic tags are fixed; your field keys are yours. Unbound tags still render on iOS 26.</div>
+  <div class="two">
+   <div class="stagger"><table class="bind"><tr><th>Apple semantic</th><th>→ template field</th><th>Confidence</th><th>Sample</th></tr><tr><td><code>passengerName</code></td><td><div class="sel">passenger <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m">SURNAME/GIVEN</td></tr><tr><td><code>departureAirportCode</code></td><td><div class="sel">origin <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m">TPE</td></tr><tr><td><code>destinationAirportCode</code></td><td><div class="sel">dest <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m">MNL</td></tr><tr><td><code>currentBoardingDate</code></td><td><div class="sel g">boardingTime <span>▾</span></div></td><td><span class="conf lo">±120 s</span></td><td class="m">2026-06-01T07:28</td></tr><tr><td><code>seatNumber</code></td><td><div class="sel g">seat <span>▾</span></div></td><td><span class="conf lo">composite</span></td><td class="m">14A → row 14 · A</td></tr><tr><td><code>departureGate</code></td><td><div class="sel">gate <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m">C4</td></tr><tr><td><code>boardingSequenceNumber</code></td><td><div class="sel">seq <span>▾</span></div></td><td><span class="conf hi">exact</span></td><td class="m">044</td></tr><tr><td><code>transitStatus</code></td><td><div class="sel" style="color:var(--faint)">— unbound <span>▾</span></div></td><td><span class="conf un">none</span></td><td class="m">renders via Live Activity</td></tr></table><div style="margin-top:18px;display:flex;gap:10px"><button class="btn ghost" data-go="home">Later</button><button class="btn accent" data-go="home">Confirm bindings</button></div></div>
+   <aside class="sidep stagger"><div style="font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Preview · sample values</div><div id="dp4"></div><div style="font:500 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:22px 0 6px">Bundle</div><div class="kv"><span>pass.json</span>14 fields</div><div class="kv"><span>Images</span>icon@2x, logo@2x, strip@2x</div><div class="kv"><span>Base icon.png</span><span style="color:var(--ok,#0C8A52)">synthesized</span></div><div class="kv"><span>tooling.json</span>ignored</div></aside>
+  </div>
+ </div>
+</section>
+<script src="_proto.js?v=4"></script>
+<script>
+document.getElementById("t1").innerHTML=P.pass({size:"sm"});
+document.getElementById("t2").innerHTML=P.pass({size:"sm",brand:"Rocket Partners",from:"SFO",fromCity:"San Francisco",to:"JFK",toCity:"New York",name:"SOLIVERES/A",flight:"RP 247",boards:"10:30",seq:"0042",gate:"B12"});
+document.getElementById("t3").innerHTML=P.pass({size:"sm",cls:"teal",brand:"Odyssey Air",from:"TPE",fromCity:"Taipei",to:"MNL",toCity:"Manila",name:"—",flight:"OD 118",boards:"—",seq:"—",gate:"—",seat:"—"});
+document.getElementById("flip1").innerHTML=P.pass({flip:true});
+document.getElementById("flip2").innerHTML=P.pass({flip:true,brand:"Rocket Partners",from:"SFO",fromCity:"San Francisco",to:"JFK",toCity:"New York",name:"ANGELO SOLIVERES",flight:"RP 247",boards:"10:30 PM",seq:"0042",gate:"B12"});
+document.getElementById("dp4").innerHTML=P.pass({size:"md",cls:"teal",brand:"Odyssey Air",from:"TPE",fromCity:"Taipei",to:"MNL",toCity:"Manila",name:"SURNAME/G",flight:"OD 118",boards:"07:28",seq:"044",gate:"C4"});
+document.getElementById("dp5").innerHTML=P.pass({size:"md",name:"—",seat:"—",seq:"—"});
+P.init();
+</script>
+</body></html>
