@@ -210,6 +210,7 @@ body { font: 13px/1.45 var(--sans); color: var(--ink); background: var(--bg); -w
 .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
 .tpl-card { background: var(--card); border-radius: var(--r-card); box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: transform .35s cubic-bezier(.2, .8, .2, 1), box-shadow .35s; min-width: 0; }
 .tpl-card:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0, 0, 0, .3), 0 18px 40px rgba(0, 0, 0, .35); }
+[data-theme="light"] .tpl-card:hover { box-shadow: 0 2px 4px rgba(0, 0, 0, .06), 0 18px 40px rgba(0, 0, 0, .1); }
 .tpl-thumb { height: 236px; border-radius: var(--r-row); background: var(--fill); overflow: hidden; display: flex; justify-content: center; align-items: flex-start; padding-top: 14px; }
 .tpl-thumb > .wallet-card { transform: scale(.62); transform-origin: top center; transition: transform .35s cubic-bezier(.2, .8, .2, 1); flex: none; }
 .tpl-card:hover .tpl-thumb > .wallet-card { transform: scale(.64) rotate(-1deg); }

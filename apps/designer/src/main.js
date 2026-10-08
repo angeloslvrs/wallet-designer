@@ -93,6 +93,7 @@ function wireViewTabs(initialView = "flights") {
       bindingsFor: opts?.bindingsFor,
       onIssue: (id) => show("issue", { template: id }),
       onEditDesign: async (name) => {
+        if (!confirm(`Open "${name}" in the Design editor? It replaces what's currently there.`)) return;
         try { await loadFixture(name); show("designer"); } catch (err) { alert(err.message); }
       },
       onNewDesign: () => {

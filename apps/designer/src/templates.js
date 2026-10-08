@@ -206,7 +206,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
           </div>
         </div>
         <div class="bind-split">
-          <div class="card bind-card stagger">
+          <div class="card bind-card">
             <p class="bind-explain">Apple’s semantic tags are a fixed vocabulary; this template’s field keys are its own. Each binding says which visible field shows a semantic, so a status push updates both. Unbound tags still render on iOS 26 from semantics alone.</p>
             <table class="bind-table">
               <thead><tr><th>Apple semantic</th><th>Template field</th><th>Confidence</th><th>Sample</th></tr></thead>
@@ -334,6 +334,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       if (e.target.value) draft = { ...draft, [sem]: e.target.value };
       else { const { [sem]: _drop, ...rest } = draft; draft = rest; }
       renderBindings();
+      root.querySelector(`select[data-bind-sem="${CSS.escape(sem)}"]`)?.focus();
     }
   }, { signal });
 
