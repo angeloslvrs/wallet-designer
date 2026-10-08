@@ -4,7 +4,9 @@ import { join, basename } from "node:path";
 import { asyncHandler } from "../util/async-handler.js";
 
 export const fixturesRouter = Router();
-const DIR = "fixtures";
+// Saved Studio designs (FormState JSON). Shown as `kind: "studio"` templates.
+export const FIXTURES_DIR = "fixtures";
+const DIR = FIXTURES_DIR;
 const safeName = (n) => n.replace(/[^a-zA-Z0-9._-]/g, "");
 
 fixturesRouter.get("/fixtures", asyncHandler(async (_req, res) => {

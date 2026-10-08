@@ -1,4 +1,4 @@
-import { BOARDING_SEMANTICS, SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
+import { SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
 import { esc } from "./esc.js";
 import { harvestSemantics, renderSemanticsEditor } from "./semantics-editor.js";
 import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
@@ -11,7 +11,6 @@ import { appleWalletButton } from "./wallet-badge.js";
 
 // The boarding semantic subset offered in the bindings editor — structured
 // keys included (seats/passengerName decompose at issue time).
-const SEMANTIC_KEYS = Object.keys(BOARDING_SEMANTICS);
 
 // Issue view — issue template-backed passes from the browser: pick an
 // installed .pkpasstemplate, name the trip (groupId), fill one row per
@@ -170,19 +169,16 @@ export function rowValuesToSemantics(values, bindings) {
   return out;
 }
 
-export function mountIssue(root, showManage) {
+export function mountIssue(root, showManage, { template: preselect, showTemplates } = {}) {
   // Re-mounted on every tab visit — drop the previous mount's listeners or
   // one click would fire issueAll() once per visit (duplicate POSTs).
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
 
   let templates = [];        // [{ id, fieldKeys, bindings, assets, error? }]
-  let selected = null;       // template id
+  let selected = preselect ?? null;   // template id (preselected from the Templates shelf)
   let groupId = "";
   let rows = [{ values: {}, serial: "", serialEdited: false, semantics: {} }];
-  // Per-template unsaved binding edits: { tplId: { semanticKey: fieldKey } }.
-  // Seeded from the server's discovered/stored map on load; PUT on save.
-  let bindingDrafts = {};
   // Trip individualization: which template field keys vary per passenger (the
   // rest are shared and entered once). `shared` holds the shared field values.
   let individualKeys = new Set();
@@ -430,57 +426,6 @@ export function mountIssue(root, showManage) {
       </div>`;
   }
 
-  // Binding editor for one template: a dropdown per bound semantic (field
-  // keys × the boarding semantic subset), an add row for unbound semantics,
-  // and a save → PUT /api/templates/:id/bindings. Unbound is informational —
-  // iOS 26 renders the semantic scheme from semantics, bound field or not.
-  function bindingsEditor(t) {
-    const draft = bindingDrafts[t.id] ?? {};
-    const fieldOptions = (sel) => [""].concat(t.fieldKeys ?? []).map(k =>
-      `<option value="${esc(k)}" ${k === sel ? "selected" : ""}>${esc(k || "(unbound)")}</option>`).join("");
-    const guessed = (sem) => {
-      const b = t.bindings?.[sem];
-      return b && b.fieldKey === draft[sem] && b.confidence !== "high"
-        ? ` <span class="mg-badge" title="auto-discovered from the template's sample values (${esc(b.source)})">guess</span>` : "";
-    };
-    const bound = Object.keys(draft).sort().map(sem => `
-      <div class="live-row tpl-bind-row">
-        <label><code>${esc(sem)}</code>${guessed(sem)}</label>
-        <select data-bind-sem="${esc(sem)}" data-tpl="${esc(t.id)}">${fieldOptions(draft[sem])}</select>
-      </div>`).join("");
-    const unbound = SEMANTIC_KEYS.filter(k => !draft[k]);
-    return `
-      <div class="tpl-bindings">
-        <p class="hint">${Object.keys(draft).length} bound · ${unbound.length} unbound (informational)</p>
-        ${bound || `<p class="hint">No bindings yet — add one below.</p>`}
-        <div class="live-row tpl-bind-row">
-          <select data-add-sem data-tpl="${esc(t.id)}">
-            <option value="">+ bind semantic…</option>
-            ${unbound.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}
-          </select>
-          <select data-add-field data-tpl="${esc(t.id)}">${fieldOptions("")}</select>
-          <button data-act="bind-add" data-id="${esc(t.id)}" class="wpd-ghost">Add</button>
-          <button data-act="bind-save" data-id="${esc(t.id)}" class="wpd-ghost">Save bindings</button>
-          <span class="mg-grp-status" data-bind-status="${esc(t.id)}"></span>
-        </div>
-        <p class="hint">Unbound semantics still update on push — modern devices render from semantics; a bound field also updates the classic layout.</p>
-      </div>`;
-  }
-
-  // "Advanced — semantic bindings" drawer: the selected template's editable
-  // field-key → semantic-tag map.
-  function advancedDrawer() {
-    const t = current();
-    const body = (t && !t.error)
-      ? `<p class="wpd-drawer-note">Semantic tags are Apple’s fixed vocabulary; field keys are this template’s. Bound fields update the classic layout; unbound semantics still render on iOS&nbsp;26.</p>${bindingsEditor(t)}`
-      : `<p class="hint">Select a working template to edit its semantic bindings.</p>`;
-    return `
-      <details class="wpd-drawer">
-        <summary class="wpd-drawer-summary">Advanced — semantic bindings</summary>
-        <div class="wpd-drawer-body">${body}</div>
-      </details>`;
-  }
-
   // Saved-passenger chips strip at the top of step 3: tap a chip → append a
   // prefilled row. Overflow past ~8 caps at one row + an "ALL (n)…" chip that
   // opens the manager.
@@ -526,33 +471,6 @@ export function mountIssue(root, showManage) {
         <div class="wpd-roster-thead"><span>Label</span><span>Name</span><span>Seat pref</span><span>Freq. flyer</span><span></span></div>
         ${rowsHtml || `<p class="hint">Nothing saved yet — use a row’s “save” action.</p>`}
       </div>`;
-  }
-
-  // "Template manager" drawer: installed .pkpasstemplate bundles + upload.
-  function templatesCard(open = false) {
-    const list = templates.map(t => `
-      <div class="wpd-tpl-row">
-        <div>
-          <div class="wpd-tpl-row-name">${esc(t.id)}</div>
-          <div class="wpd-tpl-row-meta">${t.error
-            ? `<span class="mg-badge is-broken">broken: ${esc(t.error)}</span>`
-            : `${(t.fieldKeys ?? []).length} field keys · ${(t.assets ?? []).length} assets`}</div>
-        </div>
-        <button data-act="tpl-del" data-id="${esc(t.id)}" class="wpd-ghost danger">Delete</button>
-      </div>`).join("");
-    return `
-      <details class="wpd-drawer" ${open ? "open" : ""}>
-        <summary class="wpd-drawer-summary">Template manager <span class="mg-badge">${templates.length} installed</span></summary>
-        <div class="wpd-drawer-body">
-          ${list || `<p class="hint">None installed — see <code>templates/README.md</code>.</p>`}
-          <div class="wpd-tpl-upload">
-            <input id="tpl-id" placeholder="id (defaults to file name)" />
-            <input id="tpl-file" type="file" accept=".zip" />
-            <button data-act="tpl-upload" class="wpd-ghost">Upload zipped .pkpasstemplate</button>
-            <span class="mg-grp-status" id="tpl-status"></span>
-          </div>
-        </div>
-      </details>`;
   }
 
   // A completed step collapses to a "✓ 01 — …" summary row on <760px (see the
@@ -699,10 +617,6 @@ export function mountIssue(root, showManage) {
           <span class="mg-grp-status" id="iss-status"></span>
         </div>
 
-        <div class="wpd-drawers">
-          ${advancedDrawer()}
-          ${templatesCard()}
-        </div>
       </div>`;
     mountSemanticsEditors();
     mountTypedFields();
@@ -771,10 +685,9 @@ export function mountIssue(root, showManage) {
       <div class="wpd-view wpd-issue">
         <div class="wpd-view-head">
           <h1>Issue boarding passes</h1>
-          <p>No templates installed yet — drop a <code>.pkpasstemplate</code> bundle into
-          <code>templates/</code> or upload one below (see <code>templates/README.md</code>).</p>
+          <p>No templates installed yet — upload a <code>.pkpasstemplate</code> on the Templates page.</p>
         </div>
-        <div class="wpd-drawers">${templatesCard(true)}</div>
+        <p><button type="button" class="btn btn-primary" data-act="templates">Go to Templates</button></p>
       </div>`;
   }
 
@@ -856,8 +769,6 @@ export function mountIssue(root, showManage) {
     catch { if (signal.aborted) return; root.innerHTML = `<div class="mg-wrap"><p class="mg-empty">API offline.</p></div>`; return; }
     if (signal.aborted) return;
     if (!Array.isArray(templates)) { renderEmpty(); return; }
-    bindingDrafts = Object.fromEntries(templates.filter(t => !t.error).map(t =>
-      [t.id, Object.fromEntries(Object.entries(t.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]))]));
     if (!templates.length) { renderEmpty(); return; }
     // Existing serials → warn before an issue would silently overwrite a pass.
     try {
@@ -871,6 +782,8 @@ export function mountIssue(root, showManage) {
       roster = Array.isArray(r) ? r : [];
     } catch { roster = []; }
     if (signal.aborted) return;
+    // A preselected id that no longer exists (deleted meanwhile) falls back.
+    if (selected && !templates.some(t => t.id === selected && !t.error)) selected = null;
     selected ??= (templates.find(t => !t.error) ?? templates[0]).id;
     reSuggestSerials();
     render();
@@ -961,80 +874,8 @@ export function mountIssue(root, showManage) {
     }
     if (act === "issue") return issueAll();
     if (act === "manage") return showManage?.();
-    if (act === "tpl-upload") return uploadTemplate();
-    if (act === "tpl-del") return deleteTemplate(e.target.dataset.id);
-    if (act === "bind-add") {
-      const id = e.target.dataset.id;
-      const sem = root.querySelector(`select[data-add-sem][data-tpl="${CSS.escape(id)}"]`)?.value;
-      const field = root.querySelector(`select[data-add-field][data-tpl="${CSS.escape(id)}"]`)?.value;
-      if (!sem || !field) return;
-      syncFromInputs();
-      bindingDrafts = { ...bindingDrafts, [id]: { ...bindingDrafts[id], [sem]: field } };
-      render();
-      return;
-    }
-    if (act === "bind-save") return saveBindings(e.target.dataset.id);
+    if (act === "templates") return showTemplates?.();
   }, { signal });
-
-  async function saveBindings(id) {
-    const status = root.querySelector(`[data-bind-status="${CSS.escape(id)}"]`);
-    if (status) status.textContent = "Saving…";
-    let r, j;
-    try {
-      r = await fetch(`/api/templates/${encodeURIComponent(id)}/bindings`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bindingDrafts[id] ?? {}), signal
-      });
-      j = await r.json().catch(() => ({}));
-    } catch { if (signal.aborted) return; if (status) status.textContent = "✗ API offline"; return; }
-    if (signal.aborted) return;
-    if (!r.ok) { if (status) status.textContent = `✗ ${j.error ?? r.status}`; return; }
-    syncFromInputs();
-    await load();
-    if (signal.aborted) return;
-    const el = root.querySelector(`[data-bind-status="${CSS.escape(id)}"]`);
-    if (el) el.textContent = `✓ saved ${Object.keys(j.bindings ?? {}).length} binding(s)`;
-  }
-
-  async function uploadTemplate() {
-    const status = $("#tpl-status");
-    const file = $("#tpl-file").files[0];
-    if (!file) { status.textContent = "✗ choose a zipped .pkpasstemplate first"; return; }
-    const id = ($("#tpl-id").value.trim() || file.name.replace(/\.zip$/i, "").replace(/\.pkpasstemplate$/i, ""));
-    status.textContent = `Uploading ${id}…`;
-    let r, j;
-    try {
-      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, {
-        method: "POST", headers: { "Content-Type": "application/zip" }, body: await file.arrayBuffer(), signal
-      });
-      j = await r.json().catch(() => ({}));
-    } catch { if (signal.aborted) return; status.textContent = "✗ API offline"; return; }
-    if (signal.aborted) return;
-    if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
-    syncFromInputs();
-    await load();
-    if (signal.aborted) return;
-    const el = $("#tpl-status");
-    if (el) el.textContent = `✓ uploaded "${id}" (${(j.fieldKeys ?? []).length} field keys)`;
-  }
-
-  async function deleteTemplate(id) {
-    if (!confirm(`Delete template "${id}"? Passes already issued from it keep working only while the bundle exists.`)) return;
-    const status = $("#tpl-status");
-    let r, j;
-    try {
-      r = await fetch(`/api/templates/${encodeURIComponent(id)}`, { method: "DELETE", signal });
-      j = await r.json().catch(() => ({}));
-    } catch { if (signal.aborted) return; status.textContent = "✗ API offline"; return; }
-    if (signal.aborted) return;
-    if (!r.ok) { status.textContent = `✗ ${j.error ?? r.status}`; return; }
-    if (selected === id) selected = null;
-    syncFromInputs();
-    await load();
-    if (signal.aborted) return;
-    const el = $("#tpl-status");
-    if (el) el.textContent = `✓ deleted "${id}"`;
-  }
 
   // ---- Saved passengers ----------------------------------------------------
 
@@ -1200,16 +1041,6 @@ export function mountIssue(root, showManage) {
     if (!inp?.matches?.("input[data-kind]")) return;
     setErr(spanOf(inp), errMsg(inp.dataset.sharedKey ?? inp.dataset.key, inp.value));
     refreshGate();
-  }, { signal });
-
-  root.addEventListener("change", (e) => {
-    if (e.target.matches("select[data-bind-sem]")) {
-      const { bindSem, tpl } = e.target.dataset;
-      const draft = { ...bindingDrafts[tpl] };
-      if (e.target.value) draft[bindSem] = e.target.value; else delete draft[bindSem];
-      bindingDrafts = { ...bindingDrafts, [tpl]: draft };
-      if (!e.target.value) { syncFromInputs(); render(); }   // row disappears → re-render
-    }
   }, { signal });
 
   // Crossing the 760px breakpoint swaps completed steps between full and

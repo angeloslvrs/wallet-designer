@@ -278,8 +278,8 @@ export function mountFlights(root, { showIssue } = {}) {
       root.innerHTML = shell(`
         <div class="empty empty--action">
           <p>No flights yet.</p>
-          <p class="hint">Issue passes from a template and they show up here, grouped by flight, ready to push updates to.</p>
-          ${showIssue ? `<button type="button" class="btn btn-primary" data-act="new-flight">Issue your first passes</button>` : ""}
+          <p class="hint">Pick a template, issue passes, and they show up here grouped by flight, ready to push updates to.</p>
+          ${showIssue ? `<button type="button" class="btn btn-primary" data-act="new-flight">Choose a template</button>` : ""}
         </div>`);
       return;
     }

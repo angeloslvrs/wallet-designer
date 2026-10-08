@@ -4,10 +4,11 @@
 // Control plane: the access guard keeps this LAN/Basic-Auth only.
 
 import { raw, Router } from "express";
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
-import { discoverBindings, loadTemplate, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
+import { discoverBindings, formStateToPassJson, loadTemplate, migrateFormState, stripInternalIds, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
+import { FIXTURES_DIR } from "./fixtures.js";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
@@ -18,8 +19,27 @@ export const templatesRouter = Router();
 
 const BUNDLE_SUFFIX = ".pkpasstemplate";
 
+// Thumbnail-safe copy of a pass.json for the Templates shelf: no per-pass
+// secrets / identity (those are server-injected at build time anyway) and no
+// Pass Designer `_id` bookkeeping.
+export function previewPassJson(passJson) {
+  const out = stripInternalIds(passJson);
+  for (const k of ["authenticationToken", "webServiceURL", "serialNumber", "passTypeIdentifier", "teamIdentifier"]) delete out[k];
+  return out;
+}
+
+// The bundle's logo as a data URL for the shelf thumbnail (largest scale wins).
+function logoDataUrl(assets) {
+  for (const name of ["logo@2x.png", "logo@3x.png", "logo.png"]) {
+    if (assets[name]) return `data:image/png;base64,${assets[name].toString("base64")}`;
+  }
+  return null;
+}
+
 // GET /api/templates — installed templates and their merge surface (field keys +
 // the baked semantics block, which the semantics-first editor pre-fills from).
+// Each entry is a `kind: "designer"` template (a Pass Designer bundle) and carries
+// a `preview` pass.json + `logo` for the Templates shelf thumbnail.
 export async function handleTemplateList(_req, res) {
   let names = [];
   try { names = await readdir(templatesRoot()); } catch { /* no templates yet */ }
@@ -32,6 +52,7 @@ export async function handleTemplateList(_req, res) {
       const bindings = await bindingsForTemplate(id, passJson);
       out.push({
         id,
+        kind: "designer",
         description: passJson.description,
         organizationName: passJson.organizationName,
         fieldKeys: templateFieldKeys(passJson),
@@ -40,7 +61,9 @@ export async function handleTemplateList(_req, res) {
         fields: templateFieldDescriptors(passJson, bindings),
         bindings,
         semantics: passJson.semantics ?? {},
-        assets: Object.keys(assets)
+        assets: Object.keys(assets),
+        preview: previewPassJson(passJson),
+        logo: logoDataUrl(assets)
       });
     } catch (err) {
       out.push({ id, error: err.message });
@@ -49,6 +72,33 @@ export async function handleTemplateList(_req, res) {
   res.json(out);
 }
 templatesRouter.get("/templates", asyncHandler(handleTemplateList));
+
+// GET /api/studio-templates — saved Studio designs (FormState snapshots under
+// fixtures/) as `kind: "studio"` shelf entries with a rendered preview pass.json.
+// A design that no longer builds is listed with `error` instead of hidden.
+export async function handleStudioTemplateList(_req, res) {
+  let files = [];
+  try { files = (await readdir(FIXTURES_DIR)).filter(f => f.endsWith(".json")); } catch { /* none */ }
+  const out = [];
+  for (const file of files.sort()) {
+    const id = file.slice(0, -".json".length);
+    try {
+      const state = migrateFormState(JSON.parse(await readFile(join(FIXTURES_DIR, file), "utf8")));
+      out.push({
+        id,
+        kind: "studio",
+        description: state.meta?.description,
+        organizationName: state.meta?.organizationName,
+        preview: previewPassJson(formStateToPassJson(state)),
+        logo: typeof state.branding?.logoDataUrl === "string" ? state.branding.logoDataUrl : null
+      });
+    } catch (err) {
+      out.push({ id, kind: "studio", error: err.message });
+    }
+  }
+  res.json(out);
+}
+templatesRouter.get("/studio-templates", asyncHandler(handleStudioTemplateList));
 
 /** POST /api/templates/:id — body is the zipped .pkpasstemplate itself. */
 export async function handleTemplateUpload(req, res) {

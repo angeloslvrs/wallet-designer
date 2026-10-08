@@ -24,6 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/styles.css" />
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="app-shell">
@@ -32,6 +33,7 @@
         <nav id="view-tabs" class="seg" aria-label="Views">
           <span class="seg-thumb" aria-hidden="true"></span>
           <button type="button" data-view="flights" class="active">Flights</button>
+          <button type="button" data-view="templates">Templates</button>
           <button type="button" data-view="issue">Issue</button>
           <button type="button" data-view="designer">Design</button>
           <button type="button" data-view="log">Device log</button>
@@ -44,6 +46,7 @@
 
       <div id="app-main">
         <section id="flights-pane"></section>
+        <section id="templates-pane" hidden></section>
         <main hidden>
           <section id="form-pane"></section>
           <section id="preview-pane">

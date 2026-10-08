@@ -69,7 +69,7 @@ async function saveDesign() {
   }
 }
 
-// Masthead segmented control: Flights (landing) · Issue · Design · Device log.
+// Masthead segmented control: Flights (landing) · Templates · Issue · Design · Device log.
 // Views are code-split: import() on first show, then mount. Because import()
 // is async, the user could switch again before it resolves — `activeView`
 // records the current selection so a stale import doesn't mount a pane the
@@ -79,15 +79,31 @@ function wireViewTabs(initialView = "flights") {
   const tabs = document.getElementById("view-tabs");
   const panes = {
     flights: document.getElementById("flights-pane"),
+    templates: document.getElementById("templates-pane"),
     designer: document.querySelector("main"),
     issue: document.getElementById("issue-pane"),
     log: document.getElementById("log-pane")
   };
   let activeView = null;
+  // `opts` carries cross-view intent: { template } preselects Issue's template,
+  // { bindingsFor } opens a template's Bindings screen.
   const loaders = {
-    flights: () => import("./flights.js").then(m => (root) => m.mountFlights(root, { showIssue: () => show("issue") })),
-    issue:   () => import("./issue.js").then(m => (root) => m.mountIssue(root, () => show("flights"))),
-    log:     () => import("./log.js").then(m => (root) => m.mountLog(root))
+    flights:   () => import("./flights.js").then(m => (root) => m.mountFlights(root, { showIssue: () => show("templates") })),
+    templates: () => import("./templates.js").then(m => (root, opts) => m.mountTemplates(root, {
+      bindingsFor: opts?.bindingsFor,
+      onIssue: (id) => show("issue", { template: id }),
+      onEditDesign: async (name) => {
+        try { await loadFixture(name); show("designer"); } catch (err) { alert(err.message); }
+      },
+      onNewDesign: () => {
+        if (!confirm("Start a new design? Unsaved changes in the Design editor are replaced by the starter design.")) return;
+        resetState();
+        renderForm(document.getElementById("form-pane"));
+        show("designer");
+      }
+    })),
+    issue:     () => import("./issue.js").then(m => (root, opts) => m.mountIssue(root, () => show("flights"), { template: opts?.template, showTemplates: () => show("templates") })),
+    log:       () => import("./log.js").then(m => (root) => m.mountLog(root))
   };
   const moveThumb = () => {
     const thumb = tabs.querySelector(".seg-thumb");
@@ -96,12 +112,12 @@ function wireViewTabs(initialView = "flights") {
     thumb.style.width = `${active.offsetWidth}px`;
     thumb.style.transform = `translateX(${active.offsetLeft}px)`;
   };
-  const show = (view) => {
+  const show = (view, opts) => {
     activeView = view;
     for (const [k, pane] of Object.entries(panes)) pane.hidden = k !== view;
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
     moveThumb();
-    if (view !== "designer") loaders[view]().then(mount => { if (activeView === view) mount(panes[view]); });
+    if (view !== "designer") loaders[view]().then(mount => { if (activeView === view) mount(panes[view], opts); });
     history.replaceState(null, "", `#${view}`);
   };
   tabs.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });

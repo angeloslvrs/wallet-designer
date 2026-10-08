@@ -363,3 +363,21 @@ incl. issuing from a studio design) and deletes `issue.js`.
 Gotcha: the Claude desktop preview launcher (`.claude/launch.json`, `designer-dev`) injects
 `PORT=4318` from its `port` field, so the API lands on 4318 (serving the built dist) and Vite
 hops to 4319 — preview the live SPA at :4319. Plain `npm run dev` uses `.env` (API :4317, Vite :4318).
+
+**Phase 2 done (same day, branch `ui-overhaul`):** Templates shelf + Bindings screen.
+- Server: `GET /api/templates` entries gain `kind: "designer"`, `preview` (pass.json minus
+  identity/secrets/`_id`, via `previewPassJson`) and `logo` (data URL); new
+  `GET /api/studio-templates` lists `fixtures/*.json` as `kind: "studio"` with a built preview.
+- `templates.js`: shelf (thumbnails through the real wallet renderer, barcode stubbed so no
+  bwip-js), guess badges, issued counts, Upload → Bindings screen, Issue → Issue view with the
+  template preselected (`mountIssue(root, showManage, { template, showTemplates })`), Edit design
+  → loads the fixture into Design, New design (confirm, then reset). No Delete on studio cards
+  (fixtures/ holds CI's tracked fixtures). The six regression fixtures therefore appear on the
+  shelf as studio designs; a separate saved-designs folder is a later decision.
+- `issue.js` lost its template-manager and bindings drawers. Flights' "New flight" now opens
+  Templates. `public/theme-init.js` applies the saved theme before paint (CSP-safe).
+- 448 tests green, build clean, verified live (shelf, bindings, issue preselect, edit design).
+
+**Next (Phase 3):** rebuild Issue as the three-pane canvas (template → flight → passengers →
+issued), including issuing from a studio design (record `designName` on the stored pass).
+

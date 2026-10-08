@@ -82,8 +82,8 @@ Motion (all CSS, all under 450 ms, `prefers-reduced-motion` disables): screen en
 
 Each phase ships green (`npm test`, `npm run check`, SPA build) and is deployable on its own. Old views stay reachable until their replacement lands, then are deleted with their tests.
 
-1. **Tokens + shell + Flights board** — new `styles.css` tokens (dark/light), masthead with segmented nav, theme toggle, `flights.js` (board + panel) reusing `ops.js`, `route` in `GET /api/passes`. Manage becomes the Flights view; old `manage.js` deleted. *(this session)*
-2. **Templates shelf + Bindings** — `templates.js` view, `/api/library`, bindings screen (extracted from `issue.js`).
+1. **Tokens + shell + Flights board** — new `styles.css` tokens (dark/light), masthead with segmented nav, theme toggle, `flights.js` (board + panel) reusing `ops.js`, `route` in `GET /api/passes`. Manage becomes the Flights view; old `manage.js` deleted. *(done 2026-10-09)*
+2. **Templates shelf + Bindings** — `templates.js` view, bindings screen (extracted from `issue.js`). *(done 2026-10-09: shipped as `kind`/`preview`/`logo` on `GET /api/templates` plus `GET /api/studio-templates`, not a single `/api/library`.)*
 3. **Issue workspace** — `issue/` split into `flight.js`, `passengers.js`, `issued.js`; three-pane canvas; studio-template issuing; old `issue.js` deleted.
 4. **Design workspace** — `form.js`/`semantics-editor.js` re-homed into the canvas layout (left tabs), Save template.
 5. **Device log page + polish** — reduced-motion, keyboard nav, mobile collapse (board → cards; canvas → stacked), empty states, remove dead CSS.
