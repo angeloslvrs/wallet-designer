@@ -62,3 +62,17 @@ describe("toPassView", () => {
     expect(v.colors.bg).toBe("rgb(0,0,0)");
   });
 });
+
+describe("toPassView — Studio field extensions", () => {
+  it("resolves label tokens and 24h time fields on an unresolved pass (Issue preview)", () => {
+    const v = toPassView({
+      boardingPass: {
+        primaryFields: [{ key: "depart", label: "{departureCityName:upper}", value: "MNL" }],
+        auxiliaryFields: [{ key: "boarding", label: "BOARDING", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }]
+      },
+      semantics: { departureCityName: "Manila" }
+    });
+    expect(v.primary[0]).toMatchObject({ label: "MANILA", value: "MNL" });
+    expect(v.auxiliary[0]).toMatchObject({ label: "BOARDING", value: "16:05" });
+  });
+});

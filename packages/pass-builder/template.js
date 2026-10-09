@@ -15,6 +15,7 @@ import { TIMEZONE_KEY_ALIASES, REQUIRED_SEMANTICS } from "./semantics.js";
 import { semanticKind, kindAttrs } from "./field-kinds.js";
 import { signPkpass } from "./sign.js";
 import { applyPassDates } from "./expiry.js";
+import { FIELD_ZONES, styleKey } from "./field-zones.js";
 
 const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
 
@@ -35,14 +36,9 @@ const REQUIRED_SEMANTIC_SET = new Set(REQUIRED_SEMANTICS);
  * @typedef {Record<string, any>} TemplateData
  */
 
-const STYLE_KEYS = ["boardingPass", "coupon", "eventTicket", "generic", "storeCard"];
-export const FIELD_ZONES = ["headerFields", "primaryFields", "secondaryFields", "auxiliaryFields", "backFields", "additionalInfoFields"];
 const RESERVED_KEYS = new Set(["semantics", "additionalInfoFields", "barcodeMessage", "barcodeAltText", "expirationDate"]);
 
-/** The style dict key ("boardingPass", …) of a pass.json, or undefined. */
-export function styleKey(passJson) {
-  return STYLE_KEYS.find(k => passJson?.[k] && typeof passJson[k] === "object");
-}
+export { FIELD_ZONES, styleKey };
 
 /**
  * Whether iOS renders this pass from semantics (the iOS 26 `semanticBoardingPass`
@@ -83,8 +79,9 @@ export function templateFieldKeys(passJson) {
  *   1. the field is bound to a semantic → the spec type of that semantic
  *      (see {@link semanticKind}); rules attach to semantics, never to the
  *      template's arbitrary field-key names.
- *   2. `dateStyle`/`timeStyle` present → "date" (the value is ISO-8601; iOS
- *      rejects the pass at install if it is not).
+ *   2. `dateStyle`/`timeStyle`/`timeFormat` present → "date" (the value is
+ *      ISO-8601; iOS rejects the pass at install if it is not; `timeFormat`
+ *      fields store ISO and are rendered to text at emit).
  *   3. `numberStyle` present → "number".
  *   4. otherwise → "text" (free, but flagged when required-by-binding & empty).
  * @param {object} passJson
@@ -108,7 +105,7 @@ export function templateFieldDescriptors(passJson, bindings = {}) {
       const boundSemantic = fieldToSemantic[field.key] ?? null;
       let kind;
       if (boundSemantic) kind = semanticKind(boundSemantic);
-      else if (field.dateStyle !== undefined || field.timeStyle !== undefined) kind = "date";
+      else if (field.dateStyle !== undefined || field.timeStyle !== undefined || field.timeFormat !== undefined) kind = "date";
       else if (field.numberStyle !== undefined) kind = "number";
       else kind = "text";
       out.push({

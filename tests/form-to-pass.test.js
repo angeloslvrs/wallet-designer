@@ -120,3 +120,34 @@ describe("formStateToPassJson expiry/relevance", () => {
     expect(formStateToPassJson(s).expirationDate).toBe("2026-09-05T12:00:00+08:00");
   });
 });
+
+describe("Studio field extensions (label tokens, timeFormat)", async () => {
+  const { validate } = await import("../packages/pass-builder/validate.js");
+  const withExtensions = () => {
+    const s = structuredClone(base);
+    s.semantics = { ...s.semantics, departureCityName: "Manila", currentBoardingDate: "2026-10-12T16:05:00+08:00" };
+    s.displayFields.primary = [{ key: "depart", label: "{departureCityName:upper}", value: "MNL" }];
+    s.displayFields.auxiliary = [{ key: "boarding", label: "BOARDING", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }];
+    return s;
+  };
+
+  it("resolves label tokens and 24h time fields by default", () => {
+    const built = formStateToPassJson(withExtensions());
+    expect(built.boardingPass.primaryFields[0].label).toBe("MANILA");
+    expect(built.boardingPass.auxiliaryFields[0]).toEqual({ key: "boarding", label: "BOARDING", value: "16:05" });
+  });
+
+  it("keeps the raw binding surface with resolveFields:false", () => {
+    const raw = formStateToPassJson(withExtensions(), { resolveFields: false });
+    expect(raw.boardingPass.primaryFields[0].label).toBe("{departureCityName:upper}");
+    expect(raw.boardingPass.auxiliaryFields[0]).toMatchObject({ value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" });
+  });
+
+  it("schema accepts timeFormat 24h on display and additional-info fields, rejects other values", () => {
+    const s = withExtensions();
+    s.iOS26.additionalInfoFields = [{ key: "x", label: "X", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }];
+    expect(validate(s).ok).toBe(true);
+    s.displayFields.auxiliary[0].timeFormat = "12h";
+    expect(validate(s).ok).toBe(false);
+  });
+});

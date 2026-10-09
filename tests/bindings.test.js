@@ -90,3 +90,13 @@ describe("discoverBindings — heuristics on synthetic templates", () => {
     expect(discoverBindings(template([{ key: "gate", value: "B7" }], undefined))).toEqual({});
   });
 });
+
+describe("discoverBindings — timeFormat fields", () => {
+  it("treats a timeFormat field holding an ISO date as a date (date-proximity binds it)", () => {
+    const passJson = {
+      boardingPass: { auxiliaryFields: [{ key: "boarding", label: "BOARDING", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }] },
+      semantics: { currentBoardingDate: "2026-10-12T16:05:00+08:00" }
+    };
+    expect(discoverBindings(passJson).currentBoardingDate).toMatchObject({ fieldKey: "boarding", source: "date-proximity" });
+  });
+});

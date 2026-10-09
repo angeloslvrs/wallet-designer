@@ -71,6 +71,7 @@
               "key": { "type": "string" },
               "label": { "type": "string" },
               "value": { "type": "string" },
+              "timeFormat": { "enum": ["24h"] },
               "changeMessage": { "type": "string" }
             }
           }
@@ -129,6 +130,7 @@
           "value": { "type": "string" },
           "dateStyle": { "type": "string" },
           "timeStyle": { "type": "string" },
+          "timeFormat": { "enum": ["24h"], "description": "Render the ISO value as HH:mm (its own offset) at emit instead of letting Wallet format it." },
           "changeMessage": { "type": "string" }
         }
       }

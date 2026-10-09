@@ -8,6 +8,8 @@ export { schema };
  * @property {string} value
  * @property {string} [dateStyle]
  * @property {string} [timeStyle]
+ * @property {"24h"} [timeFormat]  value stays ISO; rendered "HH:mm" at emit
+ * (label may carry {semanticKey} / {semanticKey:upper} tokens, resolved at emit)
  * @property {string} [changeMessage]
  */
 

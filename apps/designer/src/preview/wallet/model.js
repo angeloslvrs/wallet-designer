@@ -1,4 +1,5 @@
 import { formatFieldValue } from "./format.js";
+import { resolvePassFields } from "@wpd/pass-builder/field-render.js";
 
 // Neutral fallback when the pass omits backgroundColor.
 const DEFAULT_BG = "rgb(0,0,0)";
@@ -15,6 +16,9 @@ const mapFields = (arr) => (arr ?? []).map(f => ({
  * @param {object} pass  output of formStateToPassJson
  */
 export function toPassView(pass) {
+  // Idempotent: a built pass is already resolved; an Issue preview (template
+  // pass.json + merged passenger values) still carries tokens / timeFormat.
+  pass = resolvePassFields(pass);
   const bp = pass.boardingPass ?? {};
   const bc = pass.barcodes?.[0] ?? null;
   return {

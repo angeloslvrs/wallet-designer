@@ -93,3 +93,10 @@ describe("round-trip: new emitter on migrated state == frozen legacy emitter", (
     }
   });
 });
+
+describe("migrateFormState — new-shape passthrough", () => {
+  it("returns a new-shape state with timeFormat untouched", () => {
+    const s = { meta: {}, branding: {}, barcode: {}, semantics: {}, displayFields: { auxiliary: [{ key: "b", label: "B", value: "x", timeFormat: "24h" }] } };
+    expect(migrateFormState(s)).toBe(s);
+  });
+});

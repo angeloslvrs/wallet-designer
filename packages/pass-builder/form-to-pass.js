@@ -1,15 +1,20 @@
 import { isEmptyTyped } from "./suggest-empty.js";
 import { SEMANTIC_CATALOG, TIMEZONE_KEY_ALIASES } from "./semantics.js";
 import { applyPassDates } from "./expiry.js";
+import { resolvePassFields } from "./field-render.js";
 
 /**
  * Pure: new-shape FormState -> Apple pass.json with full iOS 26 opt-in.
  * boardingPass.*Fields come verbatim from displayFields; semantics are spread
  * filled-only (both time-zone spellings mirrored, wifiAccess derived from the
- * iOS26.wifi bucket); the 5 iOS26 structural extras pass through.
+ * iOS26.wifi bucket); the 5 iOS26 structural extras pass through. Label tokens
+ * and timeFormat fields are resolved last (field-render.js) unless
+ * `resolveFields: false` — the raw binding surface, where 24h time fields still
+ * hold ISO dates so discovery and descriptors see them as dates.
  * @param {import("@wpd/pass-schema").FormState} s
+ * @param {{resolveFields?: boolean}} [opts]
  */
-export function formStateToPassJson(s) {
+export function formStateToPassJson(s, { resolveFields = true } = {}) {
   const { meta, branding, barcode } = s;
   const df = s.displayFields ?? {};
   const ios = s.iOS26 ?? {};
@@ -53,7 +58,8 @@ export function formStateToPassJson(s) {
     ...(meta.authenticationToken && { authenticationToken: meta.authenticationToken })
   };
 
-  return applyPassDates(passJson, { expirationDate: meta.expirationDate });
+  const dated = applyPassDates(passJson, { expirationDate: meta.expirationDate });
+  return resolveFields ? resolvePassFields(dated) : dated;
 }
 
 /** Filled-only semantics (per catalog type), with both tz spellings + wifiAccess. */

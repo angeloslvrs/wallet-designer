@@ -13,6 +13,7 @@ export { applyPassDates, addDaysPreservingOffset } from "./expiry.js";
 export { parseStrictIsoDateTime, parseLooseIsoDateTime, isStrictIsoDateTime, isLooseIsoDateTime, assertStrictIsoDateTime } from "./iso-date.js";
 export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from "./field-kinds.js";
 export { discoverBindings, collectFields } from "./bindings.js";
+export { resolvePassFields, LABEL_TOKEN_RE } from "./field-render.js";
 export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS };
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";

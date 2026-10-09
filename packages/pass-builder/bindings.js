@@ -9,7 +9,7 @@
 // a status update still reaches modern devices with no bound visible field.
 
 import { BOARDING_SEMANTICS } from "./semantics.js";
-import { styleKey, FIELD_ZONES } from "./template.js";
+import { styleKey, FIELD_ZONES } from "./field-zones.js";
 
 // A template's sample schedule values and its date-typed fields were typed
 // seconds apart in Pass Designer — same flight moment, not the same instant.
@@ -38,7 +38,8 @@ export function collectFields(passJson) {
     for (const f of passJson[style][zone] ?? []) {
       if (f?.key === undefined) continue;
       const dateMs = typeof f.value === "string" ? Date.parse(f.value) : NaN;
-      const isDate = Boolean(f.dateStyle || f.timeStyle) && !Number.isNaN(dateMs);
+      // A timeFormat field ("24h") stores ISO and is rendered to text at emit.
+      const isDate = Boolean(f.dateStyle || f.timeStyle || f.timeFormat) && !Number.isNaN(dateMs);
       fields.push({ key: f.key, value: f.value, isDate, dateMs, semantics: f.semantics });
     }
   }

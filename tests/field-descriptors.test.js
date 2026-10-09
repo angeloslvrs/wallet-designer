@@ -88,3 +88,10 @@ describe("templateFieldDescriptors — backward compatible", () => {
     expect(d.depart.required).toBe(false);
   });
 });
+
+describe("templateFieldDescriptors — timeFormat fallback", () => {
+  it("an unbound timeFormat field gets the date kind", () => {
+    const passJson = { boardingPass: { auxiliaryFields: [{ key: "boarding", label: "B", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }] } };
+    expect(templateFieldDescriptors(passJson, {}).find(d => d.key === "boarding").kind).toBe("date");
+  });
+});
