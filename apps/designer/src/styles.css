@@ -467,13 +467,17 @@ body:has(#app-shell.is-workspace) #toast { bottom: 88px; }   /* clear the worksp
 }
 
 /* ===== Base form controls (chrome only — the pass preview has none) ===== */
-input, select {
-  width: 100%; padding: 7px 9px; border: 1px solid var(--wpd-border-input); border-radius: 0;
-  font: inherit; font-size: 12px; background: var(--wpd-field); color: var(--wpd-ink);
+input, select, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-ctl);
+  font: inherit; font-size: 13px; background: var(--field); color: var(--ink); transition: border-color .2s, box-shadow .2s;
 }
-input:focus, select:focus { border-color: var(--wpd-rule); outline: 2px solid var(--wpd-rule); outline-offset: 1px; box-shadow: none; }
-button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--wpd-rule); outline-offset: 1px; }
-label { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--wpd-ink); }
+input:hover, select:hover, textarea:hover { border-color: var(--faint); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-soft); }
+input[type="color"] { padding: 2px; }
+input[type="checkbox"] { width: auto; accent-color: var(--blue); }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 400; color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .wpd-req { color: var(--wpd-ink); }
 .typed-input { display: flex; gap: 6px; }
 .typed-input input, .typed-input select { flex: 1; min-width: 0; }
@@ -489,24 +493,13 @@ label { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 700; lett
 }
 .wpd-issue-btn:disabled, #build-btn:disabled { background: #C9C9C1; border-color: #C9C9C1; cursor: not-allowed; }
 
-/* Secondary: white fill, 1px black border; hover inverts */
-.wpd-ghost {
-  border: 1px solid var(--wpd-rule); background: var(--wpd-card); color: var(--wpd-ink); border-radius: var(--r-ctl);
-  padding: 8px 14px; font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; cursor: pointer;
-}
-.wpd-ghost:hover { background: var(--wpd-ink); color: var(--wpd-bg); }
-.wpd-ghost.danger { color: var(--wpd-err); border-color: var(--wpd-err); }
-.wpd-ghost.danger:hover { background: var(--wpd-err); color: #fff; }
-
-/* Tertiary: underlined mono text links (row actions, drawers, share/edit) */
-.wpd-link, .wpd-ghost-mini, .wpd-col-share, .iss-toggle {
-  background: none; border: none; padding: 0; cursor: pointer;
-  font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .03em; color: var(--wpd-muted);
-  text-decoration: underline; text-underline-offset: 2px; white-space: nowrap;
-}
-.wpd-link:hover, .wpd-ghost-mini:hover, .wpd-col-share:hover, .iss-toggle:hover { color: var(--wpd-ink); background: none; }
-.wpd-link.danger { color: var(--wpd-err); }
-.wpd-link.danger:hover { color: var(--wpd-err); }
+/* Secondary + tertiary actions inside the Design editor (form.js), on the theme */
+.wpd-ghost { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: var(--r-ctl); padding: 8px 14px; font: 600 12px var(--sans); cursor: pointer; transition: border-color .2s, background .2s; }
+.wpd-ghost:hover { border-color: var(--faint); background: var(--fill); }
+.wpd-ghost.danger { color: var(--red); }
+.wpd-link { background: none; border: none; padding: 4px 0; cursor: pointer; font: 500 12px var(--sans); color: var(--blue); white-space: nowrap; }
+.wpd-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.wpd-link.danger { color: var(--red); }
 
 /* ===== View scaffolding ===== */
 .wpd-view { font-family: var(--wpd-font); color: var(--wpd-ink); max-width: 1240px; margin: 0 auto; }
@@ -670,70 +663,68 @@ label { display: block; margin: 0 0 5px; font-size: 10px; font-weight: 700; lett
 .mg-editor-acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .mg-editor-label { font-family: var(--wpd-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--wpd-faint); margin: 6px 0 2px; }
 
-/* ===== Design view: editor column + preview column ===== */
-main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.05fr); height: 100%; }
+/* ===== Design workspace (design.js + form.js): sections | pass | what's on it ===== */
+main { display: flex; flex-direction: column; min-height: 100%; }
 /* The hidden attribute must win over the display rules above, or the views stack. */
 main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden], #log-pane[hidden] { display: none !important; }
-#form-pane { overflow-y: auto; padding: 24px 32px 60px 40px; border-right: 1px solid var(--wpd-rule); }
-#preview-pane { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 26px 20px 40px; overflow-y: auto; background: var(--fill); }
+.dw-ws { flex: 1; display: grid; grid-template-columns: minmax(360px, 460px) minmax(0, 1fr) 320px; }
+.dw-left { padding: 24px 26px 40px; border-right: 1px solid var(--line); min-width: 0; }
+.dw-right { padding: 24px 22px 40px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dw-right .iw-side-h { margin: 8px 0 0; }
+#preview-stage { display: flex; align-items: flex-start; justify-content: center; width: 100%; }
+#preview-caption { margin: 0; font-size: 12px; color: var(--faint); text-align: center; }
+.dw-tabs { margin: 0; }
+.dw-group { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.dw-group:last-child { border-bottom: 0; margin-bottom: 0; }
+.dw-h { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+.dw-sub { color: var(--muted); font-size: 12px; margin: -6px 0 14px; max-width: 60ch; }
+.dw-name { margin: 0; }
+.dw-name input { width: 200px; }
+.dw-frows { display: flex; flex-direction: column; }
+.dw-frow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.dw-frow span { font-size: 12px; color: var(--ink); min-width: 0; }
+.dw-frow small { display: block; font: 11px var(--mono); color: var(--faint); margin-top: 1px; }
+.dw-frow b { font: 500 12px var(--mono); text-align: right; overflow-wrap: anywhere; max-width: 55%; }
+.dw-frow:hover b { color: var(--blue); }
+.fl-key, .iw-tab { -webkit-tap-highlight-color: transparent; }
 
-/* Preview tabs: uppercase text, active = 700 + 2px black underline */
-#tabs { display: inline-flex; padding: 0; gap: 20px; background: none; border-radius: 0; align-self: center; }
-#tabs button { background: none; border: none; cursor: pointer; padding: 4px 0 6px; border-radius: 0; font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--wpd-muted); }
-#tabs button:hover { color: var(--wpd-ink); }
-#tabs button.active { background: none; color: var(--wpd-ink); font-weight: 700; box-shadow: inset 0 -2px 0 var(--wpd-rule); }
-#preview-stage { display: flex; align-items: flex-start; justify-content: center; min-height: 360px; width: 100%; }
-#preview-caption { font-family: var(--wpd-mono); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--wpd-faint); text-align: center; }
-
-#actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; width: 100%; max-width: 380px; }
-#fixture-picker { flex: 1 1 100%; padding: 8px 10px; border: 1px solid var(--wpd-border-input); border-radius: var(--r-ctl); background: var(--wpd-field); font: inherit; font-size: 12px; cursor: pointer; width: auto; }
-#build-btn { flex: 1; }
-#save-tpl-btn, #reset-btn { background: var(--wpd-card); color: var(--wpd-ink); border: 1px solid var(--wpd-rule); padding: 10px 14px; border-radius: var(--r-ctl); cursor: pointer; font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; }
-#save-tpl-btn:hover, #reset-btn:hover { background: var(--wpd-ink); color: var(--wpd-bg); border-color: var(--wpd-rule); }
-#build-status { font-family: var(--wpd-mono); font-size: 10.5px; color: var(--wpd-muted); min-height: 16px; width: 100%; max-width: 380px; text-align: center; }
-
-/* Design editor: ruled sections, uppercase labels */
-.wpd-design { display: flex; flex-direction: column; gap: 0; }
-.wpd-design .wpd-view-head { margin-bottom: 4px; }
-.wpd-design-card { background: none; border: none; border-radius: 0; padding: 18px 0; border-bottom: 1px solid var(--wpd-rule-soft); }
-.wpd-eyebrow { font-family: var(--wpd-mono); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); margin-bottom: 12px; }
-.wpd-fld { margin-bottom: 12px; }
+.wpd-fld { margin-bottom: 14px; }
 .wpd-fld:last-child { margin-bottom: 0; }
-.wpd-fld-label { display: block; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--wpd-ink); margin-bottom: 5px; }
+.wpd-fld-label { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-bottom: 5px; }
 
 /* colors */
-.wpd-color-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.wpd-color-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .wpd-color-row { display: flex; gap: 6px; align-items: center; }
-.wpd-color-row input { font-size: 11px; padding: 8px; }
-.wpd-color-swatch { width: 32px; height: 32px; padding: 0; border: 1px solid var(--wpd-border-input); border-radius: 0; flex: none; cursor: pointer; }
+.wpd-color-row input { font: 12px var(--mono); padding: 8px; }
+.wpd-color-swatch { width: 34px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: var(--r-ctl); flex: none; cursor: pointer; background: var(--field); }
 .wpd-color-hex { flex: 1; min-width: 0; }
 
 /* assets */
 .wpd-asset-list { display: flex; flex-direction: column; gap: 12px; }
 .wpd-asset-row { display: flex; align-items: center; gap: 12px; }
-.wpd-asset-thumb { flex: none; width: 56px; height: 42px; border: 1px dashed var(--wpd-border-input); border-radius: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--wpd-field); }
+.wpd-asset-thumb { flex: none; width: 56px; height: 42px; border: 1px dashed var(--line); border-radius: var(--r-ctl); display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--wpd-field); }
 .wpd-asset-thumb:hover { border-color: var(--wpd-ink); }
 .wpd-asset-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .wpd-asset-plus { color: var(--wpd-faint); font-size: 18px; line-height: 1; }
 .wpd-asset-info { flex: 1; min-width: 0; }
-.wpd-asset-label { font-size: 12.5px; font-weight: 700; }
-.wpd-asset-hint { font-size: 10.5px; color: var(--wpd-faint); }
-.wpd-asset-note { font-family: var(--wpd-mono); font-size: 10px; margin-top: 3px; font-weight: 500; }
+.wpd-asset-label { font-size: 13px; font-weight: 600; }
+.wpd-asset-hint { font-size: 11px; color: var(--faint); margin-top: 3px; }
+.wpd-asset-note { font-family: var(--mono); font-size: 11px; margin-top: 3px; font-weight: 500; }
 .wpd-asset-note.is-ok { color: var(--wpd-ok); }
 .wpd-asset-note.is-warn { color: var(--wpd-st-delayed); }
 .wpd-asset-clear { flex: none; padding: 5px 10px; font-size: 10px; }
 
 /* barcode format buttons */
 .wpd-fmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.wpd-fmt-btn { border: 1px solid var(--wpd-border-input); background: var(--wpd-card); color: var(--wpd-ink); border-radius: var(--r-ctl); padding: 9px 8px; font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; }
-.wpd-fmt-btn:hover { border-color: var(--wpd-ink); }
-.wpd-fmt-btn.is-active { border-color: var(--wpd-ink); background: var(--wpd-ink); color: var(--wpd-bg); }
+.wpd-fmt-btn { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: var(--r-ctl); padding: 9px 8px; font: 500 12px var(--sans); cursor: pointer; transition: color .2s, border-color .2s, background .2s; }
+.wpd-fmt-btn:hover { color: var(--ink); border-color: var(--faint); }
+.wpd-fmt-btn.is-active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue-text); }
 
 /* display fields */
 .wpd-fields-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
-.wpd-fields-hint { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-faint); }
-.wpd-fsec { padding: 11px 0; border-top: 1px solid var(--wpd-rule-soft); }
-.wpd-fsec-head { font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--wpd-ink); margin-bottom: 7px; }
+.wpd-fields-hint { font-size: 11px; color: var(--faint); }
+.wpd-fsec { padding: 12px 0; border-top: 1px solid var(--line); }
+.wpd-fsec-head { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .wpd-df-row { display: flex; gap: 6px; align-items: center; margin: 5px 0; padding: 2px 0; border-radius: 0; }
 .wpd-df-row input { font-size: 11.5px; padding: 7px 9px; }
 .wpd-df-key { flex: 0 0 80px; min-width: 0; font-family: var(--wpd-mono); }
@@ -741,11 +732,7 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .wpd-df-row .wpd-df-value { flex: 1.4; min-width: 0; font-size: 12px; }
 .wpd-df-rm { flex: none; border: none; background: none; color: var(--wpd-faint); cursor: pointer; font: inherit; font-size: 14px; padding: 4px; }
 .wpd-df-rm:hover { color: var(--wpd-err); }
-.wpd-df-row.wpd-flash { outline: 2px solid var(--wpd-rule); outline-offset: 1px; }
-
-/* design drawers (Pass metadata + Apple semantics) */
-.wpd-design-drawer { border-bottom: 1px solid var(--wpd-rule-soft); padding: 4px 0; }
-.wpd-design-drawer .wpd-drawer-body { padding: 12px 16px; }
+.wpd-df-row.wpd-flash { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: var(--r-ctl); }
 
 /* Semantics editor (issue rows + design drawer) */
 .sem-editor { border: 1px solid var(--wpd-rule-soft); border-radius: var(--r-ctl); padding: 10px; background: var(--wpd-card); }
@@ -753,12 +740,13 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .sem-section + .sem-section { border-top: 1px solid var(--wpd-rule-soft); margin-top: 6px; padding-top: 4px; }
 .sem-head { font-family: var(--wpd-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--wpd-faint); margin: 4px 0 2px; }
 .sem-row { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
-.sem-row label { flex: 0 0 180px; font-family: var(--wpd-mono); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--wpd-muted); padding-top: 6px; margin: 0; }
+.sem-row label { flex: 0 0 170px; font-family: var(--sans); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--wpd-muted); padding-top: 6px; margin: 0; }
 .sem-field { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sem-field .typed-input { display: flex; gap: 6px; }
 .sem-field .typed-input input, .sem-field .typed-input select { flex: 1; min-width: 0; font-size: 12px; }
 .sem-hint { font-size: 10px; color: var(--wpd-faint); }
-.sem-add { margin-top: 8px; font-size: 11px; }
+.sem-add { margin-top: 8px; font-size: 12px; }
+.sem-doc-warn { margin: 4px 0 10px; padding: 9px 11px; border-radius: var(--r-ctl); background: var(--warn-soft); color: var(--amber); font-size: 12px; line-height: 1.45; }
 
 /* Custom scrollbars in the chrome */
 .wpd-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -769,14 +757,20 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .wallet-field--clickable:hover { opacity: .7; }
 
 /* ===== Responsive ===== */
+@media (max-width: 1180px) {
+  .dw-ws { grid-template-columns: minmax(340px, 420px) minmax(0, 1fr); }
+  .dw-right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
+}
 @media (max-width: 900px) {
-  main { grid-template-columns: 1fr; height: auto; }
-  #form-pane { border-right: none; }
+  .dw-ws { grid-template-columns: 1fr; }
+  .dw-left { border-right: 0; border-bottom: 1px solid var(--line); }
+  .dw-name input { width: 100%; }
+  .iw-foot-acts { flex-wrap: wrap; }
 }
 
 @media (max-width: 760px) {
 
-  #form-pane { padding: 16px; }
+  .dw-left, .dw-right { padding: 20px 16px; }
 
   /* steps stack; eyebrow above content */
   .wpd-step { grid-template-columns: 1fr; gap: 10px; padding: 16px 0; }

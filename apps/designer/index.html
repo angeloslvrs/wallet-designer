@@ -34,7 +34,6 @@
           <span class="seg-thumb" aria-hidden="true"></span>
           <button type="button" data-view="flights" class="active">Flights</button>
           <button type="button" data-view="templates">Templates</button>
-          <button type="button" data-view="designer">Design</button>
           <button type="button" data-view="log">Device log</button>
         </nav>
         <div class="masthead-right">
@@ -47,23 +46,33 @@
         <section id="flights-pane"></section>
         <section id="templates-pane" hidden></section>
         <main hidden>
-          <section id="form-pane"></section>
-          <section id="preview-pane">
-            <nav id="tabs">
-              <button data-tab="front" class="active">Front</button>
-              <button data-tab="back">Back</button>
-              <button data-tab="detail">iOS 26 detail</button>
-            </nav>
-            <div id="preview-stage"></div>
-            <div id="preview-caption">Pass preview is Apple-faithful — not skinned</div>
-            <div id="actions">
-              <select id="fixture-picker"><option value="">Load saved design…</option></select>
-              <button id="build-btn">Build .pkpass</button>
-              <button id="save-tpl-btn" type="button">Save design</button>
-              <button id="reset-btn" type="button">Reset</button>
+          <header class="iw-bar">
+            <button type="button" class="btn btn-sm" data-design-act="back">‹ Templates</button>
+            <div class="iw-title"><b id="design-title">New design</b><small id="design-sub">Studio design</small></div>
+            <nav aria-label="Design sections"><div id="design-tabs" class="iw-tabs dw-tabs" role="tablist"></div></nav>
+          </header>
+          <div class="dw-ws">
+            <section id="form-pane" class="dw-left"></section>
+            <section id="preview-pane" class="iw-canvas">
+              <nav id="tabs" class="iw-tabs iw-tabs--center" role="tablist" aria-label="Pass side">
+                <button type="button" role="tab" class="iw-tab active" data-tab="front" aria-selected="true">Front</button>
+                <button type="button" role="tab" class="iw-tab" data-tab="back" aria-selected="false">Back</button>
+                <button type="button" role="tab" class="iw-tab" data-tab="detail" aria-selected="false">iOS 26 detail</button>
+              </nav>
+              <div id="preview-stage"></div>
+              <p id="preview-caption">Click a field on the pass to edit it. The preview is Apple-faithful.</p>
+            </section>
+            <aside id="design-side" class="dw-right"></aside>
+          </div>
+          <footer class="iw-foot">
+            <span class="iw-ready" id="build-status" role="status" aria-live="polite"></span>
+            <div class="iw-foot-acts">
+              <button type="button" class="btn" data-design-act="reset">Start over</button>
+              <label class="dw-name"><span class="sr-only">Template name</span><input id="design-name" class="iw-input mono" placeholder="template-name" autocomplete="off" spellcheck="false" /></label>
+              <button type="button" class="btn" data-design-act="issue">Issue passes →</button>
+              <button type="button" class="btn btn-primary" data-design-act="save">Save template</button>
             </div>
-            <div id="build-status"></div>
-          </section>
+          </footer>
         </main>
         <section id="issue-pane" hidden></section>
         <section id="log-pane" hidden></section>

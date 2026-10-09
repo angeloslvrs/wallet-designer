@@ -56,8 +56,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
   // legacy style on iOS 26 — surface that as a live warning the validator
   // (and thus the per-field " *") wouldn't otherwise flag.
   const docWarn = el("div", { className: "sem-doc-warn" });
-  docWarn.style.cssText =
-    "display:none;margin:8px 0;padding:8px 10px;border-radius:6px;background:#fdf1f2;color:#c0182f;font-size:12px;line-height:1.4";
+  docWarn.style.display = "none";   // themed in styles.css (.sem-doc-warn)
   const docRequiredMissing = () => DOC_REQUIRED_SEMANTICS.filter(k => {
     const type = SEMANTIC_CATALOG[k]?.type ?? "text";
     const twin = TZ_TWIN[k];

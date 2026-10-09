@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from "vitest";
-import { renderForm } from "../apps/designer/src/form.js";
+import { renderForm, DESIGN_SECTIONS } from "../apps/designer/src/form.js";
 import { state, resetState, setPath } from "../apps/designer/src/state.js";
 
 const ev = (el, type) => el.dispatchEvent(new Event(type, { bubbles: true }));
@@ -13,18 +13,20 @@ beforeEach(() => {
   document.body.appendChild(root);
 });
 
-describe("Design editor — card layout", () => {
-  it("renders Brand / Assets / Barcode / Fields cards + Meta & Semantics drawers", () => {
-    renderForm(root);
-    const eyebrows = [...root.querySelectorAll(".wpd-eyebrow")].map(e => e.textContent);
-    expect(eyebrows).toEqual(["Brand", "Assets", "Barcode", "Fields"]);
-    const summaries = [...root.querySelectorAll(".wpd-design-drawer > summary")].map(s => s.textContent);
-    expect(summaries.some(s => /metadata/i.test(s))).toBe(true);
-    expect(summaries.some(s => /semantics/i.test(s))).toBe(true);
+describe("Design editor — one section at a time", () => {
+  it("renders each workspace section with its own headed groups", () => {
+    const heads = (section) => { renderForm(root, { section }); return [...root.querySelectorAll(".dw-h")].map(e => e.textContent); };
+    expect(heads("look")).toEqual(["Brand", "Images"]);
+    expect(heads("fields")).toEqual(["Fields on the pass"]);
+    expect(heads("flight")).toEqual(["Flight data"]);
+    expect(root.querySelector(".sem-editor")).toBeTruthy();
+    expect(heads("barcode")).toEqual(["Barcode"]);
+    expect(heads("advanced")).toEqual(["Pass metadata"]);
+    expect(DESIGN_SECTIONS.map(([k]) => k)).toEqual(["look", "fields", "flight", "barcode", "advanced"]);
   });
 
   it("drives barcode.format from the format buttons", () => {
-    renderForm(root);
+    renderForm(root, { section: "barcode" });
     const pdf = root.querySelector('.wpd-fmt-btn[data-fmt="PKBarcodeFormatPDF417"]');
     expect(pdf).toBeTruthy();
     pdf.click();
@@ -43,7 +45,7 @@ describe("Design editor — card layout", () => {
 
   it("tags display-field value inputs with data-fieldkey for click-to-edit", () => {
     setPath("displayFields", { primary: [{ key: "depart", label: "FROM", value: "SFO" }], header: [], secondary: [], auxiliary: [], back: [] });
-    renderForm(root);
+    renderForm(root, { section: "fields" });
     const input = root.querySelector('.wpd-df-value[data-fieldkey="depart"]');
     expect(input).toBeTruthy();
     expect(input.value).toBe("SFO");

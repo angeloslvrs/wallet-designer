@@ -8,6 +8,7 @@ export function mountTabs(navEl) {
     active = t;
     for (const b of navEl.querySelectorAll("button")) {
       b.classList.toggle("active", b.dataset.tab === t);
+      b.setAttribute("aria-selected", String(b.dataset.tab === t));
     }
     listeners.forEach(fn => fn(active));
   });

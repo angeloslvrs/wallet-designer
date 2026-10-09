@@ -1,9 +1,8 @@
-import { state, subscribe, resetState, replaceState } from "./state.js";
-import { renderForm } from "./form.js";
+import { subscribe } from "./state.js";
 import { mountTabs } from "./tabs.js";
 import { renderActiveTab } from "./preview/index.js";
-import { wireBuildButton } from "./build.js";
 import { initTheme } from "./theme.js";
+import { initDesign, openDesign, newDesign, isDirty } from "./design.js";
 // Flights is the landing view (light; no barcode deps). Issue and Design's
 // heavy deps (bwip-js / @zxing/browser) are reached only via dynamic import()
 // from their own modules, so first paint never pays for them.
@@ -22,61 +21,9 @@ async function showProfile() {
   }
 }
 
-// Load a FormState into the Design editor. Saved designs come from
-// /api/designs; `?fixture=<name>` deep links read the repo's read-only CI
-// fixtures from /api/fixtures.
-async function loadInto(url, what, name) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${what} not found: ${name}`);
-  replaceState(await r.json());
-  renderForm(document.getElementById("form-pane"));
-}
-const loadDesign = (name) => loadInto(`/api/designs/${encodeURIComponent(name)}`, "design", name);
-const loadFixture = (name) => loadInto(`/api/fixtures/${encodeURIComponent(name)}`, "fixture", name);
-
-async function refreshDesignPicker() {
-  const picker = document.getElementById("fixture-picker");
-  picker.length = 1; // keep the placeholder option, drop the rest
-  try {
-    const names = await fetch("/api/designs").then(r => r.json());
-    for (const n of names) {
-      const o = document.createElement("option");
-      o.value = n;
-      o.textContent = n;
-      picker.appendChild(o);
-    }
-  } catch { /* API offline */ }
-}
-
-function wireDesignPicker() {
-  const picker = document.getElementById("fixture-picker");
-  picker.addEventListener("change", async e => {
-    const name = e.target.value;
-    if (!name) return;
-    try { await loadDesign(name); } catch (err) { alert(err.message); }
-    e.target.value = "";
-  });
-}
-
-// Saved designs are FormState snapshots in designs/ (via /api/designs). The
-// Templates shelf lists them as `kind: "studio"` templates.
-async function saveDesign() {
-  const name = prompt("Save current design as:", state.meta.serialNumber || "my-design");
-  if (!name) return;
-  const status = document.getElementById("build-status");
-  try {
-    const r = await fetch(`/api/designs/${encodeURIComponent(name)}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
-    });
-    const body = await r.json().catch(() => ({}));
-    if (r.ok) { await refreshDesignPicker(); status.textContent = `✓ saved design "${name}"`; }
-    else { status.textContent = `⚠ could not save design "${name}" — ${body.error ?? r.status}`; }
-  } catch (err) {
-    status.textContent = `⚠ could not save design — ${err.message}`;
-  }
-}
-
-// Masthead segmented control: Flights (landing) · Templates · Issue · Design · Device log.
+// Masthead segmented control: Flights (landing) · Templates · Device log. Issue
+// and Design are full-screen workspaces entered from the Templates shelf; while
+// one is open the nav hides and the workspace offers ‹ Templates.
 // Views are code-split: import() on first show, then mount. Because import()
 // is async, the user could switch again before it resolves — `activeView`
 // records the current selection so a stale import doesn't mount a pane the
@@ -100,13 +47,12 @@ function wireViewTabs(initialView = "flights") {
       bindingsFor: opts?.bindingsFor,
       onIssue: (id, kind) => show("issue", { template: id, kind }),
       onEditDesign: async (name) => {
-        if (!confirm(`Open "${name}" in the Design editor? It replaces what's currently there.`)) return;
-        try { await loadDesign(name); show("designer"); } catch (err) { alert(err.message); }
+        if (isDirty() && !confirm(`Open "${name}"? The editor has unsaved changes; they'll be replaced.`)) return;
+        try { await openDesign(name); show("designer"); } catch (err) { alert(err.message); }
       },
       onNewDesign: () => {
-        if (!confirm("Start a new design? Unsaved changes in the Design editor are replaced by the starter design.")) return;
-        resetState();
-        renderForm(document.getElementById("form-pane"));
+        if (isDirty() && !confirm("Start a new design? The editor has unsaved changes; they'll be replaced by the starter design.")) return;
+        newDesign();
         show("designer");
       }
     })),
@@ -131,7 +77,7 @@ function wireViewTabs(initialView = "flights") {
     activeView = view;
     for (const [k, pane] of Object.entries(panes)) pane.hidden = k !== view;
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
-    document.getElementById("app-shell").classList.toggle("is-workspace", view === "issue");
+    document.getElementById("app-shell").classList.toggle("is-workspace", view === "issue" || view === "designer");
     moveThumb();
     if (view !== "designer") loaders[view]().then(mount => { if (activeView === view) mount(panes[view], opts); });
     history.replaceState(null, "", `#${view}`);
@@ -142,48 +88,27 @@ function wireViewTabs(initialView = "flights") {
   // #view in the URL deep-links a view — on load and when the hash changes.
   addEventListener("hashchange", () => { const v = location.hash.slice(1); if (panes[v] && v !== activeView) show(v); });
   const fromHash = location.hash.slice(1);
-  show(panes[fromHash] ? fromHash : initialView);
-}
-
-// Click a field on the live pass preview → jump to + focus its editor input.
-function wireClickToEdit() {
-  const stage = document.getElementById("preview-stage");
-  if (!stage) return;
-  stage.addEventListener("click", (e) => {
-    const fieldEl = e.target.closest("[data-fieldkey]");
-    const key = fieldEl?.dataset.fieldkey;
-    if (!key) return;
-    const input = document.querySelector(`#form-pane [data-fieldkey="${CSS.escape(key)}"]`);
-    if (!input) return;
-    input.scrollIntoView({ block: "center", behavior: "smooth" });
-    input.focus();
-    const row = input.closest(".wpd-df-row");
-    if (row) { row.classList.add("wpd-flash"); setTimeout(() => row.classList.remove("wpd-flash"), 900); }
-  });
+  show(panes[fromHash] && fromHash !== "issue" ? fromHash : initialView);
+  return show;
 }
 
 async function maybeLoadFromUrl() {
-  const params = new URLSearchParams(location.search);
-  const f = params.get("fixture");
-  if (!f) return;
-  try { await loadFixture(f); } catch (err) { console.warn(err.message); }
+  const f = new URLSearchParams(location.search).get("fixture");
+  if (!f) return false;
+  try { await openDesign(f, { fixture: true }); return true; } catch (err) { console.warn(err.message); return false; }
 }
 
-document.documentElement.dataset.build = "20261009a"; // changes bundle hash → busts stale caches
+document.documentElement.dataset.build = "20261009b"; // changes bundle hash → busts stale caches
 initTheme();
 showProfile();
-await maybeLoadFromUrl();
-renderForm(document.getElementById("form-pane"));
 mountTabs(document.getElementById("tabs"));
-wireBuildButton(document.getElementById("build-btn"), document.getElementById("build-status"));
-document.getElementById("reset-btn").addEventListener("click", () => {
-  resetState();
-  renderForm(document.getElementById("form-pane"));
+let showView = null;   // set once the nav is wired (design hooks fire only on clicks)
+initDesign({
+  onBack: () => showView?.("templates"),
+  onIssue: (name) => showView?.("issue", { template: name, kind: "studio" }),
+  listDesigns: () => fetch("/api/designs").then(r => r.json()).catch(() => [])
 });
-wireDesignPicker();
-refreshDesignPicker();
-document.getElementById("save-tpl-btn").addEventListener("click", saveDesign);
-wireViewTabs(new URLSearchParams(location.search).get("fixture") ? "designer" : "flights");
-wireClickToEdit();
+const fromFixture = await maybeLoadFromUrl();
+showView = wireViewTabs(fromFixture ? "designer" : "flights");
 renderActiveTab();
 subscribe(() => renderActiveTab());

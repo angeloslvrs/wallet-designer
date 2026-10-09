@@ -75,7 +75,8 @@ function h(tag, props = {}, ...kids) {
   return n;
 }
 
-const card = (eyebrow, ...body) => h("section", { class: "wpd-card wpd-design-card" }, h("div", { class: "wpd-eyebrow" }, eyebrow), ...body);
+// One titled group inside a section of the Design workspace's left pane.
+const card = (title, ...body) => h("section", { class: "dw-group" }, h("h2", { class: "dw-h", text: title }), ...body);
 const fieldLabel = (text) => h("label", { class: "wpd-fld-label", text });
 
 // A plain text input wired to a FormState path.
@@ -155,7 +156,7 @@ function assetsCard(root) {
     thumb.appendChild(file);
     const clearBtn = h("button", { type: "button", class: "wpd-ghost wpd-asset-clear", text: "Remove" });
     clearBtn.hidden = !cur;
-    clearBtn.addEventListener("click", () => { setPath(path, ""); renderForm(root); });
+    clearBtn.addEventListener("click", () => { setPath(path, ""); renderForm(root, { section: "look" }); });
     return h("div", { class: "wpd-asset-row" },
       thumb,
       h("div", { class: "wpd-asset-info" },
@@ -164,7 +165,7 @@ function assetsCard(root) {
         note),
       clearBtn);
   });
-  return card("Assets", h("div", { class: "wpd-asset-list" }, ...rows));
+  return card("Images", h("div", { class: "wpd-asset-list" }, ...rows));
 }
 const assetHint = (slot) => ({
   icon: "PNG · 29 × 29 pt, square — required by iOS",
@@ -195,8 +196,8 @@ function barcodeCard(root) {
       setPath("barcode.message", text);
       let parsed = null;
       try { parsed = parseBCBP(text); } catch { /* not a BCBP barcode */ }
-      if (!parsed) { scanNote.textContent = "Set as barcode message (not a recognized boarding pass — fields not autofilled)."; renderForm(root); return; }
-      if (!(await showBcbpPreview(parsed))) { scanNote.textContent = "Barcode message set; autofill cancelled."; renderForm(root); return; }
+      if (!parsed) { scanNote.textContent = "Set as barcode message (not a recognized boarding pass — fields not autofilled)."; renderForm(root, { section: "barcode" }); return; }
+      if (!(await showBcbpPreview(parsed))) { scanNote.textContent = "Barcode message set; autofill cancelled."; renderForm(root, { section: "barcode" }); return; }
       const sem = { ...(state.semantics ?? {}), ...bcbpToSemantics(parsed) };
       setPath("semantics", sem);
       const filled = suggestDisplayValues(sem, DESIGNER_SUGGEST_MAP);
@@ -205,7 +206,7 @@ function barcodeCard(root) {
         if (fld.key in filled) { fld.value = filled[fld.key]; delete fld.dateStyle; delete fld.timeStyle; }
       }
       setPath("displayFields", df);
-      renderForm(root);
+      renderForm(root, { section: "barcode" });
     } finally { scanBtn.disabled = false; scanBtn.textContent = orig; }
   });
 
@@ -281,46 +282,45 @@ function fieldsCard() {
   }
 
   rerender();
-  return card("Fields", top, body);
+  return card("Fields on the pass", top, body);
 }
 
-function metaDrawer() {
+function metaCard() {
   const fields = [
-    ["meta.passTypeId", "Pass Type ID"],
-    ["meta.teamId", "Team ID"],
-    ["meta.serialNumber", "Serial Number"],
-    ["meta.description", "Description"],
-    ["meta.expirationDate", "Pass expiry (ISO; blank = arrival + 1 day)"]
+    ["meta.passTypeId", "Pass Type ID", "Forced from the server's signing cert at issue"],
+    ["meta.teamId", "Team ID", "Forced from the server's signing cert at issue"],
+    ["meta.serialNumber", "Sample serial", "Each issued pass gets its own"],
+    ["meta.description", "Description", "VoiceOver reads this for the pass"],
+    ["meta.expirationDate", "Pass expiry", "ISO date-time; blank = arrival + 1 day"]
   ];
-  const body = h("div", { class: "wpd-drawer-body" },
-    ...fields.map(([path, label]) => h("div", { class: "wpd-fld" }, fieldLabel(label), textInput(path))));
-  return h("details", { class: "wpd-drawer wpd-design-drawer" },
-    h("summary", { class: "wpd-drawer-summary", text: "Pass metadata — identifiers & expiry" }),
-    body);
+  return card("Pass metadata",
+    ...fields.map(([path, label, hint]) => h("div", { class: "wpd-fld" }, fieldLabel(label), textInput(path), h("div", { class: "wpd-asset-hint", text: hint }))));
 }
 
-function semanticsDrawer() {
-  const body = h("div", { class: "wpd-drawer-body" });
-  body.appendChild(renderSemanticsEditor({
-    values: state.semantics ?? {},
-    onChange: (next) => setPath("semantics", next)
-  }));
-  return h("details", { class: "wpd-drawer wpd-design-drawer" },
-    h("summary", { class: "wpd-drawer-summary", text: "Apple semantics" }),
-    body);
+function semanticsCard() {
+  return card("Flight data",
+    h("p", { class: "dw-sub", text: "Apple's semantic tags: iOS 26 builds the boarding pass's expanded view and Live Activity from these. The values here are the design's sample; issuing replaces the flight and passenger." }),
+    renderSemanticsEditor({ values: state.semantics ?? {}, onChange: (next) => setPath("semantics", next) }));
 }
 
-export function renderForm(root) {
+// Left-pane sections of the Design workspace (main.js owns the tab strip).
+export const DESIGN_SECTIONS = [
+  ["look", "Look"], ["fields", "Fields"], ["flight", "Flight data"], ["barcode", "Barcode"], ["advanced", "Advanced"]
+];
+
+/**
+ * Render one section of the Design editor into `root`.
+ * @param {HTMLElement} root
+ * @param {{section?: "look"|"fields"|"flight"|"barcode"|"advanced"}} [opts]
+ */
+export function renderForm(root, { section = "look" } = {}) {
   root.innerHTML = "";
-  const view = h("div", { class: "wpd-view wpd-design" },
-    h("div", { class: "wpd-view-head" },
-      h("h1", { text: "Design" }),
-      h("p", { text: "Branding, layout & barcode — the preview mirrors the shipped pass." })),
-    brandCard(),
-    assetsCard(root),
-    barcodeCard(root),
-    fieldsCard(),
-    metaDrawer(),
-    semanticsDrawer());
-  root.appendChild(view);
+  const build = {
+    look: () => [brandCard(), assetsCard(root)],
+    fields: () => [fieldsCard()],
+    flight: () => [semanticsCard()],
+    barcode: () => [barcodeCard(root)],
+    advanced: () => [metaCard()]
+  }[section] ?? (() => [brandCard(), assetsCard(root)]);
+  root.appendChild(h("div", { class: "dw-section stagger", "data-section": section }, ...build()));
 }
