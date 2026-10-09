@@ -254,7 +254,20 @@ export async function buildPkpassFromTemplate({ templateDir, data = {}, override
     if (overrides[key] !== undefined) merged[key] = overrides[key];
   }
   merged.formatVersion ??= 1;
-  return signPkpass({ certDir, passphrase, passJson: merged, assets: ensureBaseImageVariants(assets) });
+  return signPkpass({ certDir, passphrase, passJson: withGateOverride(merged), assets: ensureBaseImageVariants(assets) });
+}
+
+/**
+ * Pure: the pass with `departureGate` in `liveDataConfiguration.excludedSemantics`
+ * (kept alongside any the bundle lists). Apple's live flight feed otherwise
+ * overrides the gate — blanking it until the airline's own feed reports one —
+ * so a gate pushed through status updates would never show. FormState passes
+ * set the same exclusion in form-to-pass.js; bundles get it here.
+ */
+export function withGateOverride(passJson) {
+  const excluded = passJson.liveDataConfiguration?.excludedSemantics ?? [];
+  if (excluded.includes("departureGate")) return passJson;
+  return { ...passJson, liveDataConfiguration: { ...passJson.liveDataConfiguration, excludedSemantics: [...excluded, "departureGate"] } };
 }
 
 const OVERRIDE_KEYS = ["serialNumber", "passTypeIdentifier", "teamIdentifier", "authenticationToken", "webServiceURL"];

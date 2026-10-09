@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import AdmZip from "adm-zip";
-import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants, templateFieldDescriptors, isSemanticDriven } from "../packages/pass-builder/template.js";
+import { loadTemplate, buildPkpassFromTemplate, ensureBaseImageVariants, templateFieldDescriptors, isSemanticDriven, withGateOverride } from "../packages/pass-builder/template.js";
 import { computeManifest } from "../packages/pass-builder/manifest.js";
 
 const certDir = "certs/dev";
@@ -114,6 +114,19 @@ describe("buildPkpassFromTemplate", () => {
     expect(pass.teamIdentifier).toBe("DEV0000000");
     expect(pass.authenticationToken).toBe(overrides.authenticationToken);
     expect(pass.webServiceURL).toBe(overrides.webServiceURL);
+  });
+
+  it("keeps pushed gates authoritative over Apple's live flight data (both build paths)", async () => {
+    const buf = await buildPkpassFromTemplate({ templateDir, data: {}, overrides, certDir });
+    const pass = JSON.parse(new AdmZip(buf).getEntry("pass.json").getData().toString("utf8"));
+    expect(pass.liveDataConfiguration.excludedSemantics).toContain("departureGate");
+  });
+
+  it("keeps a bundle's own live-data exclusions alongside the gate", () => {
+    expect(withGateOverride({ liveDataConfiguration: { excludedSemantics: ["destinationGate"] } }).liveDataConfiguration)
+      .toEqual({ excludedSemantics: ["destinationGate", "departureGate"] });
+    expect(withGateOverride({ liveDataConfiguration: { excludedSemantics: ["departureGate"] } }).liveDataConfiguration)
+      .toEqual({ excludedSemantics: ["departureGate"] });
   });
 
   it("writes a manifest consistent with the zipped files", async () => {
