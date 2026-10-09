@@ -533,9 +533,8 @@ Plan `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.
   bindings survive blanking the design's values; toggle flips preview 16:05 ↔ 4:05 PM.
   503 tests green; `npm run check`, `build:designer` green.
 
-Not done / next: phase 2 (routes store). Pre-existing, unrelated: the Design date picker's UTC
-offset input logs "Pattern attribute value Z|[+-]… is not a valid regular expression" (the `-`
-in the class needs escaping under the `v` flag) — in `inputs.js`.
+Not done / next: phase 2 (routes store). (The Design date picker's UTC-offset `pattern` that
+logged an invalid-regex error under the `v` flag was fixed later the same day in `inputs.js`.)
 
 **Deploy notes:** no DB migration (same `template_bindings` table). rsync `packages/pass-schema/`,
 `packages/pass-builder/` (new `field-render.js`, `field-zones.js`), `apps/server/`, rebuilt

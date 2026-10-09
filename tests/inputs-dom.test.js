@@ -98,3 +98,27 @@ describe("airport-zone offsets", () => {
     expect(v).toBe("2026-07-02T08:00:00+05:30");
   });
 });
+
+describe("pattern attributes", () => {
+  // Browsers compile `pattern` as ^(?:…)$ with the `v` flag, where an unescaped
+  // "-" inside a character class is a syntax error: the browser logs it and
+  // silently skips validation.
+  const compiles = (p) => { new RegExp(`^(?:${p})$`, "v"); return true; };
+
+  it("the date picker's UTC offset pattern is valid under the v flag and matches offsets", () => {
+    const { el } = mount({ type: "date", value: "2026-10-12T16:05:00+08:00", label: "Boarding" });
+    const off = el.querySelector('input[title="UTC offset"]');
+    expect(compiles(off.pattern)).toBe(true);
+    const re = new RegExp(`^(?:${off.pattern})$`, "v");
+    for (const ok of ["Z", "+08:00", "-05:00"]) expect(re.test(ok)).toBe(true);
+    for (const bad of ["08:00", "+8:00", "+08", "z"]) expect(re.test(bad)).toBe(false);
+  });
+
+  it("every field-kind pattern is valid under the v flag", async () => {
+    const { kindAttrs } = await import("../packages/pass-builder/field-kinds.js");
+    for (const kind of ["text", "iata", "number", "date", "seat", "timezone"]) {
+      const p = kindAttrs(kind)?.pattern;
+      if (p) expect(compiles(p), `${kind}: ${p}`).toBe(true);
+    }
+  });
+});

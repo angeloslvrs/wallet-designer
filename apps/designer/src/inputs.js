@@ -154,7 +154,8 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       const zoneNow = typeof zone === "function" ? zone() : zone;
       const off = el("input", { type: "text", value: offset, placeholder: zoneOffset(new Date().toISOString().slice(0, 16), zoneNow) ?? localUtcOffset(), title: "UTC offset" });
       off.setAttribute("aria-label", lbl("UTC offset"));
-      off.pattern = "Z|[+-][0-9]{2}:[0-9]{2}";
+      // Browsers compile `pattern` with the `v` flag: "-" in a class must be escaped.
+      off.pattern = "Z|[+\\-][0-9]{2}:[0-9]{2}";
       off.maxLength = 6;
       dateInp.style.cssText = "flex:1 1 118px;min-width:0";
       timeInp.style.cssText = "flex:1 1 90px;min-width:0";
