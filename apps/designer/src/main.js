@@ -92,6 +92,22 @@ function wireViewTabs(initialView = "flights") {
   return show;
 }
 
+// Tab strips (role="tablist"): ← / → move between tabs and select, Home/End jump
+// to the ends — the WAI-ARIA tabs pattern, once for every view.
+function wireTablistKeys() {
+  document.addEventListener("keydown", (e) => {
+    const list = e.target.closest?.('[role="tablist"]');
+    if (!list || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = [...list.querySelectorAll('[role="tab"]:not([disabled])')];
+    const i = tabs.indexOf(e.target.closest('[role="tab"]'));
+    if (i < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus();
+    tabs[next].click();
+  });
+}
+
 async function maybeLoadFromUrl() {
   const f = new URLSearchParams(location.search).get("fixture");
   if (!f) return false;
@@ -102,6 +118,7 @@ document.documentElement.dataset.build = "20261009b"; // changes bundle hash →
 initTheme();
 showProfile();
 mountTabs(document.getElementById("tabs"));
+wireTablistKeys();
 let showView = null;   // set once the nav is wired (design hooks fire only on clicks)
 initDesign({
   onBack: () => showView?.("templates"),
