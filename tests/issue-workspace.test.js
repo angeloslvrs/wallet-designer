@@ -270,6 +270,7 @@ describe("routes in the Issue workspace", () => {
     expect(root.querySelector('[data-act="to-passengers"]')).toBeNull();
     expect(root.querySelector("#iw-trip")).toBeNull();
     expect(root.querySelector(".iw-steps")).toBeNull();
+    expect(root.querySelector('[data-slot-input="sem:departureGate"]')).toBeNull();
     fillFlight();
     type(root.querySelector("#iw-route-id"), "RP248-SFO-JFK");
     click('[data-act="route-save"]');

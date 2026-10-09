@@ -107,6 +107,32 @@ export function airlineGroups(designer, studio) {
   return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * A template's preview pass.json with a route's values shown: route semantics
+ * merged, bound fields filled through the template's bindings, raw route
+ * fields by key, and schedule times on a sample day. An airline design has no
+ * values of its own, so the shelf shows it through its first route.
+ */
+export function previewWithRoute(preview, bindings, route) {
+  if (!preview || !route) return preview;
+  const out = structuredClone(preview);
+  const v = route.values ?? {};
+  const sched = route.schedule ?? {};
+  const day = "2026-01-01";
+  const times = { currentBoardingDate: sched.boarding, currentDepartureDate: sched.departure, currentArrivalDate: sched.arrival };
+  const timed = Object.fromEntries(Object.entries(times).filter(([, t]) => t).map(([k, t]) => [k, `${day}T${t}:00`]));
+  out.semantics = { ...(out.semantics ?? {}), ...v, ...timed };
+  const byField = {};
+  for (const [sem, b] of Object.entries(bindings ?? {})) {
+    const val = out.semantics[sem];
+    if (b?.fieldKey && val !== undefined && val !== null && typeof val !== "object") byField[b.fieldKey] = String(val);
+  }
+  Object.assign(byField, route.fields ?? {});
+  const bp = out.boardingPass ?? {};
+  for (const zone of FIELD_ZONES) if (Array.isArray(bp[zone])) bp[zone] = bp[zone].map(f => (f?.key in byField ? { ...f, value: byField[f.key] } : f));
+  return out;
+}
+
 const routeFlight = (r) => r.values?.flightCode || (r.values?.airlineCode && r.values?.flightNumber !== undefined ? `${r.values.airlineCode}${r.values.flightNumber}` : r.id);
 
 /** Render a scaled, barcode-free Wallet front for a shelf/preview thumbnail. */
@@ -238,7 +264,7 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
         <button type="button" class="btn-link" data-act="bindings" data-id="${esc(t.id)}" data-kind="studio">Bindings</button>
-        <button type="button" class="btn-link" data-act="convert" data-id="${esc(t.id)}" title="Split this design into an airline look and a route">Make airline</button>
+        ${Object.keys(t.semantics ?? {}).some(k => k !== "airlineCode") ? `<button type="button" class="btn-link" data-act="convert" data-id="${esc(t.id)}" title="Split this design into an airline look and a route">Make airline</button>` : ""}
         ${del}
         <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="studio">Issue →</button>
       </div>
@@ -278,8 +304,9 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
         </section>
       </div>`;
     flash = "";
-    for (const t of designer) if (!t.error) mountThumb($(`[data-thumb="designer:${CSS.escape(t.id)}"]`), t.preview, t.logo);
-    for (const t of studio) if (!t.error) mountThumb($(`[data-thumb="studio:${CSS.escape(t.id)}"]`), t.preview, t.logo);
+    const firstRoute = (kind, id) => routes.find(r => r.template?.kind === kind && r.template?.id === id);
+    for (const t of designer) if (!t.error) mountThumb($(`[data-thumb="designer:${CSS.escape(t.id)}"]`), previewWithRoute(t.preview, t.bindings, firstRoute("designer", t.id)), t.logo);
+    for (const t of studio) if (!t.error) mountThumb($(`[data-thumb="studio:${CSS.escape(t.id)}"]`), previewWithRoute(t.preview, t.bindings, firstRoute("studio", t.id)), t.logo);
   }
 
   // ---- bindings -------------------------------------------------------------

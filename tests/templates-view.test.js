@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview, airlineGroups } from "../apps/designer/src/templates.js";
+import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview, airlineGroups, previewWithRoute } from "../apps/designer/src/templates.js";
 
 // Templates shelf: Pass Designer bundles and Studio designs on one shelf, plus
 // the Bindings review screen. Studio designs (designs/) delete via
@@ -292,7 +292,7 @@ describe("Shelf grouped by airline, with routes under their template", () => {
 
 
 describe("Make airline from a design", () => {
-  const SRC = { id: "pal-src", kind: "studio", organizationName: "Philippine Airlines", semantics: { airlineCode: "PR" }, fieldKeys: ["seat", "depart", "passenger", "boarding"],
+  const SRC = { id: "pal-src", kind: "studio", organizationName: "Philippine Airlines", semantics: { airlineCode: "PR", flightCode: "PR2987" }, fieldKeys: ["seat", "depart", "passenger", "boarding"],
     bindings: { seats: { fieldKey: "seat" }, departureAirportCode: { fieldKey: "depart" }, passengerName: { fieldKey: "passenger" } }, preview: PREVIEW, logo: null };
 
   it("reviews every value and creates the airline design, its bindings and the route — the source stays", async () => {
@@ -318,6 +318,14 @@ describe("Make airline from a design", () => {
     expect(JSON.parse(puts[2].body)).toMatchObject({ template: { kind: "studio", id: "philippine-airlines" }, schedule: { boarding: "16:05" } });
     expect(calls.some(c => c.method === "DELETE")).toBe(false);
     expect(root.querySelector("#tpl-flash").textContent).toMatch(/pal-src is unchanged/);
+  });
+
+  it("only flat designs offer Make airline (an airline design carries just its code)", async () => {
+    studioList = [SRC, { ...SRC, id: "philippine-airlines", semantics: { airlineCode: "PR" } }];
+    mountTemplates(root, {});
+    await settle();
+    expect(root.querySelector('.tpl-card[data-tpl="pal-src"] [data-act="convert"]')).toBeTruthy();
+    expect(root.querySelector('.tpl-card[data-tpl="philippine-airlines"] [data-act="convert"]')).toBeNull();
   });
 
   it("can add the route to an existing airline instead (no design written)", async () => {
@@ -346,5 +354,25 @@ describe("Make airline from a design", () => {
     await settle();
     const airline = JSON.parse(calls.find(c => c.method === "PUT").body);
     expect(airline.iOS26.wifi).toEqual([{ ssid: "CebPac-WiFi" }]);
+  });
+});
+
+
+describe("previewWithRoute", () => {
+  it("fills a value-less airline preview from a route: bound fields, raw fields, times, label tokens' semantics", () => {
+    const preview = { boardingPass: {
+      primaryFields: [{ key: "depart", label: "{departureCityName:upper}", value: "" }],
+      auxiliaryFields: [{ key: "boarding", label: "BOARDING", value: "", timeFormat: "24h" }],
+      backFields: [{ key: "ff", label: "FF", value: "" }]
+    }, semantics: { airlineCode: "PR" } };
+    const bindings = { departureAirportCode: { fieldKey: "depart" }, currentBoardingDate: { fieldKey: "boarding" } };
+    const route = { values: { departureAirportCode: "MNL", departureCityName: "Manila" }, schedule: { boarding: "16:05" }, fields: { ff: "—" } };
+    const out = previewWithRoute(preview, bindings, route);
+    expect(out.boardingPass.primaryFields[0].value).toBe("MNL");
+    expect(out.boardingPass.auxiliaryFields[0].value).toBe("2026-01-01T16:05:00");
+    expect(out.boardingPass.backFields[0].value).toBe("—");
+    expect(out.semantics).toMatchObject({ airlineCode: "PR", departureCityName: "Manila" });
+    expect(preview.boardingPass.primaryFields[0].value).toBe("");
+    expect(previewWithRoute(preview, bindings, undefined)).toBe(preview);
   });
 });

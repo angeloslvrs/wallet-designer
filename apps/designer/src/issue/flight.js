@@ -3,6 +3,7 @@
 // preview of the shared values and the facts derived from them.
 
 import { DOC_REQUIRED_SEMANTICS } from "@wpd/pass-builder/semantics.js";
+import { ROUTE_SEMANTICS } from "@wpd/pass-builder/route.js";
 import { esc } from "../esc.js";
 import { canonicalSemantic, effectiveValue, isBlank } from "./model.js";
 import { barHtml, footHtml, fieldHtml } from "./shell.js";
@@ -52,8 +53,13 @@ export function flightFacts(slots, shared, expiry) {
   return { title, html };
 }
 
+// The route editor shows only what a route keeps: route semantics, the schedule
+// (its times) and the template's unbound fields — never gates or passenger data.
+const SCHEDULE_SEMS = new Set(["currentBoardingDate", "currentDepartureDate", "currentArrivalDate"]);
+const routeEditable = (s) => !s.sem || ROUTE_SEMANTICS.has(s.sem) || SCHEDULE_SEMS.has(s.sem);
+
 export function flightHtml(ctx) {
-  const shared = ctx.slots.filter(s => !ctx.individual.has(s.id));
+  const shared = ctx.slots.filter(s => !ctx.individual.has(s.id) && (!ctx.routeMode || routeEditable(s)));
   const field = (s) => fieldHtml(s, "shared", { values: ctx.shared, touched: ctx.sharedTouched, submitted: ctx.submitted, error: ctx.sharedErrors.find(e => e.slot.id === s.id)?.msg });
   const used = new Set();
   const groups = GROUPS.map(([title, sems]) => {
@@ -134,7 +140,7 @@ export function flightHtml(ctx) {
   const primary = ctx.routeMode
     ? `<button type="button" class="btn btn-primary" data-act="route-save" data-primary>Save route</button>`
     : `<button type="button" class="btn btn-primary" data-act="to-passengers" data-primary>Passengers →</button>`;
-  const quiet = ctx.routeMode ? "" : `<button type="button" class="btn" data-act="route-mode">Save as route</button>`;
+  const quiet = ctx.routeMode ? "" : `<button type="button" class="btn" data-act="route-mode">${ctx.route ? "Update route" : "Save as route"}</button>`;
   return `
     <div class="iw">
       ${barHtml(ctx, ctx.routeMode ? ctx.routeId : facts.title)}
