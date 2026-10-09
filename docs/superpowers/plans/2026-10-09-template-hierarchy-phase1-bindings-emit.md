@@ -64,14 +64,16 @@ it("an unbound timeFormat field gets the date kind", () => {
 ### Task 2: `resolvePassFields` — label tokens + 24 h rendering (pure)
 
 **Files:**
-- Create: `packages/pass-builder/field-render.js`
+- Create: `packages/pass-builder/field-zones.js` — dependency-free home for `FIELD_ZONES` + `styleKey`, moved out of `template.js` (which re-exports them so existing imports keep working). **Why:** `field-render.js` ships in the browser bundle (Task 4), and `template.js` imports `node:fs/promises`, `node:path` and `sign.js` at top level — importing it from the SPA would break `npm run build:designer`.
+- Create: `packages/pass-builder/field-render.js` — imports only `field-zones.js`, `semantics.js`, `iso-date.js` (all browser-safe, like `form-to-pass.js`).
+- Modify: `packages/pass-builder/template.js` (import + re-export from `field-zones.js`)
 - Modify: `packages/pass-builder/index.js` (re-export `resolvePassFields`, `LABEL_TOKEN_RE`)
 - Test: `tests/field-render.test.js` (new)
 
 **Interfaces:**
 - Produces: `resolvePassFields(passJson: object): object` — returns a NEW pass.json where, in every zone of `FIELD_ZONES` under the style key (`boardingPass` etc.):
   - each `label` string has tokens `{key}` / `{key:upper}` replaced **only when `key` is in `SEMANTIC_CATALOG`**; value = `passJson.semantics[key]` — strings as-is, numbers via `String()`, anything else (objects, missing, null) → `""`. `:upper` → `toUpperCase()`. If at least one token was replaced, collapse whitespace runs to one space and trim. Unknown keys / other braces stay literal.
-  - each field with `timeFormat === "24h"`: if `value` is a loose ISO datetime (`isLooseIsoDateTime`), `value` becomes the `HH:mm` read **from the string itself** (its own offset is the airport's — do not convert through `Date`); `timeFormat` is deleted; `dateStyle`/`timeStyle` are deleted. A non-ISO value (blank, already-rendered "16:05") is kept as-is and `timeFormat` is still deleted.
+  - each field with `timeFormat === "24h"`: if `value` is a loose ISO datetime (`isLooseIsoDateTime`) **with a `T` time part** (a date-only value is kept unchanged), `value` becomes the `HH:mm` read **from the string itself** (its own offset is the airport's — do not convert through `Date`); `timeFormat` is deleted; `dateStyle`/`timeStyle` are deleted. A non-ISO value (blank, already-rendered "16:05") is kept as-is and `timeFormat` is still deleted.
   - idempotent: `resolvePassFields(resolvePassFields(x))` deep-equals `resolvePassFields(x)`.
 - Produces: `LABEL_TOKEN_RE = /\{([A-Za-z][A-Za-z0-9]*)(?::(upper))?\}/g` (exported for the Design hint/preview).
 
@@ -136,7 +138,7 @@ it("covers additionalInfoFields and backFields too", () => {
 ```
 
 - [ ] **Step 2:** `npx vitest run tests/field-render.test.js` → FAIL (module missing).
-- [ ] **Step 3: Implement** `field-render.js` using `styleKey` + `FIELD_ZONES` from `template.js`, `SEMANTIC_CATALOG` from `semantics.js`, `isLooseIsoDateTime` from `iso-date.js`. `HH:mm` = the `THH:MM` digits sliced from the string. Clone with `structuredClone` once, then rewrite fields.
+- [ ] **Step 3: Implement** `field-zones.js` (move `FIELD_ZONES` + `styleKey` verbatim; `template.js` imports and re-exports them), then `field-render.js` using `field-zones.js`, `SEMANTIC_CATALOG` from `semantics.js`, `isLooseIsoDateTime` from `iso-date.js`. Never import `template.js` from it. `HH:mm` = the `THH:MM` digits sliced from the string. Clone with `structuredClone` once, then rewrite fields.
 - [ ] **Step 4:** run → PASS; re-export from `index.js`; `npm test` green.
 
 ---
@@ -201,7 +203,7 @@ it("passes a new-shape state with timeFormat through untouched", () => {
 - [ ] **Step 1: Failing test** — `toPassView` on a pass with a `{departureCityName:upper}` label and a 24 h ISO field yields the label "MANILA" and value "16:05" in the mapped field.
 - [ ] **Step 2:** run → FAIL.
 - [ ] **Step 3: Implement** — first line of both functions: `pass = resolvePassFields(pass);` (import from `@wpd/pass-builder/field-render.js`, the same way `preview/index.js` imports `form-to-pass.js`).
-- [ ] **Step 4:** run → PASS; `npx vitest run tests/wallet-*.test.js tests/issue-*.test.js` green.
+- [ ] **Step 4:** run → PASS; `npx vitest run tests/wallet-*.test.js tests/issue-*.test.js` green; **`npm run build:designer` succeeds** (proves no Node-only module leaked into the bundle).
 
 ---
 
@@ -244,13 +246,16 @@ it("passes a new-shape state with timeFormat through untouched", () => {
 - Test: `tests/admin-status.test.js`
 
 **Interfaces:**
-- Changes: `applyStatus(state, body, { bindings } = {})` — uses `bindings` when given, else today's `discoverBindings(stateDiscoveryJson(next))`.
-- `applyStatusToStoredPass`: for a FormState record with `rec.designName`, look up `getTemplateBindings(studioBindingsId(rec.designName))`; pass it when stored, else omit (today's behaviour). Discovery from the pass's own state remains the fallback because an issued pass carries real values.
+- Changes: `applyStatus(state, body, { bindings } = {})` — **always** discovers from the pass's own state as today (`discoverBindings(stateDiscoveryJson(next))`), then overlays `bindings` per semantic key. Overlay, not replace: a stored map holds only the keys the operator confirmed (`sanitizeBindingEdits`), so replacing would lose value-matched bindings (e.g. `departureGate`) that work today.
+- `set()` also pushes the key to `skipped` when `setDisplayField` returns `false` (the bound field isn't in this pass's snapshot, or lives in a zone `DISPLAY_ZONES` doesn't cover) — the response must not claim a visible update that didn't happen.
+- `applyStatusToStoredPass`: for a FormState record with `rec.designName`, look up `getTemplateBindings(studioBindingsId(rec.designName))` and pass it when stored; else omit.
 
 - [ ] **Step 1: Failing tests**
   1. Pure: a state whose `boarding` field holds `"2026-10-12T16:05:00+08:00"` with `timeFormat: "24h"` (semantics in sync): `applyStatus(state, {currentBoardingDate: "2026-10-12T16:45:00+08:00"})` sets the field value to the new ISO string, keeps `timeFormat`, sets the default `changeMessage`, and `skipped` is empty. (Proves Task 1's discovery fix covers status.)
   2. Pure: with `{bindings: {currentBoardingDate: {fieldKey: "boarding"}}}` and a field value that does NOT match the semantic (drifted), the field is still updated.
   3. Rebuild: `formStateToPassJson(updatedState)` shows `"16:45"` in that field with the changeMessage intact.
+  4. Overlay: stored `{currentBoardingDate: …}` only, plus a pass whose gate field value-matches `departureGate` → a gate update still lands on the gate field (discovery kept).
+  5. Drift: stored binding points at a field key the pass doesn't have → semantic updated, key reported in `skipped`.
 - [ ] **Step 2:** run → FAIL (2 fails; 1 may already pass after Task 1 — keep it as a regression pin).
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4:** `npx vitest run tests/admin-*.test.js tests/status-validation.test.js` → PASS.

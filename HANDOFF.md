@@ -307,7 +307,7 @@ Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
 
 > **UI overhaul in progress on branch `ui-overhaul`** — read the 2026-10-09 entries at the bottom first; they supersede the roadmap below for SPA work.
 >
-> **Next up (designed, not built):** template hierarchy Airline › Route › Flight — `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md`.
+> **Next up (designed, not built):** template hierarchy Airline › Route › Flight — `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md`. Phase 1 plan (start at Task 1, branch `feat/template-hierarchy`): `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`.
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
 2. Pick from the open roadmap (nothing in progress):
