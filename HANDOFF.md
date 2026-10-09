@@ -452,4 +452,31 @@ starts empty — nothing migrates.
   roster label editing is gone (save with a label, remove via "Edit saved passengers").
 
 Verified live (designer dev-sample + cebpac + a studio design; light/dark; 375 px).
-446 tests green, SPA builds, `npm run check` clean. Next: Phase 4 (Design workspace), Phase 5.
+446 tests green, SPA builds, `npm run check` clean.
+
+**Phase 4 done — Design workspace** (`design.js` + sectioned `form.js`): entered from Templates
+(Edit design / New design); nav is now Flights · Templates · Device log. Left = one section
+(Look · Fields · Flight data · Barcode · Advanced), centre = pass (click a field → Fields),
+right = Apple's 12 boarding tags + every field on the pass. Name is an inline title in the bar;
+footer = Start over · Issue passes → (saves first, opens Issue on the design) · **Save template**.
+The old Build .pkpass (a hidden second issue path, `build.js`) is deleted. `?fixture=` opens a
+CI fixture as an unsaved copy. Identity persists as `wpd:design-meta` = {name, savedHash,
+stateHash} tied to the persisted state's hash (a failed/over-quota state write drops it);
+Save sends + baselines one snapshot (mid-save edits stay dirty). Codex review: 5 findings, fixed.
+
+**Phase 5 (partial):** dead legacy CSS and the `--wpd-*` token layer removed (styles.css 60 →
+45 kB); base inputs/labels/buttons on the theme; arrow-key navigation for every
+`role="tablist"`; sticky pass canvas in both workspaces.
+
+**Critique** (dual-agent `/impeccable critique`, snapshot `.impeccable/critique/2026-10-09T06-58-23Z…`):
+27/40 (phases 1–2 were 24). Fixed: flight blocker → "needs flight" + footer "Fix flight: … →",
+sticky preview, defaults as placeholders, plain paste errors, Design name/Start over/Fields
+headers. Deliberately NOT done: a confirm before issuing (the decided pattern is the inline
+"updates that pass" warning + honest "Issue 1 · update 1" CTA). Open: collapse "Also on this
+pass"/time zones on Flight; typed date pickers in Design → Fields; slimmer Design right pane;
+"apply to all passengers"; a help line for Share vs Vary. Detector overlay can't inject
+through the CSP (expected).
+
+Dev: `.claude/launch.json` gained `designer-dev-alt` (API :4330, Vite :4331) for when another
+session holds :4318. Test passes/designs created while verifying were deleted; the store is
+back to the three seeded dev-sample passes. 456 tests green.
