@@ -96,8 +96,13 @@ function rightPane(ctx) {
     ${flightLink}`;
   if (!p) return `<aside class="iw-right"><p class="iw-empty">Add a passenger to edit their fields here.</p>${fromFlight}</aside>`;
   const values = ctx.valuesFor(p);
+  // Copy one passenger's value to everyone (a family on one booking ref) —
+  // not for who-sits-where.
+  const n = ctx.pax.length;
+  const copyAll = (s) => (n > 1 && s.perPassenger !== "locked"
+    ? `<button type="button" class="btn-link iw-copyall" data-act="copy-to-all" data-slot="${esc(s.id)}" aria-label="Copy this ${esc(s.label.toLowerCase())} to all ${n} passengers">Copy to all ${n}</button>` : "");
   const fields = ctx.slots.filter(s => ctx.individual.has(s.id)).sort(byOrder)
-    .map(s => fieldHtml(s, "pax", { values, touched: p.touched, submitted: ctx.submitted, error: slotError(s, values) })).join("");
+    .map(s => fieldHtml(s, "pax", { values, touched: p.touched, submitted: ctx.submitted, error: slotError(s, values), action: copyAll(s) })).join("");
   const rep = ctx.serials;
   const reveal = ctx.submitted || p.touched.has("serial");
   const serialNote = rep.duplicates.has(ctx.sel) && reveal ? ["is-err", "Another passenger in this batch has this serial — each pass needs its own."]

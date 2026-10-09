@@ -9,7 +9,7 @@ import { barHtml, footHtml, fieldHtml } from "./shell.js";
 
 const GROUPS = [
   ["Flight", ["airlineCode", "flightNumber", "flightCode"]],
-  ["Route", ["departureAirportCode", "destinationAirportCode", "departureCityName", "destinationCityName", "departureGate", "departureTerminal", "departureAirportTimeZone", "destinationAirportTimeZone"]],
+  ["Route", ["departureAirportCode", "destinationAirportCode", "departureGate", "departureTerminal"]],
   ["Schedule", ["currentBoardingDate", "currentDepartureDate", "currentArrivalDate"]]
 ];
 
@@ -80,9 +80,23 @@ export function flightHtml(ctx) {
     if (!inGroup.length && !extra) return "";
     return `<section class="iw-group"><h2>${title}</h2><div class="iw-fields">${inGroup.map(field).join("")}${extra}</div></section>`;
   }).join("");
-  const rest = shared.filter(s => !used.has(s.id));
+  // Everything else — time zones, city names, the template's other values —
+  // sits behind one disclosure: usually right from the template's defaults.
+  // It opens itself when something inside needs attention.
+  const MORE_FIRST = ["departureAirportTimeZone", "destinationAirportTimeZone", "departureCityName", "destinationCityName"];
+  const rest = shared.filter(s => !used.has(s.id))
+    .sort((a, b) => (MORE_FIRST.indexOf(a.sem) + 1 || 99) - (MORE_FIRST.indexOf(b.sem) + 1 || 99));
+  const errIn = rest.filter(s => ctx.sharedErrors.some(e => e.slot.id === s.id));
+  const shownErr = errIn.some(s => ctx.submitted || ctx.sharedTouched.has(s.id));
+  const tz = (sem) => { const s = rest.find(x => x.sem === sem); return s ? (effectiveValue(s, ctx.shared) || "—") : null; };
+  const tzLine = tz("departureAirportTimeZone") && tz("destinationAirportTimeZone") ? `${tz("departureAirportTimeZone")} → ${tz("destinationAirportTimeZone")}` : "";
   const restHtml = rest.length
-    ? `<section class="iw-group"><h2>Also on this pass</h2><div class="iw-fields">${rest.map(field).join("")}</div></section>`
+    ? `<details class="iw-group iw-more" data-more ${ctx.moreOpen || shownErr ? "open" : ""}>
+        <summary><span class="iw-more-h">More flight details</span>
+          <span class="iw-more-sum">${esc([tzLine, `${rest.length} field${rest.length === 1 ? "" : "s"}`].filter(Boolean).join(" · "))}${errIn.length ? ` · <b class="warn-text">needs ${esc(errIn.map(s => s.label).join(", "))}</b>` : ""}</span></summary>
+        <p class="iw-group-sub">Time zones, city names and the rest of the template’s values — usually right as they are.</p>
+        <div class="iw-fields">${rest.map(field).join("")}</div>
+      </details>`
     : "";
 
   const ind = ctx.slots.filter(s => ctx.individual.has(s.id));
@@ -104,7 +118,7 @@ export function flightHtml(ctx) {
             ${restHtml}
             <section class="iw-group">
               <h2>Per passenger</h2>
-              <p class="iw-group-sub">Entered on each passenger, not here.</p>
+              <p class="iw-group-sub">Everything above is entered once and shared by every pass. These are entered for each passenger instead (or come from their scanned boarding pass). <b>Share</b> moves one back up here; <b>Vary per passenger</b> moves a shared one down.</p>
               <div class="iw-chips">${chips}
                 ${varyOpts ? `<select class="iw-vary" data-act-change="vary" aria-label="Vary another field per passenger"><option value="">+ Vary per passenger…</option>${varyOpts}</select>` : ""}
               </div>

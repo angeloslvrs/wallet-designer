@@ -5,6 +5,7 @@ import { suggestDisplayValues } from "@wpd/pass-builder/suggest.js";
 import { BRANDING_IMAGE_SLOTS } from "@wpd/pass-builder/form-assets.js";
 import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
 import { showBcbpPreview } from "./bcbp-preview.js";
+import { renderTypedInput } from "./inputs.js";
 
 const rgbToHex = (s) => {
   const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
@@ -29,6 +30,27 @@ const DESIGNER_SUGGEST_MAP = {
   boardingGroup: "group", boardingSequenceNumber: "seq",
   membershipProgramNumber: "ff", departureTerminal: "terminal-dep", destinationTerminal: "terminal-arr"
 };
+
+/** A display field the pass formats as a date/time (its value must stay ISO-8601). */
+const isDateField = (f) => f?.dateStyle !== undefined || f?.timeStyle !== undefined;
+
+/**
+ * Fill display fields from semantics through the Designer's suggest map. A
+ * date-styled field keeps its style and gets the raw ISO value (the pass
+ * formats it on device); others get the formatted text.
+ */
+export function applySuggestions(displayFields, semantics) {
+  const filled = suggestDisplayValues(semantics, DESIGNER_SUGGEST_MAP);
+  const semOf = Object.fromEntries(Object.entries(DESIGNER_SUGGEST_MAP).map(([sem, fk]) => [fk, sem]));
+  const df = structuredClone(displayFields ?? {});
+  for (const section of SECTIONS) for (const f of df[section] ?? []) {
+    if (!(f.key in filled)) continue;
+    const raw = semantics?.[semOf[f.key]];
+    if (isDateField(f) && typeof raw === "string") f.value = raw;
+    else { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; }
+  }
+  return df;
+}
 
 const BARCODE_FORMATS = [
   ["PKBarcodeFormatQR", "QR"],
@@ -200,12 +222,7 @@ function barcodeCard(root) {
       if (!(await showBcbpPreview(parsed))) { scanNote.textContent = "Barcode message set; autofill cancelled."; renderForm(root, { section: "barcode" }); return; }
       const sem = { ...(state.semantics ?? {}), ...bcbpToSemantics(parsed) };
       setPath("semantics", sem);
-      const filled = suggestDisplayValues(sem, DESIGNER_SUGGEST_MAP);
-      const df = structuredClone(state.displayFields ?? {});
-      for (const section of SECTIONS) for (const fld of df[section] ?? []) {
-        if (fld.key in filled) { fld.value = filled[fld.key]; delete fld.dateStyle; delete fld.timeStyle; }
-      }
-      setPath("displayFields", df);
+      setPath("displayFields", applySuggestions(state.displayFields, sem));
       renderForm(root, { section: "barcode" });
     } finally { scanBtn.disabled = false; scanBtn.textContent = orig; }
   });
@@ -226,12 +243,7 @@ function fieldsCard() {
     (() => {
       const b = h("button", { type: "button", class: "wpd-link", text: "Suggest from semantics" });
       b.addEventListener("click", () => {
-        const filled = suggestDisplayValues(state.semantics ?? {}, DESIGNER_SUGGEST_MAP);
-        const df = structuredClone(state.displayFields ?? {});
-        for (const section of SECTIONS) for (const f of df[section] ?? []) {
-          if (f.key in filled) { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; }
-        }
-        setPath("displayFields", df);
+        setPath("displayFields", applySuggestions(state.displayFields, state.semantics ?? {}));
         rerender();
       });
       return b;
@@ -265,11 +277,21 @@ function fieldsCard() {
     const where = `${SECTION_LABEL[section]} field ${i + 1}`;
     const key = h("input", { class: "wpd-input wpd-df-key", value: f.key ?? "", placeholder: "key", "aria-label": `${where} key` });
     const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL", "aria-label": `${where} label` });
-    const value = h("input", { class: "wpd-input wpd-df-value", value: f.value ?? "", placeholder: "value", "aria-label": `${where} value` });
-    value.dataset.fieldkey = f.key ?? "";
-    key.addEventListener("input", () => { update("key", key.value); value.dataset.fieldkey = key.value; });
+    // A date-styled field gets the typed date/time/offset picker (its value must
+    // stay ISO-8601 — iOS rejects the pass otherwise); others a plain input.
+    let value, focusTarget;
+    if (isDateField(f)) {
+      value = renderTypedInput({ type: "date", value: f.value ?? "", label: where, onChange: (v) => update("value", v) });
+      value.classList.add("wpd-df-value", "wpd-df-date");
+      focusTarget = value.querySelector("input");
+    } else {
+      value = h("input", { class: "wpd-input wpd-df-value", value: f.value ?? "", placeholder: "value", "aria-label": `${where} value` });
+      value.addEventListener("input", () => update("value", value.value));
+      focusTarget = value;
+    }
+    focusTarget.dataset.fieldkey = f.key ?? "";
+    key.addEventListener("input", () => { update("key", key.value); focusTarget.dataset.fieldkey = key.value; });
     label.addEventListener("input", () => update("label", label.value));
-    value.addEventListener("input", () => update("value", value.value));
     const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", "aria-label": `Remove ${where}`, text: "×" });
     rm.addEventListener("click", () => {
       const next = structuredClone(state.displayFields ?? {});
@@ -277,7 +299,10 @@ function fieldsCard() {
       setPath("displayFields", next);
       rerender();
     });
-    const row = h("div", { class: "wpd-df-row" }, key, label, value, rm);
+    // A date row wraps: key · label · remove on top, the picker full-width below.
+    const row = isDateField(f)
+      ? h("div", { class: "wpd-df-row is-date" }, key, label, rm, value)
+      : h("div", { class: "wpd-df-row" }, key, label, value, rm);
     row.dataset.k = f.key ?? "";
     return row;
   }

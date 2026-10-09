@@ -177,6 +177,32 @@ describe("Passengers step", () => {
   });
 });
 
+describe("Flight extras + copy to all", () => {
+  it("keeps time zones and the template's other values behind one disclosure that opens on a problem", async () => {
+    mountIssue(root, { template: "dev-sample" });
+    await settle();
+    const more = root.querySelector("details[data-more]");
+    expect(more.open).toBe(false);
+    expect(more.querySelector('[data-slot-input="sem:departureAirportTimeZone"]')).toBeTruthy();
+    expect(more.querySelector("summary").textContent).toMatch(/America\/Los_Angeles → America\/New_York/);
+    expect(root.querySelector('.iw-group:not(.iw-more) [data-slot-input="sem:departureGate"]')).toBeTruthy();
+  });
+
+  it("copies one passenger's value to every passenger", async () => {
+    mountIssue(root, { template: "dev-sample" });
+    await settle();
+    fillFlight();
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = `${bcbp("SOLIVERES/ANGELO", "014A", "0042")}\n${bcbp("SOLIVERES/MARIA", "014B", "0043")}`;
+    click('[data-act="paste-add"]');
+    expect(root.querySelector('[data-act="copy-to-all"][data-slot="sem:passengerName"]')).toBeNull();   // who-sits-where never copies
+    type(root.querySelector('[data-slot-input="sem:boardingGroup"] input'), "2");
+    click('[data-act="copy-to-all"][data-slot="sem:boardingGroup"]');
+    click('[data-act="pax"][data-i="1"]');
+    expect(root.querySelector('[data-slot-input="sem:boardingGroup"] input').value).toBe("2");
+  });
+});
+
 describe("Studio design", () => {
   it("issues a FormState body carrying designName and the trip id", async () => {
     mountIssue(root, { template: "rocket", kind: "studio" });

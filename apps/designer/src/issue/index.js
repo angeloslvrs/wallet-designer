@@ -61,6 +61,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   let submitted = false;     // an Issue attempt reveals every error
   let pasteReport = [];      // last multi-line paste: per-line errors
   let rosterEdit = false;
+  let moreOpen = false;      // Flight: "More flight details" disclosure
   let existing = new Set();  // serials already issued
   let roster = [];
   let results = [];          // issued screen
@@ -104,7 +105,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   function context() {
     return {
       tpl, kind, step, slots, individual, shared, sharedTouched, submitted, tripId: effectiveTripId(), tripIdEdited, tripError: tripError(),
-      expiry, pax, sel, mode, previewTab, pasteReport, roster, rosterEdit, existing, results, serials: serials(),
+      expiry, moreOpen, pax, sel, mode, previewTab, pasteReport, roster, rosterEdit, existing, results, serials: serials(),
       facts: flightFacts(slots, shared, expiry), valuesFor, paxProblems, sharedErrors: sharedErrors()
     };
   }
@@ -464,6 +465,14 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     if (act === "roster-del") return deleteRoster(t.dataset.id);
     if (act === "roster-save") return saveToRoster();
     if (act === "pax") { sel = Number(t.dataset.i); render(); return; }
+    if (act === "copy-to-all") {
+      const sid = t.dataset.slot, slot = slotById(sid), v = pax[sel]?.values[sid];
+      if (!slot || isBlank(slot, v)) { toast(`Fill in ${slot?.label.toLowerCase() ?? "this field"} first, then copy it`); return; }
+      pax = pax.map(p => ({ ...p, values: { ...p.values, [sid]: structuredClone(v) } }));
+      render();
+      toast(`${slot.label} copied to all ${pax.length} passengers`);
+      return;
+    }
     if (act === "pax-rm") { e.stopPropagation(); return removePax(Number(t.dataset.i)); }
     if (act === "prev" || act === "next") { if (!pax.length) return; sel = (sel + (act === "next" ? 1 : -1) + pax.length) % pax.length; render(); return; }
     if (act === "tab") { previewTab = t.dataset.tab; for (const b of root.querySelectorAll('[data-act="tab"]')) b.setAttribute("aria-selected", String(b === t)); renderPreview(); return; }
@@ -490,6 +499,9 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     }
     if (act === "open-flight") { const g = results.find(r => r.ok)?.groupId ?? effectiveTripId(); return openFlight?.(g); }
   }, { signal });
+
+  // <details> toggle doesn't bubble: capture it to remember the disclosure.
+  root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-more]")) moreOpen = e.target.open; }, { capture: true, signal });
 
   root.addEventListener("change", (e) => {
     if (e.target.matches("[data-act-change='vary']")) {

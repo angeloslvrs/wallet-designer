@@ -62,14 +62,14 @@ export function hintFor(slot, values) {
  * default / derived value), and an error line that only fills after blur or
  * an Issue attempt.
  */
-export function fieldHtml(slot, scope, { values, touched, submitted, error, wide = false }) {
+export function fieldHtml(slot, scope, { values, touched, submitted, error, wide = false, action = "" }) {
   const id = cssId(slot.id);
   const show = error && (submitted || touched?.has(slot.id));
   const hint = hintFor(slot, values);
   const req = slot.required ? `<span class="iw-req" aria-hidden="true">*</span>` : "";
   return `
     <div class="iw-field ${show ? "has-err" : ""} ${wide || slot.widget === "date" || slot.widget === "personName" ? "is-wide" : ""}" data-field="${esc(slot.id)}">
-      <span class="iw-label" id="lbl-${scope}-${id}">${esc(slot.label)}${req}</span>
+      <span class="iw-label-row"><span class="iw-label" id="lbl-${scope}-${id}">${esc(slot.label)}${req}</span>${action}</span>
       <div class="iw-control" data-slot-input="${esc(slot.id)}" data-scope="${scope}"></div>
       <span class="iw-hint" data-hint>${esc(hint)}</span>
       <span class="iw-err" id="err-${scope}-${id}">${show ? esc(error) : ""}</span>

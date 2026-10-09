@@ -151,7 +151,8 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       dateInp.setAttribute("aria-label", lbl("date"));
       const timeInp = el("input", { type: "time", step: "60", value: localTime });
       timeInp.setAttribute("aria-label", lbl("time"));
-      const off = el("input", { type: "text", value: offset, placeholder: localUtcOffset(), title: "UTC offset" });
+      const zoneNow = typeof zone === "function" ? zone() : zone;
+      const off = el("input", { type: "text", value: offset, placeholder: zoneOffset(new Date().toISOString().slice(0, 16), zoneNow) ?? localUtcOffset(), title: "UTC offset" });
       off.setAttribute("aria-label", lbl("UTC offset"));
       off.pattern = "Z|[+-][0-9]{2}:[0-9]{2}";
       off.maxLength = 6;
