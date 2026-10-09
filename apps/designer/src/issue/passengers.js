@@ -24,7 +24,10 @@ export function paxListHtml(ctx) {
   return ctx.pax.map((p, i) => {
     const problems = ctx.paxProblems(i, ctx.serials);
     const shown = ctx.submitted || p.touched.size > 0;
-    const st = problems.length && shown ? ["fix", "is-err"]
+    // A missing serial with no trip id is the flight's problem, not this passenger's.
+    const flightOnly = problems.length && problems.every(m => m === "serial missing") && ctx.tripError;
+    const st = flightOnly ? ["needs flight", "is-todo"]
+      : problems.length && shown ? ["fix", "is-err"]
       : problems.length ? ["to do", "is-todo"]
         : p.warn.length ? ["check", "is-warn"]
           : ctx.serials.updates.has(i) ? ["update", "is-warn"] : ["ready", "is-ok"];
@@ -73,10 +76,10 @@ function modePane(ctx) {
         : `<p class="iw-group-sub">No saved passengers yet. Save one from their fields on the right and they’ll appear here for every flight.</p>`}
       </div>`;
   }
-  const errs = ctx.pasteReport.map(r => `<li>Line ${r.line}: ${esc(r.error)}</li>`).join("");
+  const errs = ctx.pasteReport.map(r => `<li>Line ${r.line} isn’t a boarding-pass barcode — the text should start with M1 (as read from the PDF417/Aztec code). Nothing was added for it.</li>`).join("");
   return `<div class="iw-mode">
       <label class="iw-label" for="iw-paste">Boarding-pass barcodes, one per line</label>
-      <textarea id="iw-paste" class="iw-paste mono" rows="4" spellcheck="false" placeholder="M1SOLIVERES/ANGELO  E5J5056 MNLNRT5J 5056 288Y014A0042 100"></textarea>
+      <textarea id="iw-paste" class="iw-paste mono" rows="4" spellcheck="false" placeholder="e.g. M1SOLIVERES/ANGELO  E5J5056 MNLNRT5J 5056 …"></textarea>
       ${errs ? `<ul class="iw-paste-errs" role="alert">${errs}</ul>` : ""}
       <div class="iw-mode-acts">
         <button type="button" class="btn" data-act="paste-add">Add from paste</button>

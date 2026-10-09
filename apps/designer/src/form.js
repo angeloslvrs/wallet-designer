@@ -262,14 +262,15 @@ function fieldsCard() {
       next[section][i][prop] = v;
       setPath("displayFields", next);
     };
-    const key = h("input", { class: "wpd-input wpd-df-key", value: f.key ?? "", placeholder: "key" });
-    const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL" });
-    const value = h("input", { class: "wpd-input wpd-df-value", value: f.value ?? "", placeholder: "value" });
+    const where = `${SECTION_LABEL[section]} field ${i + 1}`;
+    const key = h("input", { class: "wpd-input wpd-df-key", value: f.key ?? "", placeholder: "key", "aria-label": `${where} key` });
+    const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL", "aria-label": `${where} label` });
+    const value = h("input", { class: "wpd-input wpd-df-value", value: f.value ?? "", placeholder: "value", "aria-label": `${where} value` });
     value.dataset.fieldkey = f.key ?? "";
     key.addEventListener("input", () => { update("key", key.value); value.dataset.fieldkey = key.value; });
     label.addEventListener("input", () => update("label", label.value));
     value.addEventListener("input", () => update("value", value.value));
-    const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", text: "×" });
+    const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", "aria-label": `Remove ${where}`, text: "×" });
     rm.addEventListener("click", () => {
       const next = structuredClone(state.displayFields ?? {});
       next[section].splice(i, 1);
@@ -282,7 +283,8 @@ function fieldsCard() {
   }
 
   rerender();
-  return card("Fields on the pass", top, body);
+  const head = h("div", { class: "dw-df-head", "aria-hidden": "true" }, h("span", { text: "Key" }), h("span", { text: "Label" }), h("span", { text: "Value" }));
+  return card("Fields on the pass", top, head, body);
 }
 
 function metaCard() {

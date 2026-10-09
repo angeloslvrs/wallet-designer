@@ -270,7 +270,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       const errs = sharedErrors();
       const missing = errs.filter(e => e.msg === "Required").map(e => e.slot.label);
       status.textContent = errs.length
-        ? `${missing.length ? `Still needed: ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? ` +${missing.length - 4}` : ""}` : `${errs.length} field${errs.length === 1 ? "" : "s"} to fix`} · a scanned boarding pass can fill the route`
+        ? `${missing.length ? `Still needed: ${missing.slice(0, 4).join(", ")}${missing.length > 4 ? ` +${missing.length - 4}` : ""}` : `${errs.length} field${errs.length === 1 ? "" : "s"} to fix`} · or scan boarding passes on the next step to fill the route`
         : "Flight is complete";
       status.classList.toggle("is-ok", !errs.length);
       return;
@@ -282,9 +282,14 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       const parts = [];
       if (!pax.length) parts.push("No passengers yet");
       else parts.push(`${ready} of ${pax.length} ready`);
-      if (fl) parts.push(`flight: ${fl} to fix`);
       if (rep.updates.size) parts.push(`${rep.updates.size} will update an existing pass`);
       status.textContent = parts.join(" · ");
+      // The flight blocks every passenger: say what, and make it one click away.
+      const fix = $("[data-ready-fix]");
+      if (fix) {
+        const names = [...sharedErrors().map(e => e.slot.label), ...(tripError() ? ["trip id"] : [])];
+        fix.innerHTML = names.length ? ` · <button type="button" class="btn-link iw-fix" data-act="fix-flight">Fix flight: ${esc(names.slice(0, 3).join(", "))}${names.length > 3 ? ` +${names.length - 3}` : ""} →</button>` : "";
+      }
       status.classList.toggle("is-ok", Boolean(pax.length) && ready === pax.length && !fl);
       if (!issuing) btn.textContent = pax.length ? issueLabel(pax.length, rep.updates.size) : "Issue passes";
       return;
@@ -443,6 +448,12 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     if (act === "step") { if (t.dataset.step === "template") return back(); if (t.dataset.step === "issued" && !results.length) return; return goto(t.dataset.step); }
     if (act === "to-passengers") return goto("passengers");
     if (act === "edit-flight") return goto("flight");
+    if (act === "fix-flight") {
+      for (const e of sharedErrors()) sharedTouched.add(e.slot.id);
+      goto("flight");
+      root.querySelector(".iw-field.has-err input, .iw-field.has-err select, #iw-trip")?.focus();
+      return;
+    }
     if (act === "issue") return issueAll();
     if (act === "mode") { mode = t.dataset.mode; render(); return; }
     if (act === "paste-add") return addFromPaste($("#iw-paste")?.value ?? "");

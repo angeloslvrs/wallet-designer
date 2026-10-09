@@ -48,7 +48,7 @@
         <main hidden>
           <header class="iw-bar">
             <button type="button" class="btn btn-sm" data-design-act="back">‹ Templates</button>
-            <div class="iw-title"><b id="design-title">New design</b><small id="design-sub">Studio design</small></div>
+            <div class="iw-title"><label class="dw-name"><span class="sr-only">Template name</span><input id="design-name" class="dw-title-input" placeholder="Name this template" autocomplete="off" spellcheck="false" /></label><small id="design-sub">Studio design</small></div>
             <nav aria-label="Design sections"><div id="design-tabs" class="iw-tabs dw-tabs" role="tablist"></div></nav>
           </header>
           <div class="dw-ws">
@@ -67,8 +67,7 @@
           <footer class="iw-foot">
             <span class="iw-ready" id="build-status" role="status" aria-live="polite"></span>
             <div class="iw-foot-acts">
-              <button type="button" class="btn" data-design-act="reset">Start over</button>
-              <label class="dw-name"><span class="sr-only">Template name</span><input id="design-name" class="iw-input mono" placeholder="template-name" autocomplete="off" spellcheck="false" /></label>
+              <button type="button" class="btn-link" data-design-act="reset">Start over</button>
               <button type="button" class="btn" data-design-act="issue">Issue passes →</button>
               <button type="button" class="btn btn-primary" data-design-act="save">Save template</button>
             </div>

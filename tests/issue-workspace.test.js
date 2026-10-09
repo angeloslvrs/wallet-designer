@@ -65,7 +65,7 @@ describe("Flight step", () => {
     expect([...root.querySelectorAll(".iw-err")].some(e => e.textContent)).toBe(false);
     expect(root.querySelector("[data-ready]").textContent).toMatch(/Still needed: Boarding, Departure, Arrival/);
     // template defaults are offered, not demanded
-    expect(root.querySelector('[data-field="sem:airlineCode"] .iw-hint').textContent).toMatch(/template’s RP/);
+    expect(root.querySelector('[data-slot-input="sem:airlineCode"] input').placeholder).toBe("RP");
   });
 
   it("reveals a field's error on blur and composes the trip id from the flight", async () => {
@@ -92,6 +92,19 @@ describe("Passengers step", () => {
     expect(root.querySelector(".iw-paste-errs").textContent).toMatch(/Line 2/);
     expect(root.querySelector("#iw-serial").value).toBe("RP248@2026-11-02-002");   // -001 is already issued
     expect(root.querySelector("[data-primary]").textContent).toBe("Issue 2 passes");
+  });
+
+  it("a flight-only blocker reads 'needs flight' and the footer offers the fix", async () => {
+    mountIssue(root, { template: "dev-sample" });
+    await settle();
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
+    click('[data-act="paste-add"]');
+    expect(root.querySelector(".iw-st").textContent).toBe("needs flight");
+    expect(root.querySelector("[data-ready-fix]").textContent).toMatch(/Fix flight: Boarding, Departure, Arrival/);
+    click('[data-act="fix-flight"]');
+    expect(root.querySelector("h1").textContent).toBe("Flight");
+    expect(root.querySelector('[data-field="sem:currentBoardingDate"] .iw-err').textContent).toBe("Required");
   });
 
   it("says when a serial will update an existing pass, and blocks in-batch duplicates", async () => {

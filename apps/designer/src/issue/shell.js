@@ -30,7 +30,7 @@ export function barHtml(ctx, title) {
 export function footHtml({ quiet = "", primary }) {
   return `
     <footer class="iw-foot">
-      <span class="iw-ready" data-ready role="status" aria-live="polite"></span>
+      <span class="iw-foot-status"><span class="iw-ready" data-ready role="status" aria-live="polite"></span><span data-ready-fix></span></span>
       <div class="iw-foot-acts">${quiet}${primary}</div>
     </footer>`;
 }
@@ -52,7 +52,8 @@ export function hintFor(slot, values) {
   if (!isBlank(slot, values[slot.id])) return "";
   const d = deriveFor(slot, values);
   if (d !== undefined) return `Blank uses ${showValue(slot, d)}`;
-  if (slot.fallback !== undefined) return `Blank keeps the template’s ${showValue(slot, slot.fallback)}`;
+  // Text-like controls already show the template default as their placeholder.
+  if (slot.fallback !== undefined && !["text", "timezone", "number"].includes(slot.widget)) return `Blank keeps the template’s ${showValue(slot, slot.fallback)}`;
   return "";
 }
 

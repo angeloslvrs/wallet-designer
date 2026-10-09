@@ -99,7 +99,7 @@ export function flightHtml(ctx) {
       <div class="iw-main">
         <div class="iw-flight">
           <section class="iw-form stagger">
-            <div class="iw-head"><h1>Flight</h1><p class="view-sub">Shared by every pass on this trip. Anything here can vary per passenger instead.</p></div>
+            <div class="iw-head"><h1>Flight</h1><p class="view-sub">Shared by every pass on this trip. Grey values are this template’s defaults — type to replace them. Anything here can vary per passenger instead.</p></div>
             ${groups}
             ${restHtml}
             <section class="iw-group">

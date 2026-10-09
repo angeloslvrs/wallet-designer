@@ -282,7 +282,9 @@ body:has(#app-shell.is-workspace) #toast { bottom: 88px; }   /* clear the worksp
 .iw-step.is-done .iw-step-n { background: var(--ok-soft); color: var(--green); }
 .iw-main { flex: 1; min-width: 0; }
 .iw-foot { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; background: var(--glass); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); border-top: 1px solid var(--line); }
+.iw-foot-status { min-width: 0; font: 12px var(--mono); color: var(--muted); }
 .iw-ready { font: 12px var(--mono); color: var(--muted); min-width: 0; }
+.iw-fix { font: 600 12px var(--sans); color: var(--amber); }
 .iw-ready.is-ok { color: var(--green); }
 .iw-foot-acts { display: flex; gap: 10px; flex: none; }
 .iw-head { margin-bottom: 18px; }
@@ -343,6 +345,9 @@ body:has(#app-shell.is-workspace) #toast { bottom: 88px; }   /* clear the worksp
 .iw-right { border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
 .iw-right .iw-side-h { margin: 6px 0 0; }
 .iw-canvas { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px 20px 32px; background: radial-gradient(120% 70% at 50% 0%, var(--fill), transparent 70%); }
+/* Keep the pass in view while the side panes scroll past it. */
+.iw-pax > .iw-canvas, .dw-ws > .iw-canvas { position: sticky; top: 66px; align-self: start; }
+@media (max-width: 900px) { .iw-pax > .iw-canvas, .dw-ws > .iw-canvas { position: static; } }
 .iw-tabs { display: flex; gap: 2px; background: var(--fill); padding: 3px; border-radius: var(--r-ctl); margin-bottom: 14px; }
 .iw-tabs--center { margin: 0; }
 .iw-tab { flex: 1 1 auto; border: none; background: none; cursor: pointer; padding: 7px 12px; border-radius: 7px; font: 500 12px var(--sans); color: var(--muted); white-space: nowrap; transition: color .2s, background .2s; }
@@ -511,7 +516,11 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .dw-h { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
 .dw-sub { color: var(--muted); font-size: 12px; margin: -6px 0 14px; max-width: 60ch; }
 .dw-name { margin: 0; }
-.dw-name input { width: 200px; }
+.dw-title-input { width: 240px; max-width: 100%; padding: 2px 6px; margin-left: -6px; border: 1px solid transparent; border-radius: 7px; background: transparent; font: 600 15px var(--mono); color: var(--ink); }
+.dw-title-input:hover { border-color: var(--line); background: var(--field); }
+.dw-title-input::placeholder { color: var(--faint); font-weight: 500; }
+.dw-df-head { display: flex; gap: 6px; padding: 0 24px 0 0; font-size: 11px; color: var(--faint); }
+.dw-df-head span:nth-child(1) { flex: 0 0 80px; } .dw-df-head span:nth-child(2) { flex: 1; } .dw-df-head span:nth-child(3) { flex: 1.4; }
 .dw-frows { display: flex; flex-direction: column; }
 .dw-frow { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
 .dw-frow span { font-size: 12px; color: var(--ink); min-width: 0; }
@@ -594,7 +603,6 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 @media (max-width: 900px) {
   .dw-ws { grid-template-columns: 1fr; }
   .dw-left { border-right: 0; border-bottom: 1px solid var(--line); }
-  .dw-name input { width: 100%; }
   .iw-foot-acts { flex-wrap: wrap; }
 }
 
