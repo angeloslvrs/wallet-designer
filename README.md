@@ -29,21 +29,26 @@ npm run init          # generates dev cert + placeholder assets (incl. dev-sampl
 npm run dev           # http://localhost:4318 (designer) + http://localhost:4317 (API)
 ```
 
-Open the designer, edit the form, hit **Build .pkpass** — you'll get a
-download. Dev-profile passes are structurally valid but won't install on iOS
-until you swap to a real Apple cert (`docs/cert-day.md`).
+Open the app (Flights is the landing view), pick a template on **Templates**,
+and **Issue** passes: you get a QR and an Add to Apple Wallet link per pass.
+Dev-profile passes are structurally valid but won't install on iOS until you
+swap to a real Apple cert (`docs/cert-day.md`).
 
-The SPA has three views:
+The SPA (`apps/designer`, "Studio dark" — spec in
+`docs/superpowers/specs/2026-10-09-ui-overhaul-studio-dark.md`):
 
-- **Designer** — the form + faithful Wallet-style preview (FormState path).
-- **Issue** — issue template-backed passes without curl: pick an installed
-  template, name the trip, fill one row per passenger (inputs generated from
-  the template's field keys, serials suggested as `<groupId>-<NNN>`), get
-  Add-to-Wallet links/QRs per pass. Also the template manager: upload a zipped
-  `.pkpasstemplate` from the browser, inspect field keys, delete unreferenced
-  bundles.
-- **Manage** — the ops console: issued passes grouped by trip, gate/status
-  editor with group push, device-log viewer.
+- **Flights** — departures board, one row per trip, with a control panel that
+  pushes gate/status/schedule changes to every device on the flight or one pass.
+- **Templates** — one shelf for Pass Designer bundles (upload a zipped
+  `.pkpasstemplate`, review its semantic bindings) and Studio designs (saved
+  from Design into `designs/`).
+- **Issue** (workspace, from a template card) — Flight → Passengers → Issued:
+  shared trip values once, then one passenger per pasted boarding-pass barcode
+  (or typed / from the saved roster), Apple-faithful preview, QR + Wallet link
+  per pass.
+- **Design** (workspace, from Templates) — build a Studio template: look,
+  fields, flight data (Apple semantics), barcode; Save template, then Issue.
+- **Device log** — what iPhones report back through the PassKit web service.
 
 ## Headless / batch
 
