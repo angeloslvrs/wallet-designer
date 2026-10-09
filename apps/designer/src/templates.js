@@ -76,6 +76,37 @@ const fmtSample = (v) => {
   return s.length > 40 ? `${s.slice(0, 39)}…` : s;
 };
 
+// Shelf grouping (Airline › Route › Flight): templates of one airline code sit
+// together. An organization name of "Airline" (Pass Designer's placeholder)
+// names nothing, so the code stands in.
+const GENERIC_ORG = new Set(["airline", ""]);
+/**
+ * Templates grouped by airline: key = semantics.airlineCode, else the
+ * organization name. Name = the first non-generic organization name (Studio
+ * designs first), else the code. Sorted by name.
+ * @returns {{key: string, code: string, name: string, templates: {kind: string, t: object}[]}[]}
+ */
+export function airlineGroups(designer, studio) {
+  const groups = new Map();
+  const all = [...studio.map(t => ({ kind: "studio", t })), ...designer.map(t => ({ kind: "designer", t }))];
+  for (const e of all) {
+    const code = String(e.t.semantics?.airlineCode ?? "").trim();
+    const key = code ? `code:${code}` : `org:${e.t.organizationName || e.t.id}`;
+    if (!groups.has(key)) groups.set(key, { key, code, name: "", templates: [] });
+    const g = groups.get(key);
+    g.templates.push(e);
+    if (!g.name && !GENERIC_ORG.has(String(e.t.organizationName ?? "").trim().toLowerCase())) g.name = e.t.organizationName;
+  }
+  for (const g of groups.values()) {
+    g.name ||= g.code || g.templates[0].t.id;
+    // Keep each kind's own order (designer before studio inside a group reads oddly, so studio first).
+    g.templates.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "studio" ? -1 : 1));
+  }
+  return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+const routeFlight = (r) => r.values?.flightCode || (r.values?.airlineCode && r.values?.flightNumber !== undefined ? `${r.values.airlineCode}${r.values.flightNumber}` : r.id);
+
 /** Render a scaled, barcode-free Wallet front for a shelf/preview thumbnail. */
 function mountThumb(host, passJson, logo) {
   if (!host || !passJson) return;
@@ -87,7 +118,7 @@ function mountThumb(host, passJson, logo) {
   renderFront(host, view, logo ?? null);
 }
 
-export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindingsFor } = {}) {
+export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesign, bindingsFor } = {}) {
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
 
@@ -95,6 +126,8 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   let studio = [];        // GET /api/studio-templates
   let issued = {};        // template id → issued pass count
   let issuedDesign = {};  // studio design name → issued pass count (pass.designName)
+  let routes = [];        // GET /api/routes
+  let issuedRoute = {};   // route id → issued pass count (pass.routeId)
   let mode = bindingsFor ? { view: "bindings", kind: "designer", id: bindingsFor } : { view: "shelf" };
   let draft = null;       // bindings screen: { semanticKey: fieldKey }; null = seed from server
   let flash = "";         // one-shot status line on the shelf
@@ -108,15 +141,18 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     if (signal.aborted) return;
     if (!designer.length && !studio.length) root.innerHTML = `<div class="view"><p class="empty">Loading templates…</p></div>`;
     const get = (u) => fetch(u, { signal }).then(r => r.json());
-    let d, s, p;
-    try { [d, s, p] = await Promise.all([get("/api/templates"), get("/api/studio-templates").catch(() => []), get("/api/passes").catch(() => [])]); }
+    let d, s, p, rt;
+    try { [d, s, p, rt] = await Promise.all([get("/api/templates"), get("/api/studio-templates").catch(() => []), get("/api/passes").catch(() => []), get("/api/routes").catch(() => [])]); }
     catch { if (signal.aborted) return; root.innerHTML = `<div class="view"><p class="empty">API offline.</p></div>`; return; }
     if (signal.aborted) return;
     designer = Array.isArray(d) ? d : [];
     studio = Array.isArray(s) ? s : [];
+    routes = Array.isArray(rt) ? rt : [];
     issued = {};
     issuedDesign = {};
+    issuedRoute = {};
     for (const pass of Array.isArray(p) ? p : []) {
+      if (pass.routeId) issuedRoute[pass.routeId] = (issuedRoute[pass.routeId] ?? 0) + 1;
       if (pass.template) issued[pass.template] = (issued[pass.template] ?? 0) + 1;
       else if (pass.designName) issuedDesign[pass.designName] = (issuedDesign[pass.designName] ?? 0) + 1;
     }
@@ -124,7 +160,32 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   }
 
   // ---- shelf ----------------------------------------------------------------
-  function designerCard(t) {
+  // A template's routes (PR 2987 MNL → TAC 16:35), with Issue / Edit / Move to /
+  // Delete. Move lists the airline's other templates (variants).
+  function routesHtml(kind, t, siblings) {
+    const mine = routes.filter(r => r.template?.kind === kind && r.template?.id === t.id);
+    const others = siblings.filter(s => !(s.kind === kind && s.t.id === t.id) && !s.t.error);
+    const rows = mine.map(r => {
+      const v = r.values ?? {};
+      const leg = v.departureAirportCode || v.destinationAirportCode ? `${v.departureAirportCode ?? "—"} → ${v.destinationAirportCode ?? "—"}` : "";
+      const n = issuedRoute[r.id] ?? 0;
+      const move = others.length
+        ? `<select class="tpl-route-move" data-route-move="${esc(r.id)}" aria-label="Move route ${esc(r.id)} to another template"><option value="">Move to…</option>${others.map(o => `<option value="${esc(`${o.kind}:${o.t.id}`)}">${esc(o.t.id)}</option>`).join("")}</select>`
+        : "";
+      return `<li class="tpl-route" data-route="${esc(r.id)}">
+        <div class="tpl-route-main"><b>${esc(routeFlight(r))}</b><span>${esc([leg, r.schedule?.departure ?? ""].filter(Boolean).join(" · "))}${n ? ` · ${n} issued` : ""}</span></div>
+        <div class="tpl-route-acts">
+          <button type="button" class="btn-link" data-act="route-edit" data-id="${esc(t.id)}" data-kind="${kind}" data-route-id="${esc(r.id)}">Edit</button>
+          ${move}
+          <button type="button" class="btn-link danger" data-act="route-del" data-route-id="${esc(r.id)}">Delete</button>
+          <button type="button" class="btn btn-sm" data-act="route-issue" data-id="${esc(t.id)}" data-kind="${kind}" data-route-id="${esc(r.id)}">Issue →</button>
+        </div>
+      </li>`;
+    }).join("");
+    return `<ul class="tpl-routes" aria-label="Routes">${rows}<li><button type="button" class="btn-link" data-act="route-new" data-id="${esc(t.id)}" data-kind="${kind}">+ Route</button></li></ul>`;
+  }
+
+  function designerCard(t, siblings = []) {
     if (t.error) {
       return `<article class="tpl-card is-broken" data-tpl="${esc(t.id)}">
         <div class="tpl-thumb tpl-thumb--broken">⚠</div>
@@ -146,11 +207,12 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
         <button type="button" class="btn-link danger" data-act="tpl-del" data-id="${esc(t.id)}">Delete</button>
         <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="designer">Issue →</button>
       </div>
+      ${routesHtml("designer", t, siblings)}
       <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
     </article>`;
   }
 
-  function studioCard(t) {
+  function studioCard(t, siblings = []) {
     const del = `<button type="button" class="btn-link danger" data-act="design-del" data-id="${esc(t.id)}">Delete</button>`;
     if (t.error) {
       return `<article class="tpl-card is-broken" data-tpl="${esc(t.id)}" data-kind="studio">
@@ -176,17 +238,25 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
         ${del}
         <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="studio">Issue →</button>
       </div>
+      ${routesHtml("studio", t, siblings)}
       <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
     </article>`;
   }
 
   function renderShelf() {
-    const designerCards = designer.map(designerCard).join("");
-    const studioCards = studio.map(studioCard).join("");
+    const groups = airlineGroups(designer, studio);
+    const sections = groups.map(g => {
+      const nRoutes = routes.filter(r => g.templates.some(e => e.kind === r.template?.kind && e.t.id === r.template?.id)).length;
+      const cards = g.templates.map(e => (e.kind === "studio" ? studioCard(e.t, g.templates) : designerCard(e.t, g.templates))).join("");
+      return `<section class="tpl-section">
+          <div class="eyebrow">${esc(g.name)}${g.code && g.code !== g.name ? ` · ${esc(g.code)}` : ""} · ${g.templates.length} template${g.templates.length === 1 ? "" : "s"}${nRoutes ? ` · ${nRoutes} route${nRoutes === 1 ? "" : "s"}` : ""}</div>
+          <div class="tpl-grid stagger">${cards}</div>
+        </section>`;
+    }).join("");
     root.innerHTML = `
       <div class="view tpl-view">
         <div class="view-head">
-          <div><h1>Templates</h1><p class="view-sub">A template is a look plus default fields. Issue passes from a Pass Designer template, or design your own.</p></div>
+          <div><h1>Templates</h1><p class="view-sub">Each airline’s look, with its routes underneath. Issue from a route to pick a date and add passengers, or straight from a template.</p></div>
           <div class="tpl-head-acts">
             <input type="file" accept=".zip" id="tpl-file" hidden />
             <button type="button" class="btn" data-act="upload">Upload .pkpasstemplate</button>
@@ -194,18 +264,12 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
           </div>
         </div>
         <p class="tpl-flash" id="tpl-flash">${esc(flash)}</p>
+        ${sections}
         <section class="tpl-section">
-          <div class="eyebrow">Pass Designer · ${designer.length}</div>
+          <div class="eyebrow">Add an airline</div>
           <div class="tpl-grid stagger">
-            ${designerCards}
-            <button type="button" class="tpl-card tpl-card--new" data-act="upload"><b>+</b><span>Upload a .pkpasstemplate</span><small>zip the bundle from Pass Designer</small></button>
-          </div>
-        </section>
-        <section class="tpl-section">
-          <div class="eyebrow">Studio designs · ${studio.length}</div>
-          <div class="tpl-grid stagger">
-            ${studioCards}
             <button type="button" class="tpl-card tpl-card--new" data-act="new-design"><b>+</b><span>Design a new look</span><small>build one in the Design editor</small></button>
+            <button type="button" class="tpl-card tpl-card--new" data-act="upload"><b>+</b><span>Upload a .pkpasstemplate</span><small>zip the bundle from Pass Designer</small></button>
           </div>
         </section>
       </div>`;
@@ -390,10 +454,41 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     await load();
   }
 
+  async function deleteRoute(rid) {
+    const n = issuedRoute[rid] ?? 0;
+    if (!confirm(`Delete route "${rid}"?${n ? ` The ${n} pass${n === 1 ? "" : "es"} already issued from it keep working.` : ""}`)) return;
+    let r;
+    try { r = await fetch(`/api/routes/${encodeURIComponent(rid)}`, { method: "DELETE", signal }); }
+    catch { if (signal.aborted) return; flash = "✗ API offline"; render(); return; }
+    if (signal.aborted) return;
+    flash = r.ok ? `✓ Deleted route ${rid}.` : `✗ Couldn’t delete route ${rid} (${r.status}).`;
+    await load();
+  }
+
+  async function moveRoute(rid, target) {
+    const r0 = routes.find(r => r.id === rid);
+    const [kind, ...rest] = target.split(":");
+    if (!r0 || !kind || !rest.length) return;
+    const { id: _id, ...body } = r0;
+    body.template = { kind, id: rest.join(":") };
+    let r, j;
+    try {
+      r = await fetch(`/api/routes/${encodeURIComponent(rid)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+      j = await r.json().catch(() => ({}));
+    } catch { if (signal.aborted) return; flash = "✗ API offline"; render(); return; }
+    if (signal.aborted) return;
+    flash = r.ok ? `✓ Moved ${rid} to ${body.template.id}.` : `✗ ${j.error ?? `move failed (${r.status})`}`;
+    await load();
+  }
+
   root.addEventListener("click", (e) => {
     const t = e.target.closest("[data-act]");
     if (!t || !root.contains(t)) return;
     const { act, id, kind } = t.dataset;
+    if (act === "route-issue") { onIssue?.(id, kind, t.dataset.routeId); return; }
+    if (act === "route-edit") { onRoute?.(id, kind, t.dataset.routeId); return; }
+    if (act === "route-new") { onRoute?.(id, kind); return; }
+    if (act === "route-del") { deleteRoute(t.dataset.routeId); return; }
     if (act === "upload") { $("#tpl-file")?.click(); return; }
     if (act === "new-design") { onNewDesign?.(); return; }
     if (act === "issue") { onIssue?.(id, kind ?? "designer"); return; }
@@ -424,6 +519,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
 
   root.addEventListener("change", (e) => {
     if (e.target.id === "tpl-file") { upload(e.target.files?.[0]); e.target.value = ""; return; }
+    if (e.target.dataset?.routeMove && e.target.value) { moveRoute(e.target.dataset.routeMove, e.target.value); return; }
     const sem = e.target.dataset?.bindSem;
     if (sem) {
       if (e.target.value) draft = { ...draft, [sem]: e.target.value };

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview } from "../apps/designer/src/templates.js";
+import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview, airlineGroups } from "../apps/designer/src/templates.js";
 
 // Templates shelf: Pass Designer bundles and Studio designs on one shelf, plus
 // the Bindings review screen. Studio designs (designs/) delete via
@@ -16,7 +16,7 @@ const PREVIEW = { logoText: "Odyssey Air", backgroundColor: "rgb(15,91,90)", boa
   secondaryFields: [{ key: "passenger", label: "PASSENGER", value: "SURNAME/GIVEN" }]
 }, barcodes: [{ format: "PKBarcodeFormatQR", message: "x", altText: "OD118" }] };
 
-let root, calls, designer, studioList, deleteResp;
+let root, calls, designer, studioList, routesList, deleteResp;
 beforeEach(() => {
   calls = [];
   deleteResp = { ok: false, status: 409, body: { error: 'template "odyssey" is referenced by 2 issued pass(es) — delete those passes first' } };
@@ -25,6 +25,7 @@ beforeEach(() => {
       bindings: { departureGate: { fieldKey: "gate", source: "value-match", confidence: "medium" }, currentBoardingDate: { fieldKey: "boardingTime", source: "date-proximity", confidence: "medium" }, passengerName: { fieldKey: "passenger", source: "manual", confidence: "high" } },
       preview: PREVIEW, logo: null }
   ];
+  routesList = [];
   studioList = [{ id: "fully-loaded", kind: "studio", organizationName: "Rocket Partners Airlines", preview: { ...PREVIEW, logoText: "Rocket Partners" } }];
   globalThis.confirm = () => true;
   globalThis.fetch = async (url, opts = {}) => {
@@ -33,6 +34,8 @@ beforeEach(() => {
     const json = (body, ok = true, status = 200) => ({ ok, status, json: async () => body });
     if (u === "/api/templates") return json(designer);
     if (u === "/api/studio-templates") return json(studioList);
+    if (u === "/api/routes") return json(routesList);
+    if (u.startsWith("/api/routes/")) return json({ ok: true });
     if (opts.method === "DELETE" && u.endsWith("/bindings")) return json({ ok: true });
     if (u === "/api/passes") return json([{ serial: "a", template: "odyssey" }, { serial: "b", template: "odyssey" }, { serial: "c", designName: "fully-loaded" }]);
     if (opts.method === "DELETE" && u.startsWith("/api/designs/")) return json({ ok: true });
@@ -216,5 +219,61 @@ describe("Bindings for Studio designs", () => {
     root.querySelector('[data-act="bind-save"]').click();
     await settle();
     expect(calls.find(c => c.method === "PUT").url).toBe("/api/templates/odyssey/bindings");
+  });
+});
+
+
+describe("Shelf grouped by airline, with routes under their template", () => {
+  const PR = (id, kind, extra = {}) => ({ id, kind, organizationName: "Philippine Airlines", semantics: { airlineCode: "PR" }, fieldKeys: [], bindings: {}, preview: PREVIEW, logo: null, ...extra });
+  const route = (id, tplId, kind = "studio", over = {}) => ({ id, template: { kind, id: tplId }, values: { flightCode: "PR2987", departureAirportCode: "MNL", destinationAirportCode: "TAC" }, schedule: { departure: "16:35" }, fields: {}, ...over });
+
+  it("groups by airline code; the name is the first non-generic organization name, else the code", () => {
+    const g = airlineGroups(
+      [{ id: "cebpac", kind: "designer", organizationName: "Airline", semantics: { airlineCode: "5J" } }, { id: "odyssey", kind: "designer", organizationName: "SM Tickets", semantics: {} }],
+      [PR("pal", "studio"), PR("pal-intl", "studio", { organizationName: "Airline" })]
+    );
+    expect(g.map(x => [x.name, x.code, x.templates.map(t => t.t.id)])).toEqual([
+      ["5J", "5J", ["cebpac"]],
+      ["Philippine Airlines", "PR", ["pal", "pal-intl"]],
+      ["SM Tickets", "", ["odyssey"]]
+    ]);
+  });
+
+  it("renders a section per airline and each template's routes with counts", async () => {
+    studioList = [PR("pal", "studio")];
+    routesList = [route("PR2987-MNL-TAC", "pal"), route("PR2988-TAC-MNL", "pal", "studio", { values: { flightCode: "PR2988", departureAirportCode: "TAC", destinationAirportCode: "MNL" }, schedule: { departure: "18:30" } })];
+    mountTemplates(root, {});
+    await settle();
+    const heads = [...root.querySelectorAll(".tpl-section > .eyebrow")].map(e => e.textContent);
+    expect(heads.some(h => /Philippine Airlines/.test(h))).toBe(true);
+    const rows = [...root.querySelectorAll('.tpl-card[data-tpl="pal"] [data-route]')];
+    expect(rows.map(r => r.dataset.route)).toEqual(["PR2987-MNL-TAC", "PR2988-TAC-MNL"]);
+    expect(rows[0].textContent).toMatch(/PR2987.*MNL → TAC.*16:35/s);
+  });
+
+  it("route actions: Issue/Edit/+ Route call back with the route; Delete and Move hit /api/routes", async () => {
+    studioList = [PR("pal", "studio"), PR("pal-intl", "studio")];
+    routesList = [route("PR2987-MNL-TAC", "pal")];
+    const seen = [];
+    let asked = "";
+    globalThis.confirm = (m) => { asked = m; return true; };
+    mountTemplates(root, { onIssue: (...a) => seen.push(["issue", ...a]), onRoute: (...a) => seen.push(["route", ...a]) });
+    await settle();
+    const row = root.querySelector('[data-route="PR2987-MNL-TAC"]');
+    row.querySelector('[data-act="route-issue"]').click();
+    row.querySelector('[data-act="route-edit"]').click();
+    root.querySelector('.tpl-card[data-tpl="pal-intl"] [data-act="route-new"]').click();
+    expect(seen).toEqual([["issue", "pal", "studio", "PR2987-MNL-TAC"], ["route", "pal", "studio", "PR2987-MNL-TAC"], ["route", "pal-intl", "studio"]]);
+    const move = row.querySelector("select[data-route-move]");
+    expect([...move.options].map(o => o.value)).toEqual(["", "studio:pal-intl"]);
+    move.value = "studio:pal-intl"; move.dispatchEvent(new Event("change", { bubbles: true }));
+    await settle();
+    const put = calls.find(c => c.method === "PUT" && c.url === "/api/routes/PR2987-MNL-TAC");
+    expect(JSON.parse(put.body)).toMatchObject({ template: { kind: "studio", id: "pal-intl" }, values: { flightCode: "PR2987" } });
+    expect(JSON.parse(put.body).id).toBeUndefined();
+    root.querySelector('[data-route="PR2987-MNL-TAC"] [data-act="route-del"]').click();
+    await settle();
+    expect(asked).toMatch(/PR2987-MNL-TAC/);
+    expect(calls.some(c => c.method === "DELETE" && c.url === "/api/routes/PR2987-MNL-TAC")).toBe(true);
   });
 });
