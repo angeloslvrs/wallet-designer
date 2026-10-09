@@ -406,3 +406,50 @@ issued), including issuing from a studio design (record `designName` on the stor
 Detector after: 0 errors (was 1: the pulsing badge). Remaining warnings are the legacy Design
 view's 10px preview tabs (Phase 4) and two deliberate ones (Inter; the board header row).
 
+
+## 2026-10-09 session (cont.) — designs/ folder + Phase 3 Issue workspace (branch `ui-overhaul`)
+
+**Designs folder (decided):** operator-saved Studio designs live in `designs/` (gitignored user
+data, created on first save) behind `routes/designs.js` — `GET /api/designs`, `GET/PUT/DELETE
+/api/designs/:name` (slug names `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, atomic write, PUT 201 create /
+200 overwrite). `/api/studio-templates` and the Design view's save/open picker read it;
+`/api/fixtures` is GET-only (CI fixtures + `?fixture=` deep links) and fixtures left the shelf.
+Studio cards have Delete (confirm says issued passes keep working). On the deploy box `designs/`
+starts empty — nothing migrates.
+
+**Phase 3 done — Issue workspace (`apps/designer/src/issue/`)**, replacing `issue.js`:
+- Entered from a template card (both kinds); the masthead nav hides (`#app-shell.is-workspace`),
+  `‹ Templates` leaves (confirm if passengers are pending). Issue is no longer a nav tab.
+- `model.js` (pure, `tests/issue-model.test.js`) is **semantics-first**: a template field bound
+  to a semantic is edited through that semantic (typed widget) and its visible value derived;
+  unbound fields are raw by key; date and tz twins collapse into one slot that writes both
+  spellings; every baked semantic gets a slot. Per-passenger slots never ship template sample
+  values (`issueSlots`: blank → null-cleared / field ""); a blank shared slot keeps the template
+  default (shown as placeholder + hint). flightCode derives from airline + number.
+- Studio designs ship the same merge surface from `/api/studio-templates` (`fields`, `bindings`
+  discovered from the design's own sample values, `semantics`), so `buildStudioIssueBody` and
+  `buildTemplateIssueBody` share the slots. FormState bodies carry envelope `designName`
+  (`passes.design_name` column; GET /api/passes echoes it; shelf counts it) and `meta.groupId`
+  (now in the schema).
+- Flight: grouped fields, live preview, derived facts. Passengers: scan-first multi-line BCBP
+  paste (one per line, bad lines listed, a pass for another flight flagged "check"; the first
+  pass fills only flight slots with no value at all), Type, Roster (semantic-keyed, maps 1:1);
+  Apple-faithful preview with Front/Back/iOS 26 detail + pager; right pane = this passenger +
+  serial (suggestions skip serials already issued; existing → amber "updates that pass";
+  in-batch duplicate → blocks, shown after blur/submit) + Save to roster + "From the flight".
+  Footer = readiness + one primary ("Issue 1 · update 1"). Issued: QR grid (lazy bwip-js),
+  verbatim Wallet badge, Copy all links first, Fix N failed, Open flight → Flights with the
+  trip selected (`mountFlights({ selectGroup })` — named so it doesn't collide with the inner
+  `select()`).
+- Schedule times default to the **airport zone's** UTC offset (`zoneOffset`/`withZoneOffset` in
+  `inputs.js`, `renderTypedInput({ zone })`), changing a zone re-anchors them, and an auto offset
+  restored from a value keeps tracking DST.
+- Flights passenger/seat readouts read stored semantics first (polarity fix found by Codex).
+- Codex (gpt-6.1-sol) reviewed the plan and the diff; all six findings fixed (batch snapshot +
+  `inert` lock, Intl zone check, auto-offset provenance, baked-semantic slots, studio
+  additional-info rows, duplicate-serial reveal timing).
+- Known limits: studio bindings are discovery-only (a plain "8:15 AM" display field stays raw);
+  roster label editing is gone (save with a label, remove via "Edit saved passengers").
+
+Verified live (designer dev-sample + cebpac + a studio design; light/dark; 375 px).
+446 tests green, SPA builds, `npm run check` clean. Next: Phase 4 (Design workspace), Phase 5.
