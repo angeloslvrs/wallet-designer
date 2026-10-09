@@ -37,32 +37,6 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px rgba(0, 0, 0, .45);
   --shadow-hover: 0 6px 16px rgba(0, 0, 0, .35);
   --r-ctl: 9px; --r-row: 12px; --r-card: 16px;
-
-  /* Legacy "Manifest" tokens, remapped onto the theme so the not-yet-migrated
-     Issue and Design views sit on the same shell. Removed as those views are
-     rebuilt (spec phases 3–4). */
-  --wpd-font: var(--sans);
-  --wpd-mono: var(--mono);
-  --wpd-bg: var(--bg);
-  --wpd-ink: var(--ink);
-  --wpd-primary: var(--blue-btn);
-  --wpd-primary-hover: var(--blue-hover);
-  --wpd-card: var(--card);
-  --wpd-field: var(--field);
-  --wpd-rule: var(--line);
-  --wpd-rule-soft: var(--line);
-  --wpd-border-input: var(--line);
-  --wpd-muted: var(--muted);
-  --wpd-faint: var(--faint);
-  --wpd-err: var(--red);
-  --wpd-ok: var(--green);
-  --wpd-radius: var(--r-ctl);
-  --wpd-st-ontime: var(--green);
-  --wpd-st-boarding: var(--blue);
-  --wpd-st-delayed: var(--amber);
-  --wpd-st-cancelled: var(--red);
-  --wpd-st-diverted: var(--purple);
-  --wpd-st-other: var(--muted);
 }
 [data-theme="light"] {
   --bg: #F2F2F7; --card: #fff; --fill: #E3E3E8; --field: #FAFAFC; --pill: #fff; --line: #E5E5EA;
@@ -244,7 +218,6 @@ a.btn-link { text-decoration: none; display: inline-flex; align-items: center; }
 .kind-chip--warn { color: var(--amber); background: var(--warn-soft); }
 .tpl-acts { display: flex; align-items: center; gap: 14px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
 .tpl-acts .btn { margin-left: auto; }
-.tpl-note { font-size: 11px; color: var(--muted); }
 .tpl-status { font: 11px var(--mono); color: var(--muted); }
 .tpl-status:empty { display: none; }
 .tpl-card--new { border: 2px dashed var(--line); background: transparent; box-shadow: none; align-items: center; justify-content: center; color: var(--muted); cursor: pointer; font: 500 14px var(--sans); min-height: 200px; }
@@ -478,20 +451,10 @@ input[type="checkbox"] { width: auto; accent-color: var(--blue); }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 400; color: var(--muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
-.wpd-req { color: var(--wpd-ink); }
 .typed-input { display: flex; gap: 6px; }
 .typed-input input, .typed-input select { flex: 1; min-width: 0; }
 
 /* Primary action: black fill, squared, uppercase */
-.wpd-issue-btn, #build-btn, .wpd-ghost.is-primary {
-  background: var(--wpd-primary); color: #fff; border: 1px solid var(--wpd-primary); border-radius: var(--r-ctl);
-  font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  padding: 12px 22px; cursor: pointer;
-}
-.wpd-issue-btn:hover:not(:disabled), #build-btn:hover:not(:disabled), .wpd-ghost.is-primary:hover {
-  background: var(--wpd-primary-hover); border-color: var(--wpd-primary-hover); color: #fff;
-}
-.wpd-issue-btn:disabled, #build-btn:disabled { background: #C9C9C1; border-color: #C9C9C1; cursor: not-allowed; }
 
 /* Secondary + tertiary actions inside the Design editor (form.js), on the theme */
 .wpd-ghost { border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: var(--r-ctl); padding: 8px 14px; font: 600 12px var(--sans); cursor: pointer; transition: border-color .2s, background .2s; }
@@ -502,166 +465,35 @@ label { display: block; margin: 0 0 5px; font-size: 12px; font-weight: 400; colo
 .wpd-link.danger { color: var(--red); }
 
 /* ===== View scaffolding ===== */
-.wpd-view { font-family: var(--wpd-font); color: var(--wpd-ink); max-width: 1240px; margin: 0 auto; }
-.wpd-view .mono, .wpd-view code { font-family: var(--wpd-mono); }
-.wpd-view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--wpd-rule); padding-bottom: 14px; margin-bottom: 0; }
-.wpd-view-head h1 { font-size: 24px; font-weight: 700; letter-spacing: -.02em; margin: 0; }
-.wpd-view-head p { margin: 0; font-size: 11px; color: var(--wpd-muted); }
-.wpd-view-head code { font-family: var(--wpd-mono); font-size: 11px; }
-.wpd-view .hint { font-size: 11px; color: var(--wpd-faint); margin: 6px 0 0; }
-.wpd-view input.mono { font-family: var(--wpd-mono); font-size: 12px; }
 
 /* ===== Ruled step sections: mono eyebrow left, content right ===== */
-.wpd-step { display: grid; grid-template-columns: 180px 1fr; gap: 20px; padding: 22px 0; border-bottom: 1px solid var(--wpd-rule-soft); background: none; border-radius: 0; margin: 0; }
-.wpd-step:last-of-type { border-bottom-color: var(--wpd-rule); }
-.wpd-step-eyebrow { font-family: var(--wpd-mono); font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); padding-top: 4px; }
-.wpd-step-body { min-width: 0; }
-.wpd-step-collapsed { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--wpd-muted); min-height: 28px; }
-.wpd-step-collapsed .wpd-step-ok { color: var(--wpd-ok); }
-.wpd-step-collapsed b { color: var(--wpd-ink); font-weight: 700; }
-.wpd-step-collapsed .wpd-link { margin-left: auto; }
 
 /* ===== Template picker ===== */
-.wpd-tpl-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.wpd-tpl-btn { flex: 1 1 220px; min-width: 180px; text-align: left; border: 1px solid var(--wpd-border-input); background: var(--wpd-card); border-radius: 0; padding: 12px 14px; cursor: pointer; font: inherit; color: var(--wpd-ink); }
-.wpd-tpl-btn * { pointer-events: none; }
-.wpd-tpl-btn.is-active { border-color: var(--wpd-rule); }
-.wpd-tpl-btn:disabled { opacity: .55; cursor: not-allowed; }
-.wpd-tpl-name { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
-.wpd-tpl-tag { background: var(--wpd-ink); color: var(--wpd-bg); font-family: var(--wpd-mono); font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; padding: 2px 6px; }
-.wpd-tpl-meta { display: block; font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-muted); margin-top: 4px; }
 
 /* Field-key chips: a plain inline mono list, no boxes */
-.wpd-chips { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 12px; }
-.wpd-chip { font-family: var(--wpd-mono); font-size: 10.5px; color: var(--wpd-muted); background: none; border: none; padding: 0; }
-.wpd-chip.is-required { color: var(--wpd-ink); font-weight: 700; }
-
-.wpd-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
 .wpd-field { min-width: 0; }
-.wpd-compose { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
-.wpd-compose .hint { margin: 0; }
-.wpd-compose input { width: auto; }
-.wpd-compose-flight { width: 90px; }
 
 /* ===== Shared-fields grid ===== */
-.wpd-shared-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px 18px; }
-.wpd-shared-field { min-width: 0; }
-.wpd-shared-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 5px; }
-.wpd-shared-top label { margin: 0; }
-.wpd-shared-field .iss-hint { display: block; font-size: 10px; color: var(--wpd-faint); margin-top: 3px; }
-.wpd-shared-field .field-err.show { display: block; font-size: 10px; margin-top: 3px; }
 
 /* Inline validation */
-.field-err { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-err); display: none; }
+.field-err { font-family: var(--mono); font-size: 10px; color: var(--red); display: none; }
 .field-err.show { display: inline-block; }
-.iss-hint { flex: 1 0 100%; font-size: 10px; color: var(--wpd-faint); }
 
 /* ===== Passenger table ===== */
-.wpd-ptable-scroll { overflow-x: auto; margin-top: 4px; }
-.wpd-prow-head, .wpd-prow { display: grid; gap: 8px; align-items: center; }
-.wpd-prow-head { padding: 0 0 8px; border-bottom: 1px solid var(--wpd-rule); }
-.wpd-prow { padding: 10px 0; border-bottom: 1px solid var(--wpd-rule-soft); }
-.wpd-prow-num { font-size: 11px; color: var(--wpd-faint); font-family: var(--wpd-mono); }
-.wpd-col-head { display: inline-flex; align-items: center; gap: 6px; font-family: var(--wpd-mono); font-size: 10px; font-weight: 700; color: var(--wpd-ink); letter-spacing: .02em; }
-.wpd-col-head code { font-family: var(--wpd-mono); font-weight: 700; }
-.wpd-prow .iss-field { display: flex; flex-wrap: wrap; min-width: 0; align-items: center; }
-.wpd-prow .iss-field input, .wpd-prow .iss-field .iss-typed { width: 100%; min-width: 0; }
-.iss-typed { min-width: 0; }
-.iss-typed input { font-size: 12px; }
-.wpd-prow-cell { min-width: 0; }
-.wpd-prow-cell .iss-serial, .iss-serial { width: 100%; font-family: var(--wpd-mono); font-size: 11px; color: var(--wpd-muted); }
-.wpd-prow-acts { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.wpd-prow-rm { border: none; background: none; color: var(--wpd-faint); cursor: pointer; font: inherit; font-size: 15px; line-height: 1; padding: 4px; }
-.wpd-prow-rm:hover:not(:disabled) { color: var(--wpd-err); }
-.wpd-prow-rm:disabled { opacity: .35; cursor: not-allowed; }
-.wpd-prow-adv { grid-column: 1 / -1; margin: 2px 0 0; }
-.wpd-prow-adv > summary { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-muted); cursor: pointer; user-select: none; padding: 4px 0; list-style: none; }
-.wpd-prow-adv > summary:hover { color: var(--wpd-ink); }
-.wpd-prow-adv > summary::-webkit-details-marker { display: none; }
-.wpd-prow-adv > summary::before { content: "▸ "; color: var(--wpd-faint); }
-.wpd-prow-adv[open] > summary::before { content: "▾ "; }
-.wpd-prow-add { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
-.wpd-prow-add .hint { margin: 0; font-family: var(--wpd-mono); font-size: 10px; }
-.iss-row-tools { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 6px; }
-.iss-sem-wrap { margin: 6px 0 4px; }
 
 /* ===== Saved passengers: chips strip + manager island ===== */
-.wpd-roster { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.wpd-roster-label { font-family: var(--wpd-mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); }
-.wpd-roster-chip { border: 1px solid var(--wpd-rule); background: var(--wpd-card); color: var(--wpd-ink); font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
-.wpd-roster-chip:hover, .wpd-roster-chip.is-used { background: var(--wpd-ink); color: var(--wpd-bg); }
-.wpd-roster-hint { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-faint); margin-left: auto; }
-.wpd-roster-state { font-family: var(--wpd-mono); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; color: var(--wpd-ok); white-space: nowrap; }
-.wpd-roster-manager { background: var(--wpd-card); border: 1px solid var(--wpd-rule); padding: 14px 16px; margin-bottom: 14px; }
-.wpd-roster-mhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-.wpd-roster-mtitle { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.wpd-roster-mnote { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-faint); flex: 1; min-width: 200px; }
-.wpd-roster-thead, .wpd-roster-row { display: grid; grid-template-columns: 120px 1.4fr 1fr 1fr auto; gap: 12px; align-items: center; }
-.wpd-roster-thead { font-family: var(--wpd-mono); font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--wpd-muted); padding-bottom: 6px; border-bottom: 1px solid var(--wpd-rule); }
-.wpd-roster-row { padding: 9px 0; border-bottom: 1px solid var(--wpd-rule-soft); }
-.wpd-roster-row:last-child { border-bottom: none; }
-.wpd-roster-row b { font-size: 12.5px; }
-.wpd-roster-cell { cursor: text; min-height: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wpd-roster-cell.mono { font-family: var(--wpd-mono); font-size: 11px; }
-.wpd-roster-cell input { padding: 4px 6px; font-size: 12px; }
 
 /* ===== Sticky issue bar: full-width strip, top rule, no shadow ===== */
-.wpd-issue-bar {
-  position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
-  background: var(--wpd-bg); border: none; border-top: 1px solid var(--wpd-rule); border-radius: 0; box-shadow: none;
-  margin: 0 -40px; padding: 14px 40px;
-}
-.wpd-dot { width: 8px; height: 8px; border-radius: 0; background: var(--wpd-st-delayed); flex: none; }
-.wpd-dot.is-ready { background: var(--wpd-ok); }
-.wpd-issue-reason { font-family: var(--wpd-mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--wpd-muted); }
-.wpd-issue-bar .mg-grp-status { margin-left: auto; font-family: var(--wpd-mono); font-size: 11px; }
 
 /* Issue results (per-row status) */
-.wpd-issue .mg-status { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 10px; }
-.wpd-issue .mg-status:empty { display: none; }
-.wpd-result-status { font-family: var(--wpd-mono); font-size: 11px; color: var(--wpd-ok); }
-.wpd-issue .iss-qr { width: 52px; height: 52px; border: 1px solid var(--wpd-rule-soft); border-radius: 0; }
-.iss-qr { border: 1px solid var(--wpd-rule-soft); border-radius: 0; vertical-align: middle; }
-.mg-status { font-family: var(--wpd-mono); font-size: 11px; color: var(--wpd-muted); flex-basis: 100%; min-height: 0; }
-.mg-status:empty { display: none; }
 
 /* ===== Drawers: underlined mono summary; open body = white island ===== */
-.wpd-drawers { display: flex; flex-direction: column; gap: 2px; margin-top: 16px; align-items: flex-start; }
-.wpd-drawer { background: none; border: none; border-radius: 0; overflow: visible; width: 100%; }
-.wpd-drawer-summary { display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; font-family: var(--wpd-mono); font-size: 11px; font-weight: 500; color: var(--wpd-muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; user-select: none; list-style: none; }
-.wpd-drawer-summary::-webkit-details-marker { display: none; }
-.wpd-drawer-summary::before { content: "▸"; color: var(--wpd-faint); text-decoration: none; }
-.wpd-drawer[open] .wpd-drawer-summary::before { content: "▾"; }
-.wpd-drawer-summary:hover { color: var(--wpd-ink); background: none; }
-.wpd-drawer-body { background: var(--wpd-card); border: 1px solid var(--wpd-rule); padding: 14px 16px; margin: 8px 0 12px; }
-.wpd-drawer-note { font-size: 11px; color: var(--wpd-muted); margin: 0 0 10px; }
-.wpd-tpl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-top: 1px solid var(--wpd-rule-soft); }
-.wpd-tpl-row:first-child { border-top: none; }
-.wpd-tpl-row-name { font-size: 12.5px; font-weight: 700; }
-.wpd-tpl-row-meta { font-family: var(--wpd-mono); font-size: 10px; color: var(--wpd-muted); }
-.wpd-tpl-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--wpd-rule-soft); }
-.wpd-tpl-upload input[type=file] { width: auto; }
-.wpd-tpl-upload #tpl-id { flex: 1; min-width: 160px; }
 
 /* Bindings editor rows (Advanced drawer) — mono keys, no uppercase */
-.mg-badge { font-family: var(--wpd-mono); font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--wpd-muted); background: none; padding: 0; border-radius: 0; }
-.mg-badge.is-broken { color: var(--wpd-err); }
-.mg-badge.mg-tpl { color: var(--wpd-muted); background: none; }
 
 /* ===== Status marker chips: colored square + uppercase black text ===== */
-.mg-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--wpd-ink); background: none; border: none; padding: 0; border-radius: 0; }
-.mg-chip::before { content: ""; width: 8px; height: 8px; flex: none; background: var(--wpd-st-other); }
-.mg-chip--ontime::before { background: var(--wpd-st-ontime); }
-.mg-chip--boarding::before { background: var(--wpd-st-boarding); }
-.mg-chip--delayed::before { background: var(--wpd-st-delayed); }
-.mg-chip--cancelled::before { background: var(--wpd-st-cancelled); }
-.mg-chip--diverted::before { background: var(--wpd-st-diverted); }
-.mg-chip--other::before { background: var(--wpd-st-other); }
 
 /* ===== Issue view still uses .mg-status / .mg-editor-* for its per-row result lines ===== */
-.mg-empty { text-align: center; color: var(--wpd-faint); padding: 64px 0; font-size: 13px; }
-.mg-editor-acts { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.mg-editor-label { font-family: var(--wpd-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--wpd-faint); margin: 6px 0 2px; }
 
 /* ===== Design workspace (design.js + form.js): sections | pass | what's on it ===== */
 main { display: flex; flex-direction: column; min-height: 100%; }
@@ -702,16 +534,16 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 /* assets */
 .wpd-asset-list { display: flex; flex-direction: column; gap: 12px; }
 .wpd-asset-row { display: flex; align-items: center; gap: 12px; }
-.wpd-asset-thumb { flex: none; width: 56px; height: 42px; border: 1px dashed var(--line); border-radius: var(--r-ctl); display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--wpd-field); }
-.wpd-asset-thumb:hover { border-color: var(--wpd-ink); }
+.wpd-asset-thumb { flex: none; width: 56px; height: 42px; border: 1px dashed var(--line); border-radius: var(--r-ctl); display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--field); }
+.wpd-asset-thumb:hover { border-color: var(--ink); }
 .wpd-asset-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.wpd-asset-plus { color: var(--wpd-faint); font-size: 18px; line-height: 1; }
+.wpd-asset-plus { color: var(--faint); font-size: 18px; line-height: 1; }
 .wpd-asset-info { flex: 1; min-width: 0; }
 .wpd-asset-label { font-size: 13px; font-weight: 600; }
 .wpd-asset-hint { font-size: 11px; color: var(--faint); margin-top: 3px; }
 .wpd-asset-note { font-family: var(--mono); font-size: 11px; margin-top: 3px; font-weight: 500; }
-.wpd-asset-note.is-ok { color: var(--wpd-ok); }
-.wpd-asset-note.is-warn { color: var(--wpd-st-delayed); }
+.wpd-asset-note.is-ok { color: var(--green); }
+.wpd-asset-note.is-warn { color: var(--amber); }
 .wpd-asset-clear { flex: none; padding: 5px 10px; font-size: 10px; }
 
 /* barcode format buttons */
@@ -727,30 +559,28 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .wpd-fsec-head { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .wpd-df-row { display: flex; gap: 6px; align-items: center; margin: 5px 0; padding: 2px 0; border-radius: 0; }
 .wpd-df-row input { font-size: 11.5px; padding: 7px 9px; }
-.wpd-df-key { flex: 0 0 80px; min-width: 0; font-family: var(--wpd-mono); }
-.wpd-df-label { flex: 1; min-width: 0; color: var(--wpd-muted); }
+.wpd-df-key { flex: 0 0 80px; min-width: 0; font-family: var(--mono); }
+.wpd-df-label { flex: 1; min-width: 0; color: var(--muted); }
 .wpd-df-row .wpd-df-value { flex: 1.4; min-width: 0; font-size: 12px; }
-.wpd-df-rm { flex: none; border: none; background: none; color: var(--wpd-faint); cursor: pointer; font: inherit; font-size: 14px; padding: 4px; }
-.wpd-df-rm:hover { color: var(--wpd-err); }
+.wpd-df-rm { flex: none; border: none; background: none; color: var(--faint); cursor: pointer; font: inherit; font-size: 14px; padding: 4px; }
+.wpd-df-rm:hover { color: var(--red); }
 .wpd-df-row.wpd-flash { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: var(--r-ctl); }
 
 /* Semantics editor (issue rows + design drawer) */
-.sem-editor { border: 1px solid var(--wpd-rule-soft); border-radius: var(--r-ctl); padding: 10px; background: var(--wpd-card); }
+.sem-editor { border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 10px; background: var(--card); }
 .sem-section { padding: 2px 0; }
-.sem-section + .sem-section { border-top: 1px solid var(--wpd-rule-soft); margin-top: 6px; padding-top: 4px; }
-.sem-head { font-family: var(--wpd-mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--wpd-faint); margin: 4px 0 2px; }
+.sem-section + .sem-section { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 4px; }
+.sem-head { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin: 4px 0 2px; }
 .sem-row { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
-.sem-row label { flex: 0 0 170px; font-family: var(--sans); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--wpd-muted); padding-top: 6px; margin: 0; }
+.sem-row label { flex: 0 0 170px; font-family: var(--sans); font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); padding-top: 6px; margin: 0; }
 .sem-field { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .sem-field .typed-input { display: flex; gap: 6px; }
 .sem-field .typed-input input, .sem-field .typed-input select { flex: 1; min-width: 0; font-size: 12px; }
-.sem-hint { font-size: 10px; color: var(--wpd-faint); }
+.sem-hint { font-size: 10px; color: var(--faint); }
 .sem-add { margin-top: 8px; font-size: 12px; }
 .sem-doc-warn { margin: 4px 0 10px; padding: 9px 11px; border-radius: var(--r-ctl); background: var(--warn-soft); color: var(--amber); font-size: 12px; line-height: 1.45; }
 
 /* Custom scrollbars in the chrome */
-.wpd-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
-.wpd-scroll::-webkit-scrollbar-thumb { background: var(--wpd-border-input); border-radius: 0; }
 
 /* clickable pass fields (click-to-edit) */
 .wallet-field--clickable { cursor: pointer; border-radius: 6px; transition: opacity .12s; }
@@ -773,32 +603,16 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
   .dw-left, .dw-right { padding: 20px 16px; }
 
   /* steps stack; eyebrow above content */
-  .wpd-step { grid-template-columns: 1fr; gap: 10px; padding: 16px 0; }
-  .wpd-grid2 { grid-template-columns: 1fr; }
 
   /* inputs grow to comfortable tap targets */
   input, select { padding: 11px 12px; font-size: 13px; }
   .wpd-ghost { padding: 12px 16px; min-height: 44px; }
-  .wpd-link, .wpd-ghost-mini, .wpd-col-share, .iss-toggle { padding: 8px 0; }
+  .wpd-link { padding: 8px 0; }
 
   /* passenger table → stacked bordered cards */
-  .wpd-prow-head { display: none; }
-  .iss-row { border: 1px solid var(--wpd-rule); background: var(--wpd-card); margin: 12px 0; padding: 12px; }
-  .wpd-prow { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0 !important; padding: 0; border-bottom: none; }
-  .wpd-prow-num { order: -2; flex: 1; font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--wpd-ink); }
-  .wpd-prow-num::before { content: "PASSENGER "; }
-  .wpd-prow-acts { order: -1; flex: none; }
-  .wpd-prow .iss-field, .wpd-prow-cell { flex: 1 1 45%; min-width: 130px; }
-  .iss-row .mg-status { padding-top: 6px; }
 
   /* issue bar pins to the viewport bottom */
-  .wpd-issue-bar { position: sticky; bottom: 0; margin: 0 -16px; padding: 12px 16px; }
-  .wpd-issue-btn { flex: 1; min-height: 48px; }
-  .wpd-drawers { padding-bottom: 24px; }
 
   /* roster manager → stacked rows; chips already wrap */
-  .wpd-roster-thead { display: none; }
-  .wpd-roster-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
-  .wpd-roster-hint { display: none; }
 
 }
