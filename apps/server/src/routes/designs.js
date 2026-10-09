@@ -9,6 +9,8 @@ import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/pro
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { asyncHandler } from "../util/async-handler.js";
+import { deleteTemplateBindings, saveTemplateBindings } from "../storage.js";
+import { designBindingSurface, sanitizeBindingEdits, studioBindingsId } from "../template-bindings.js";
 
 export const designsRouter = Router();
 
@@ -69,6 +71,34 @@ export async function handleDesignDelete(req, res) {
   if (!DESIGN_NAME_RE.test(name ?? "")) return res.status(400).json({ error: "invalid design name" });
   try { await unlink(fileOf(name)); }
   catch (err) { if (err.code === "ENOENT") return res.status(404).json({ error: `design not found: ${name}` }); throw err; }
+  await deleteTemplateBindings(studioBindingsId(name));
+  res.json({ ok: true });
+}
+
+/**
+ * PUT /api/designs/:name/bindings — confirm the design's semanticKey → fieldKey
+ * map ({semanticKey: fieldKey}; null or "" unbinds). Stored entries are
+ * `manual`/`high` and survive the design's sample values being cleared.
+ */
+export async function handleDesignBindingsPut(req, res) {
+  const { name } = req.params;
+  if (!DESIGN_NAME_RE.test(name ?? "")) return res.status(400).json({ error: "invalid design name" });
+  const state = await readDesign(name);
+  if (!state) return res.status(404).json({ error: `design not found: ${name}` });
+  try {
+    const bindings = sanitizeBindingEdits(req.body, designBindingSurface(state));
+    await saveTemplateBindings(studioBindingsId(name), bindings);
+    res.json({ name, bindings });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+/** DELETE /api/designs/:name/bindings — forget confirmed bindings (back to live discovery). */
+export async function handleDesignBindingsDelete(req, res) {
+  const { name } = req.params;
+  if (!DESIGN_NAME_RE.test(name ?? "")) return res.status(400).json({ error: "invalid design name" });
+  await deleteTemplateBindings(studioBindingsId(name));
   res.json({ ok: true });
 }
 
@@ -76,3 +106,5 @@ designsRouter.get("/designs", asyncHandler(handleDesignList));
 designsRouter.get("/designs/:name", asyncHandler(handleDesignGet));
 designsRouter.put("/designs/:name", asyncHandler(handleDesignPut));
 designsRouter.delete("/designs/:name", asyncHandler(handleDesignDelete));
+designsRouter.put("/designs/:name/bindings", asyncHandler(handleDesignBindingsPut));
+designsRouter.delete("/designs/:name/bindings", asyncHandler(handleDesignBindingsDelete));

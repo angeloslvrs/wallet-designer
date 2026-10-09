@@ -84,3 +84,78 @@ describe("studio templates share the designer merge surface", () => {
     expect(t.semantics.airlineCode).toBe("RP");
   });
 });
+
+describe("persisted studio bindings (/api/designs/:name/bindings)", () => {
+  // An airline-style design: no sample values to discover from, a 24h time
+  // field and a token label — what conversion will produce.
+  let airline;
+  const listed = async (id) => (await call(handleStudioTemplateList, {})).payload.find(x => x.id === id);
+  const put = (name, body) => call(designs.handleDesignBindingsPut, { params: { name }, body });
+
+  beforeAll(async () => {
+    const fl = JSON.parse(await (await import("node:fs/promises")).readFile("fixtures/fully-loaded.json", "utf8"));
+    airline = {
+      ...fl,
+      semantics: { airlineCode: "PR" },
+      displayFields: {
+        header: [{ key: "gate", label: "GATE", value: "" }],
+        primary: [{ key: "depart", label: "{departureCityName:upper}", value: "" }],
+        secondary: [],
+        auxiliary: [{ key: "boarding", label: "BOARDING", value: "", timeFormat: "24h" }],
+        back: []
+      }
+    };
+    await call(designs.handleDesignPut, { params: { name: "pal" }, body: airline });
+  });
+
+  it("a value-less design has nothing to discover and nothing saved", async () => {
+    const t = await listed("pal");
+    expect(t.bindingsSaved).toBe(false);
+    expect(t.bindings.currentBoardingDate).toBeUndefined();
+  });
+
+  it("PUT stores confirmed bindings; the shelf entry uses them", async () => {
+    const r = await put("pal", { currentBoardingDate: "boarding", departureGate: "gate" });
+    expect(r.statusCode).toBe(200);
+    expect(r.payload.bindings.currentBoardingDate).toEqual({ fieldKey: "boarding", source: "manual", confidence: "high" });
+    const t = await listed("pal");
+    expect(t.bindingsSaved).toBe(true);
+    expect(t.bindings.currentBoardingDate.fieldKey).toBe("boarding");
+    expect(t.fields.find(f => f.key === "boarding")).toMatchObject({ kind: "date", boundSemantic: "currentBoardingDate" });
+  });
+
+  it("validates: undeclared field 400, unknown semantic 400, missing design 404, bad name 400", async () => {
+    expect((await put("pal", { currentBoardingDate: "nope" })).statusCode).toBe(400);
+    expect((await put("pal", { notASemantic: "boarding" })).statusCode).toBe(400);
+    expect((await put("ghost", { currentBoardingDate: "boarding" })).statusCode).toBe(404);
+    expect((await put("../x", {})).statusCode).toBe(400);
+    expect((await put("pal", [1])).statusCode).toBe(400);
+  });
+
+  it("re-saving the design keeps them; a removed field's binding is filtered, not lost", async () => {
+    const noGate = { ...airline, displayFields: { ...airline.displayFields, header: [] } };
+    await call(designs.handleDesignPut, { params: { name: "pal" }, body: noGate });
+    let t = await listed("pal");
+    expect(t.bindingsSaved).toBe(true);
+    expect(t.bindings.departureGate).toBeUndefined();
+    expect(t.bindings.currentBoardingDate.fieldKey).toBe("boarding");
+    await call(designs.handleDesignPut, { params: { name: "pal" }, body: airline });
+    t = await listed("pal");
+    expect(t.bindings.departureGate.fieldKey).toBe("gate");
+  });
+
+  it("ships the unresolved surface as preview (tokens + ISO time fields intact)", async () => {
+    const t = await listed("pal");
+    expect(t.preview.boardingPass.primaryFields[0].label).toBe("{departureCityName:upper}");
+    expect(t.preview.boardingPass.auxiliaryFields[0].timeFormat).toBe("24h");
+  });
+
+  it("DELETE resets to live discovery; deleting the design drops its bindings", async () => {
+    expect((await call(designs.handleDesignBindingsDelete, { params: { name: "pal" } })).payload).toEqual({ ok: true });
+    expect((await listed("pal")).bindingsSaved).toBe(false);
+    await put("pal", { currentBoardingDate: "boarding" });
+    await call(designs.handleDesignDelete, { params: { name: "pal" } });
+    await call(designs.handleDesignPut, { params: { name: "pal" }, body: airline });
+    expect((await listed("pal")).bindingsSaved).toBe(false);
+  });
+});

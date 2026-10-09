@@ -7,12 +7,12 @@ import { raw, Router } from "express";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
-import { discoverBindings, formStateToPassJson, loadTemplate, migrateFormState, stripInternalIds, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
+import { discoverBindings, loadTemplate, migrateFormState, stripInternalIds, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
 import { listDesignNames, readDesign } from "./designs.js";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
-import { bindingsForTemplate, sanitizeBindingEdits } from "../template-bindings.js";
+import { bindingsForDesign, bindingsForTemplate, designBindingSurface, sanitizeBindingEdits } from "../template-bindings.js";
 import { asyncHandler } from "../util/async-handler.js";
 
 export const templatesRouter = Router();
@@ -74,18 +74,23 @@ export async function handleTemplateList(_req, res) {
 templatesRouter.get("/templates", asyncHandler(handleTemplateList));
 
 // GET /api/studio-templates — saved Studio designs (FormState snapshots under
-// designs/) as `kind: "studio"` shelf entries with a rendered preview pass.json.
+// designs/) as `kind: "studio"` shelf entries with a preview pass.json.
 // A design that no longer builds is listed with `error` instead of hidden.
+// Everything ships from the raw binding surface (label tokens and 24h time
+// fields unresolved): time fields stay ISO so discovery/descriptors see dates
+// and Issue can merge a passenger's dates into them; the wallet preview
+// resolves tokens and times when it renders.
 export async function handleStudioTemplateList(_req, res) {
   const out = [];
   for (const id of await listDesignNames()) {
     try {
       const state = migrateFormState(await readDesign(id));
-      const passJson = formStateToPassJson(state);
-      // Same merge surface as a designer bundle: bindings discovered from the
-      // design's own sample values, descriptors resolved through them. The
-      // Issue workspace then treats both kinds through one code path.
-      const bindings = discoverBindings(passJson);
+      const passJson = designBindingSurface(state);
+      // Same merge surface as a designer bundle: confirmed bindings if the
+      // operator saved some, else discovered from the design's own sample
+      // values; descriptors resolve through them. The Issue workspace then
+      // treats both kinds through one code path.
+      const { bindings, saved } = await bindingsForDesign(id, passJson);
       out.push({
         id,
         kind: "studio",
@@ -94,6 +99,7 @@ export async function handleStudioTemplateList(_req, res) {
         fieldKeys: templateFieldKeys(passJson),
         fields: templateFieldDescriptors(passJson, bindings),
         bindings,
+        bindingsSaved: saved,
         semantics: state.semantics ?? {},
         preview: previewPassJson(passJson),
         logo: typeof state.branding?.logoDataUrl === "string" ? state.branding.logoDataUrl : null
