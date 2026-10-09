@@ -49,7 +49,8 @@ function open() {
       data_json            TEXT,
       last_modified        TEXT NOT NULL,
       update_tag           INTEGER,
-      design_name          TEXT
+      design_name          TEXT,
+      route_id             TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_passes_group ON passes(group_id);
     CREATE TABLE IF NOT EXISTS registrations (
@@ -90,6 +91,8 @@ function ensureUpdateTagColumn() {
   if (!cols.has("update_tag")) db.exec("ALTER TABLE passes ADD COLUMN update_tag INTEGER");
   // The Studio design a FormState pass was issued from (Templates shelf counts).
   if (!cols.has("design_name")) db.exec("ALTER TABLE passes ADD COLUMN design_name TEXT");
+  // The saved route it was issued from (Airline › Route › Flight; shelf counts).
+  if (!cols.has("route_id")) db.exec("ALTER TABLE passes ADD COLUMN route_id TEXT");
 }
 
 function metaValue(key) {
@@ -191,8 +194,8 @@ function importLegacyJson() {
  *  with it snapshot()'s key order — survives re-issues like the JSON store. */
 function writePass(serial, rec) {
   db.prepare(`
-    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified, update_tag, design_name)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified, update_tag, design_name, route_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(serial) DO UPDATE SET
       pass_type_identifier = excluded.pass_type_identifier,
       authentication_token = excluded.authentication_token,
@@ -202,7 +205,8 @@ function writePass(serial, rec) {
       data_json            = excluded.data_json,
       last_modified        = excluded.last_modified,
       update_tag           = COALESCE(excluded.update_tag, passes.update_tag),
-      design_name          = excluded.design_name
+      design_name          = excluded.design_name,
+      route_id             = excluded.route_id
   `).run(
     serial,
     rec.passTypeIdentifier ?? null,
@@ -213,7 +217,8 @@ function writePass(serial, rec) {
     rec.data !== undefined ? JSON.stringify(rec.data) : null,
     rec.lastModified,
     rec.updateTag ?? null,
-    rec.designName ?? null
+    rec.designName ?? null,
+    rec.routeId ?? null
   );
 }
 
@@ -230,6 +235,7 @@ function rowToRec(row) {
   rec.lastModified = row.last_modified;
   if (row.update_tag != null) rec.updateTag = Number(row.update_tag);
   if (row.design_name != null) rec.designName = row.design_name;
+  if (row.route_id != null) rec.routeId = row.route_id;
   return rec;
 }
 
@@ -257,10 +263,10 @@ function assertSamePassType(existing, incomingPassTypeId, serial) {
 
 /**
  * @param {object} state FormState
- * @param {{designName?: string}} [opts] the saved Studio design it was issued
- *   from, if any (recorded so the Templates shelf can count it).
+ * @param {{designName?: string, routeId?: string}} [opts] the saved Studio
+ *   design / route it was issued from, if any (the Templates shelf counts them).
  */
-export async function savePass(state, { designName } = {}) {
+export async function savePass(state, { designName, routeId } = {}) {
   open();
   const serial = state.meta.serialNumber;
   // Keep the auth token STABLE for a serial. Rotating it on re-issue would 401
@@ -288,6 +294,7 @@ export async function savePass(state, { designName } = {}) {
     groupId: deriveGroupId(state),   // all passengers on the same flight share this
     state: { ...state, meta },
     ...(designName ? { designName } : {}),
+    ...(routeId ? { routeId } : {}),
     ...mutationStamp(existing)
   };
   writePass(serial, rec);
@@ -307,7 +314,7 @@ export async function savePass(state, { designName } = {}) {
  * so re-issuing a FormState serial as a template pass keeps its token.
  * groupId is explicit here: template data has no flight structure to derive it from.
  */
-export async function saveTemplatePass({ serialNumber, template, data = {}, groupId, passTypeId }) {
+export async function saveTemplatePass({ serialNumber, template, data = {}, groupId, passTypeId, routeId }) {
   open();
   const existing = rowToRec(getRow(serialNumber));
   const token = existing?.authenticationToken ?? randomBytes(16).toString("hex");
@@ -321,6 +328,7 @@ export async function saveTemplatePass({ serialNumber, template, data = {}, grou
     groupId,
     template,
     data,
+    ...(routeId ? { routeId } : {}),
     ...mutationStamp(existing)
   };
   writePass(serialNumber, rec);

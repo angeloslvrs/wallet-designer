@@ -14,6 +14,7 @@ export { parseStrictIsoDateTime, parseLooseIsoDateTime, isStrictIsoDateTime, isL
 export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from "./field-kinds.js";
 export { discoverBindings, collectFields } from "./bindings.js";
 export { resolvePassFields, LABEL_TOKEN_RE } from "./field-render.js";
+export { ROUTE_ID_RE, ROUTE_SEMANTICS, validateRoute, routeSchedule, suggestRouteId } from "./route.js";
 export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS };
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";

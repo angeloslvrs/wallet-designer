@@ -5,7 +5,7 @@ import { Router } from "express";
 import {
   applyTemplateData, loadTemplate, migrateFormState, isSemanticDriven,
   templateFieldDescriptors, validateFieldValue, normalizeFieldValue, discoverBindings,
-  BOARDING_SEMANTICS
+  BOARDING_SEMANTICS, ROUTE_ID_RE
 } from "@wpd/pass-builder";
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
@@ -159,7 +159,7 @@ async function pushPass(rec, serial) {
  * typo fails at issue time, not at device fetch time), and the caller must
  * name the group — template data has no flight structure to derive one from.
  */
-export async function issueTemplatePass({ template, serialNumber, data = {}, groupId }) {
+export async function issueTemplatePass({ template, serialNumber, data = {}, groupId, routeId }) {
   if (!TEMPLATE_ID_RE.test(template)) throw new Error("invalid template id");
   if (typeof serialNumber !== "string" || !serialNumber.trim()) throw new Error("serialNumber is required");
   if (typeof groupId !== "string" || !groupId.trim()) {
@@ -213,7 +213,7 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
   }
   const semantics = { ...clears, ...explicit };
   const stored = Object.keys(semantics).length ? { ...normalizedData, semantics } : normalizedData;
-  return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier });
+  return saveTemplatePass({ serialNumber, template, data: stored, groupId, passTypeId: passJson.passTypeIdentifier, routeId });
 }
 
 /**
@@ -229,12 +229,17 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
 export async function registerPass(body = {}) {
   const isTemplate = typeof body?.template === "string";
   // A FormState body may carry `designName` — the saved Studio design it was
-  // issued from. It's an envelope key, not part of the FormState.
-  const { designName, ...state } = isTemplate ? {} : (body ?? {});
+  // issued from — and either shape a `routeId` (the saved route). Envelope keys,
+  // never part of the FormState / template data.
+  const { designName, routeId, ...state } = isTemplate ? {} : (body ?? {});
   if (designName !== undefined && (typeof designName !== "string" || !DESIGN_NAME_RE.test(designName))) {
     throw new Error("designName must be a saved design name");
   }
-  const rec = isTemplate ? await issueTemplatePass(body) : await savePass(state, { designName });
+  const rid = isTemplate ? body.routeId : routeId;
+  if (rid !== undefined && (typeof rid !== "string" || !ROUTE_ID_RE.test(rid))) {
+    throw new Error("routeId must be a saved route id");
+  }
+  const rec = isTemplate ? await issueTemplatePass(body) : await savePass(state, { designName, routeId });
   return {
     serialNumber: isTemplate ? body.serialNumber : body.meta.serialNumber,
     authenticationToken: rec.authenticationToken,
@@ -242,7 +247,8 @@ export async function registerPass(body = {}) {
     lastModified: rec.lastModified,
     created: rec.created,
     ...(rec.template && { template: rec.template }),
-    ...(rec.designName && { designName: rec.designName })
+    ...(rec.designName && { designName: rec.designName }),
+    ...(rec.routeId && { routeId: rec.routeId })
   };
 }
 
@@ -348,7 +354,8 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
     current: currentFieldsOf(rec),
     route: routeOf(rec, baseSem[rec.template]),
     ...(rec.template && { template: rec.template }),
-    ...(rec.designName && { designName: rec.designName })
+    ...(rec.designName && { designName: rec.designName }),
+    ...(rec.routeId && { routeId: rec.routeId })
   })));
 }));
 

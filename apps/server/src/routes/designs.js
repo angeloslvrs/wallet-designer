@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { asyncHandler } from "../util/async-handler.js";
 import { deleteTemplateBindings, saveTemplateBindings } from "../storage.js";
 import { designBindingSurface, sanitizeBindingEdits, studioBindingsId } from "../template-bindings.js";
+import { routesReferencing } from "./flight-routes.js";
 
 export const designsRouter = Router();
 
@@ -69,6 +70,9 @@ export async function handleDesignPut(req, res) {
 export async function handleDesignDelete(req, res) {
   const { name } = req.params;
   if (!DESIGN_NAME_RE.test(name ?? "")) return res.status(400).json({ error: "invalid design name" });
+  // Routes build on the design live; refuse while any is attached.
+  const routes = await routesReferencing("studio", name);
+  if (routes.length) return res.status(409).json({ error: `design "${name}" has ${routes.length} route(s) — delete or move them first`, routes });
   try { await unlink(fileOf(name)); }
   catch (err) { if (err.code === "ENOENT") return res.status(404).json({ error: `design not found: ${name}` }); throw err; }
   await deleteTemplateBindings(studioBindingsId(name));

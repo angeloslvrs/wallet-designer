@@ -9,6 +9,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 import { buildRouter } from "./routes/build.js";
 import { fixturesRouter } from "./routes/fixtures.js";
 import { designsRouter } from "./routes/designs.js";
+import { flightRoutesRouter } from "./routes/flight-routes.js";
 import { walletRouter } from "./routes/wallet.js";
 import { adminRouter } from "./routes/admin.js";
 import { templatesRouter } from "./routes/templates.js";
@@ -39,6 +40,7 @@ app.use(accessGuard);                // /api/wallet/* public; everything else LA
 app.use("/api", buildRouter);
 app.use("/api", fixturesRouter);    // read-only CI fixtures (?fixture= deep links)
 app.use("/api", designsRouter);     // saved Studio designs (designs/)
+app.use("/api", flightRoutesRouter); // saved routes (routes/)
 app.use("/api", adminRouter);
 app.use("/api", templatesRouter);   // .pkpasstemplate upload/list (control plane)
 // Rate-limit the only public surface (Apple PassKit web service). Device traffic

@@ -14,6 +14,7 @@ import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
 import { bindingsForDesign, bindingsForTemplate, designBindingSurface, sanitizeBindingEdits } from "../template-bindings.js";
 import { asyncHandler } from "../util/async-handler.js";
+import { routesReferencing } from "./flight-routes.js";
 
 export const templatesRouter = Router();
 
@@ -185,6 +186,10 @@ export async function handleTemplateDelete(req, res) {
       error: `template "${id}" is referenced by ${serials.length} issued pass(es) — installed passes rebuild from it on every fetch; delete those passes first`,
       serials
     });
+  }
+  const routes = await routesReferencing("designer", id);
+  if (routes.length) {
+    return res.status(409).json({ error: `template "${id}" has ${routes.length} route(s) — delete or move them first`, routes });
   }
 
   await rm(dir, { recursive: true, force: true });

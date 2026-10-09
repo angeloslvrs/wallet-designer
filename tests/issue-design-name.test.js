@@ -68,3 +68,20 @@ describe("status updates on a pass issued from a design with confirmed bindings"
     expect(unbound.skipped).toContain("currentBoardingDate");
   });
 });
+
+describe("routeId on issued passes (both shapes)", () => {
+  it("is stored and echoed; a bad id is rejected", async () => {
+    const st = await fixture();
+    st.meta = { ...st.meta, serialNumber: "RT-1" };
+    const res = await registerPass({ ...st, designName: "pal", routeId: "PR2987-MNL-TAC" });
+    expect(res).toMatchObject({ routeId: "PR2987-MNL-TAC", designName: "pal" });
+    const rec = await getPassRecord("RT-1");
+    expect(rec.routeId).toBe("PR2987-MNL-TAC");
+    expect(rec.state.routeId).toBeUndefined();
+    await expect(registerPass({ ...st, routeId: "../x" })).rejects.toThrow(/routeId/);
+
+    const t = await registerPass({ template: "dev-sample", serialNumber: "RT-2", groupId: "RP247@2026-06-01", data: {}, routeId: "RP247-SFO-JFK" });
+    expect(t.routeId).toBe("RP247-SFO-JFK");
+    expect((await getPassRecord("RT-2")).routeId).toBe("RP247-SFO-JFK");
+  });
+});

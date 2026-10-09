@@ -26,8 +26,9 @@ templates/dev-sample.pkpasstemplate/*.png
 
 state/
 
-# operator-saved Studio designs (user data, like state/)
+# operator-saved Studio designs and routes (user data, like state/)
 designs/
+/routes/
 
 .superpowers/
 
