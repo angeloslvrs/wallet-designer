@@ -602,6 +602,8 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .wpd-df-row .wpd-df-value { flex: 1.4; min-width: 0; font-size: 12px; }
 .wpd-df-row.is-date { flex-wrap: wrap; }
 .wpd-df-row.is-date .wpd-df-date { flex: 1 1 100%; padding-left: 86px; }
+.wpd-service-ctl { display: flex; gap: 6px; align-items: center; }
+.wpd-service-ctl .wpd-input { flex: 1; min-width: 0; }
 .wpd-df-opt { flex: none; border: 1px solid var(--line); background: transparent; color: var(--faint); border-radius: 6px; padding: 3px 6px; font: 500 10.5px var(--mono); cursor: pointer; }
 .wpd-df-opt:hover { color: var(--ink); }
 .wpd-df-opt.is-active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue-text); }

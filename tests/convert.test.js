@@ -141,3 +141,16 @@ describe("applyConversion", () => {
     expect(src).toEqual(snap);
   });
 });
+
+
+describe("services page links in conversion", () => {
+  it("stay on the airline; another airline's link is flagged and dropped by default", () => {
+    const s = design();
+    s.services = { managementURL: "https://www.philippineairlines.com/manage", changeSeatURL: "https://www.cebupacificair.com/seat", transitProviderPhoneNumber: "+63 2 8855 8888" };
+    const b = bindingsOf(s), plan = planConversion(s, b), items = byId(plan);
+    expect(items["services:managementURL"]).toMatchObject({ tier: "airline" });
+    expect(items["services:changeSeatURL"]).toMatchObject({ tier: "drop", flag: expect.any(String) });
+    expect(items["services:transitProviderPhoneNumber"]).toMatchObject({ tier: "airline" });
+    expect(applyConversion(s, b, plan, {}).airline.services).toEqual({ managementURL: "https://www.philippineairlines.com/manage", transitProviderPhoneNumber: "+63 2 8855 8888" });
+  });
+});

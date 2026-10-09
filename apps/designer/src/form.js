@@ -6,6 +6,7 @@ import { BRANDING_IMAGE_SLOTS } from "@wpd/pass-builder/form-assets.js";
 import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
 import { showBcbpPreview } from "./bcbp-preview.js";
 import { renderTypedInput } from "./inputs.js";
+import { SERVICE_LINKS, serviceLinkError } from "@wpd/pass-builder/services.js";
 
 const rgbToHex = (s) => {
   const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(s || "");
@@ -370,6 +371,55 @@ function semanticsCard() {
 }
 
 // Left-pane sections of the Design workspace (main.js owns the tab strip).
+// The boarding-pass services page (Apple's "additional flight information"):
+// airline-level links Wallet turns into buttons below the pass. Minimum +
+// expand: none to start, "+ Add link" for each one the airline offers.
+function servicesCard() {
+  const body = h("div", { class: "wpd-services" });
+  const rerender = () => {
+    body.replaceChildren();
+    const cur = state.services ?? {};
+    for (const link of SERVICE_LINKS.filter(l => l.key in cur)) {
+      const input = h("input", { class: "wpd-input", value: cur[link.key] ?? "", "data-service": link.key, "aria-label": link.label,
+        placeholder: link.kind === "email" ? "help@airline.com" : link.kind === "phone" ? "+63 2 8855 8888" : "https://…",
+        type: link.kind === "email" ? "email" : link.kind === "phone" ? "tel" : "url" });
+      const err = h("div", { class: "field-err" });
+      input.addEventListener("input", () => {
+        setPath("services", { ...(state.services ?? {}), [link.key]: input.value });
+        if (err.textContent && !serviceLinkError(link.kind, input.value)) { err.textContent = ""; err.classList.remove("show"); }
+      });
+      input.addEventListener("focusout", () => {
+        const msg = serviceLinkError(link.kind, input.value);
+        err.textContent = msg ?? ""; err.classList.toggle("show", Boolean(msg));
+      });
+      const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove link", "aria-label": `Remove ${link.label}`, text: "×" });
+      rm.addEventListener("click", () => {
+        const { [link.key]: _drop, ...rest } = state.services ?? {};
+        setPath("services", rest);
+        rerender();
+      });
+      body.append(h("div", { class: "wpd-fld wpd-service-row" }, fieldLabel(link.label), h("div", { class: "wpd-service-ctl" }, input, rm), err));
+    }
+    const unused = SERVICE_LINKS.filter(l => !(l.key in cur));
+    if (unused.length) {
+      const add = h("select", { class: "sem-add", "aria-label": "Add a services link" },
+        h("option", { value: "", text: "+ Add link…" }), ...unused.map(l => h("option", { value: l.key, text: l.label })));
+      add.addEventListener("change", () => {
+        if (!add.value) return;
+        const key = add.value;
+        setPath("services", { ...(state.services ?? {}), [key]: "" });
+        rerender();
+        body.querySelector(`[data-service="${key}"]`)?.focus();
+      });
+      body.append(add);
+    }
+  };
+  rerender();
+  return card("Services page",
+    h("p", { class: "dw-sub", text: "Buttons Wallet shows under the boarding pass: manage booking, change seat, Wi-Fi, bags… Same for every route and flight of this airline." }),
+    body);
+}
+
 export const DESIGN_SECTIONS = [
   ["look", "Look"], ["fields", "Fields"], ["flight", "Flight data"], ["barcode", "Barcode"], ["advanced", "Advanced"]
 ];
@@ -386,7 +436,7 @@ export function renderForm(root, { section = "look" } = {}) {
     fields: () => [fieldsCard()],
     flight: () => [semanticsCard()],
     barcode: () => [barcodeCard(root)],
-    advanced: () => [metaCard()]
+    advanced: () => [servicesCard(), metaCard()]
   }[section] ?? (() => [brandCard(), assetsCard(root)]);
   root.appendChild(h("div", { class: "dw-section stagger", "data-section": section }, ...build()));
 }

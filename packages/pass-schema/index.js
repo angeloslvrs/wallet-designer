@@ -16,6 +16,7 @@ export { schema };
 
 /**
  * @typedef {Object} FormState  semantics-first boarding-pass design
+ * (optional `services`: boarding-pass services page links — top-level pass.json keys)
  * @property {{passTypeId:string, teamId:string, organizationName:string, serialNumber:string, description:string, webServiceURL?:string, authenticationToken?:string, expirationDate?:string, groupId?:string}} meta
  * @property {{logoText:string, foregroundColor:string, backgroundColor:string, labelColor:string, logoDataUrl?:string, iconDataUrl?:string, footerDataUrl?:string, primaryLogoDataUrl?:string}} branding
  * @property {{format:string, message:string, altText:string}} barcode

@@ -21,7 +21,7 @@ describe("Design editor — one section at a time", () => {
     expect(heads("flight")).toEqual(["Flight data"]);
     expect(root.querySelector(".sem-editor")).toBeTruthy();
     expect(heads("barcode")).toEqual(["Barcode"]);
-    expect(heads("advanced")).toEqual(["Pass metadata"]);
+    expect(heads("advanced")).toEqual(["Services page", "Pass metadata"]);
     expect(DESIGN_SECTIONS.map(([k]) => k)).toEqual(["look", "fields", "flight", "barcode", "advanced"]);
   });
 
@@ -123,5 +123,22 @@ describe("Design editor — optional fields", () => {
     expect(state.displayFields.back[0].optional).toBe(true);
     root.querySelector('.wpd-df-opt').click();
     expect(state.displayFields.back[0].optional).toBeUndefined();
+  });
+});
+
+describe("Design editor — services page", () => {
+  it("starts empty; + Add link adds a row; typing stores it; × removes it; bad links flag on blur", () => {
+    renderForm(root, { section: "advanced" });
+    expect(root.querySelector("[data-service]")).toBeNull();
+    const add = root.querySelector('select[aria-label="Add a services link"]');
+    add.value = "managementURL"; add.dispatchEvent(new Event("change", { bubbles: true }));
+    const input = root.querySelector('[data-service="managementURL"]');
+    input.value = "pal.com"; input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(state.services).toEqual({ managementURL: "pal.com" });
+    input.dispatchEvent(new Event("focusout", { bubbles: true }));
+    expect(input.closest(".wpd-service-row").querySelector(".field-err").textContent).toMatch(/full link/);
+    expect([...root.querySelectorAll('select[aria-label="Add a services link"] option')].map(o => o.value)).not.toContain("managementURL");
+    root.querySelector('[aria-label="Remove Manage booking"]').click();
+    expect(state.services).toEqual({});
   });
 });

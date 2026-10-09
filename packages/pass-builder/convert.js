@@ -130,6 +130,13 @@ export function planConversion(state, bindings = {}) {
     const foreign = looksForeign(hostOf(url), words);
     items.push({ id: `eventGuide:${k}`, group: "iOS 26 extras", what: k, value: String(url), tier: foreign ? "drop" : "airline", options: ["airline", "drop"], ...(foreign && { flag: "Not this airline’s site — another airline’s link?" }) });
   }
+  // Services page links are the airline's; flag ones that point at another airline.
+  for (const [k, v] of Object.entries(state.services ?? {})) {
+    if (isEmpty(v)) continue;
+    const where = /Email$/.test(k) ? String(v).split("@")[1] : /PhoneNumber$/.test(k) ? null : hostOf(v);
+    const foreign = where !== null && looksForeign(where, words);
+    items.push({ id: `services:${k}`, group: "Services page", what: k, value: String(v), tier: foreign ? "drop" : "airline", options: ["airline", "drop"], ...(foreign && { flag: "Not this airline’s site — another airline’s link?" }) });
+  }
   (state.iOS26?.wifi ?? []).forEach((w, i) => {
     const foreign = looksForeign(w?.ssid, words);
     items.push({ id: `wifi:${i}`, group: "iOS 26 extras", what: "Wi-Fi", value: String(w?.ssid ?? ""), tier: foreign ? "drop" : "airline", options: ["airline", "drop"], ...(foreign && { flag: "Looks like another airline’s network" }) });
@@ -219,6 +226,9 @@ export function applyConversion(state, bindings, plan, decisions = {}) {
   if (ios.wifi) {
     const kept = ios.wifi.filter((_, i) => decided[`wifi:${i}`]?.chosen !== "drop");
     if (kept.length) ios.wifi = kept; else delete ios.wifi;
+  }
+  if (airline.services) {
+    airline.services = Object.fromEntries(Object.entries(airline.services).filter(([k]) => decided[`services:${k}`]?.chosen !== "drop"));
   }
   delete ios.upcomingPassInformation;
   delete ios.relevantDates;

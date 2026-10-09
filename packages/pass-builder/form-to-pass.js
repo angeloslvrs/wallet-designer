@@ -54,6 +54,8 @@ export function formStateToPassJson(s, { resolveFields = true } = {}) {
     ...(ios.upcomingPassInformation?.length && {
       upcomingPassInformation: ios.upcomingPassInformation.map(e => ({ identifier: e.identifier, name: e.name, type: "event", dateInformation: { date: e.date } }))
     }),
+    // Services page (manage booking, change seat, Wi-Fi…): filled ones only.
+    ...stripUndef(s.services ?? {}),
     ...(meta.webServiceURL && { webServiceURL: meta.webServiceURL }),
     ...(meta.authenticationToken && { authenticationToken: meta.authenticationToken })
   };

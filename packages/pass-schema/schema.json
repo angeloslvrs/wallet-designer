@@ -57,6 +57,28 @@
         "back": { "$ref": "#/definitions/fieldList" }
       }
     },
+    "services": {
+      "type": "object",
+      "description": "Boarding-pass services page: top-level pass.json keys (airline-level).",
+      "additionalProperties": false,
+      "properties": {
+        "managementURL": { "type": "string" },
+        "changeSeatURL": { "type": "string" },
+        "upgradeURL": { "type": "string" },
+        "purchaseAdditionalBaggageURL": { "type": "string" },
+        "purchaseWifiURL": { "type": "string" },
+        "purchaseLoungeAccessURL": { "type": "string" },
+        "orderFoodURL": { "type": "string" },
+        "entertainmentURL": { "type": "string" },
+        "trackBagsURL": { "type": "string" },
+        "reportLostBagURL": { "type": "string" },
+        "requestWheelchairURL": { "type": "string" },
+        "registerServiceAnimalURL": { "type": "string" },
+        "transitProviderWebsiteURL": { "type": "string" },
+        "transitProviderEmail": { "type": "string" },
+        "transitProviderPhoneNumber": { "type": "string" }
+      }
+    },
     "iOS26": {
       "type": "object",
       "additionalProperties": false,
