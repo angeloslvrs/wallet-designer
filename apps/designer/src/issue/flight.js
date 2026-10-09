@@ -76,7 +76,7 @@ function routeDateHtml(ctx) {
         <div class="iw-field is-wide">
           <label class="iw-label" for="iw-date">Date<span class="iw-req" aria-hidden="true">*</span></label>
           <input id="iw-date" type="date" class="iw-input" value="${esc(ctx.flightDate)}" />
-          <span class="iw-hint">${picked ? "Filled from" : "Pick the day to fill the times below from"} route ${esc(ctx.route.id)}: ${esc(routeTimesText(ctx.route))}</span>
+          <span class="iw-hint">${picked ? "Times below come from" : "Pick the day to fill the times below from"} route ${esc(ctx.route.id)}: ${esc(routeTimesText(ctx.route))}${picked ? " — change the date for another day" : ""}</span>
         </div>`;
 }
 

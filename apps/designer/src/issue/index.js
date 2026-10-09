@@ -325,9 +325,23 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
   function applyFlightDate(date) {
     flightDate = date;
     if (!route) return;
+    if (!date) {   // cleared: the times the route filled clear too (no stale day left behind)
+      const filled = { boarding: "currentBoardingDate", departure: "currentDepartureDate", arrival: "currentArrivalDate" };
+      for (const [k, sem] of Object.entries(filled)) if (route.schedule?.[k]) shared = { ...shared, [`sem:${sem}`]: "" };
+      return;
+    }
     const zones = { departureAirportTimeZone: zoneFor("sem:currentDepartureDate"), destinationAirportTimeZone: zoneFor("sem:currentArrivalDate") };
     const sched = routeSchedule({ values: zones, schedule: route.schedule }, date, (local, zone) => zoneOffset(local, zone));
     for (const [sem, v] of Object.entries(sched)) if (slotById(`sem:${sem}`)) shared = { ...shared, [`sem:${sem}`]: v };
+  }
+
+  // Today at the departure airport — the default day for a flight off a route.
+  // (Safari draws an empty date field with today's date in grey, so a blank
+  // default reads as already set.)
+  function todayAtDeparture() {
+    const zone = zoneFor("sem:currentDepartureDate");
+    try { return new Intl.DateTimeFormat("en-CA", { timeZone: zone || undefined, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+    catch { return new Date().toISOString().slice(0, 10); }
   }
 
   function enterRouteMode() {
@@ -572,21 +586,26 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
   root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-more]")) moreOpen = e.target.open; }, { capture: true, signal });
 
   root.addEventListener("change", (e) => {
-    if (e.target.id === "iw-date") {
-      applyFlightDate(e.target.value);
-      onValuesChanged("shared", "sem:currentDepartureDate");
-      render();   // schedule pickers, the date hint and the title all follow the day
-      $("#iw-date")?.focus();
-      return;
-    }
+    if (e.target.id === "iw-date") return onFlightDate(e.target.value);
     if (e.target.matches("[data-act-change='vary']")) {
       const sid = e.target.value;
       if (sid) { setIndividual(new Set(individual).add(sid)); render(); }
     }
   }, { signal });
 
+  // Date of a flight off a route: on change, and on input once it's a whole
+  // date (Safari can hold `change` until the field loses focus).
+  function onFlightDate(value) {
+    if (value === flightDate) return;
+    applyFlightDate(value);
+    onValuesChanged("shared", "sem:currentDepartureDate");
+    render();   // schedule pickers, the date hint and the title all follow the day
+    $("#iw-date")?.focus();
+  }
+
   root.addEventListener("input", (e) => {
     const t = e.target;
+    if (t.id === "iw-date") { if (/^\d{4}-\d{2}-\d{2}$/.test(t.value)) onFlightDate(t.value); return; }
     if (t.id === "iw-route-id") { routeId = t.value; refreshFooter(); const b = $("[data-ws-title]"); if (b) b.textContent = routeId.trim() || "New route"; return; }
     if (t.id === "iw-trip") { tripId = t.value; tripIdEdited = Boolean(t.value.trim()); reSuggestSerials(); refreshPaxList(); refreshTitle(); refreshFooter(); const err = $("#err-trip"); if (err && !tripError()) err.textContent = ""; return; }
     if (t.matches("[data-serial]")) {
@@ -671,6 +690,7 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
     if (route) {
       shared = routeToShared(route, slots);
       if (routeMode) { routeId = route.id; applyFlightDate(new Date().toISOString().slice(0, 10)); flightDate = ""; }
+      else applyFlightDate(todayAtDeparture());
     } else if (routeMode) routeId = "";
     render();
   }

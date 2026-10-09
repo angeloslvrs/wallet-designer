@@ -253,11 +253,23 @@ describe("routes in the Issue workspace", () => {
     expect(sched.querySelector(".iw-field #iw-date")).toBeTruthy();
     expect(sched.querySelector(".iw-field").contains(root.querySelector("#iw-date"))).toBe(true);
     expect(sched.textContent).toContain("boards 07:30 · departs 08:00 · arrives 16:30");
+    // Defaults to today at the departure airport, so the route's times show at once.
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    expect(root.querySelector("#iw-date").value).toBe(today);
+    expect([dateOf("sem:currentDepartureDate"), timeOf("sem:currentDepartureDate")]).toEqual([today, "08:00"]);
+    // Cleared: the schedule clears too and the footer asks for a date.
+    let date = root.querySelector("#iw-date");
+    date.value = ""; date.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(timeOf("sem:currentDepartureDate")).toBe("");
     expect(root.querySelector("[data-ready]").textContent).toMatch(/Pick the flight’s date/);
-    const date = root.querySelector("#iw-date");
+    // Typing a whole date fills it without waiting for change (Safari).
+    date = root.querySelector("#iw-date");
+    date.value = "2026-11-01"; date.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(dateOf("sem:currentDepartureDate")).toBe("2026-11-01");
+    date = root.querySelector("#iw-date");
     date.value = "2026-11-02"; date.dispatchEvent(new Event("change", { bubbles: true }));
     expect([dateOf("sem:currentBoardingDate"), timeOf("sem:currentBoardingDate"), timeOf("sem:currentArrivalDate")]).toEqual(["2026-11-02", "07:30", "16:30"]);
-    expect(root.querySelector("#iw-date").closest(".iw-field").textContent).toContain("Filled from route RP248-SFO-JFK");
+    expect(root.querySelector("#iw-date").closest(".iw-field").textContent).toContain("Times below come from route RP248-SFO-JFK");
     expect(root.querySelector("#iw-trip").value).toBe("RP248@2026-11-02");
     click('[data-act="to-passengers"]');
     root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
