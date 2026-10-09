@@ -4,7 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { schema } from "@wpd/pass-schema";
-import { SEMANTIC_CATALOG } from "./semantics.js";
+import { SEMANTIC_CATALOG, SEMANTIC_KEY_ALIASES } from "./semantics.js";
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -18,7 +18,9 @@ const validator = ajv.compile(schema);
 // intentionally NOT hard-restricted in the JSON schema — an unknown key here is a
 // NON-FATAL warning (an escape hatch for valid future/rail/event keys), never a
 // validation failure.
-const KNOWN_SEMANTIC_KEYS = new Set([...Object.keys(SEMANTIC_CATALOG), "wifiAccess"]);
+// Proto spellings of doc keys (SEMANTIC_KEY_ALIASES) are known too: designs saved
+// before the catalog switched to the doc spelling carry them.
+const KNOWN_SEMANTIC_KEYS = new Set([...Object.keys(SEMANTIC_CATALOG), ...Object.values(SEMANTIC_KEY_ALIASES), "airlineLoungePlaceId", "wifiAccess"]);
 
 /** Non-fatal: flag semantics keys outside the known boarding vocabulary. */
 function semanticWarnings(semantics) {

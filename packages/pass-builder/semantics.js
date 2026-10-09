@@ -59,6 +59,7 @@ export const BOARDING_SEMANTICS = Object.freeze({
   priorityStatus: "string",
   membershipProgramName: "string",
   membershipProgramNumber: "string",
+  membershipProgramStatus: "string",
   // status line / day-of-travel extras
   transitStatus: "string",
   transitStatusReason: "string",
@@ -89,6 +90,21 @@ export const PASSENGER_CAPABILITY_OPTIONS = Object.freeze([
   { value: "PKPassengerCapabilityLapInfant",        label: "Lap infant" }
 ]);
 
+// Apple's supported `passengerServiceSSRs` codes (boarding-pass guide).
+export const SERVICE_SSR_OPTIONS = Object.freeze([
+  { value: "PETC", label: "PETC — carry-on pet" },
+  { value: "SVAN", label: "SVAN — service animal" },
+  { value: "UMNR", label: "UMNR — unaccompanied minor" },
+  { value: "WCHR", label: "WCHR — wheelchair, can use stairs" },
+  { value: "WCHS", label: "WCHS — wheelchair, no stairs" },
+  { value: "WCHC", label: "WCHC — wheelchair" },
+  { value: "WCOB", label: "WCOB — on-board aisle wheelchair" },
+  { value: "WCMP", label: "WCMP — manual wheelchair" },
+  { value: "WCBD", label: "WCBD — dry-cell battery wheelchair" },
+  { value: "WCBW", label: "WCBW — wet-cell battery wheelchair" },
+  { value: "WCLB", label: "WCLB — lithium-ion battery wheelchair" }
+]);
+
 const EXTRA_SEMANTICS = {
   eventType:                 { type: "enum",        group: "flight",    label: "Event type",
                                enumOptions: ["PKEventTypeGeneric", "PKEventTypeBoarding"] },
@@ -101,8 +117,18 @@ const EXTRA_SEMANTICS = {
   passengerCapabilities:     { type: "stringArray", group: "passenger", label: "Baggage & capabilities",
                                enumOptions: PASSENGER_CAPABILITY_OPTIONS },
   passengerEligibleSecurityPrograms:   { type: "stringArray", group: "passenger", label: "Eligible security programs" },
-  departureAirportSecurityPrograms:    { type: "stringArray", group: "route",     label: "Departure security programs" },
-  destinationAirportSecurityPrograms:  { type: "stringArray", group: "route",     label: "Destination security programs" },
+  // Apple's doc spelling; the pinned protos say *AirportSecurityPrograms —
+  // both are emitted (SEMANTIC_KEY_ALIASES).
+  departureLocationSecurityPrograms:   { type: "stringArray", group: "route",     label: "Departure security programs" },
+  destinationLocationSecurityPrograms: { type: "stringArray", group: "route",     label: "Destination security programs" },
+  // Special Service Requests (IATA SSR codes) — Wallet shows the supported ones
+  // as badges, always last (Apple's boarding-pass guide lists them).
+  passengerServiceSSRs:      { type: "stringArray", group: "passenger", label: "Service requests (SSR)",
+                               enumOptions: SERVICE_SSR_OPTIONS },
+  passengerInformationSSRs:  { type: "stringArray", group: "passenger", label: "Information SSRs",
+                               enumOptions: [{ value: "INFT", label: "INFT — seat infant" }] },
+  passengerAirlineSSRs:      { type: "stringArray", group: "passenger", label: "Airline-specific SSRs" },
+  loungePlaceIDs:            { type: "stringArray", group: "route",     label: "Lounge place IDs (MapKit)" },
   totalPrice:                { type: "currency",    group: "pricing",   label: "Total price" },
   balance:                   { type: "currency",    group: "pricing",   label: "Balance" }
 };
@@ -115,7 +141,7 @@ const SEMANTIC_GROUP = {
   boardingGroup: "passenger", boardingZone: "passenger", boardingSequenceNumber: "passenger",
   passengerName: "passenger", seats: "passenger", confirmationNumber: "passenger",
   ticketFareClass: "passenger", priorityStatus: "passenger",
-  membershipProgramName: "passenger", membershipProgramNumber: "passenger",
+  membershipProgramName: "passenger", membershipProgramNumber: "passenger", membershipProgramStatus: "passenger",
   transitStatus: "status", transitStatusReason: "status", transitProvider: "status", securityScreening: "status"
   // everything else (departure*/destination*) falls through to "route"
 };
@@ -188,6 +214,33 @@ export const TIMEZONE_KEY_ALIASES = Object.freeze({
   departureLocationTimeZone: "departureAirportTimeZone",
   destinationLocationTimeZone: "destinationAirportTimeZone"
 });
+
+// Apple's published doc spelling → the pinned pass-builder proto spelling for
+// keys the two disagree on. Both are emitted (like the time zones) so Wallet
+// and Pass Builder each find their own; designs saved with either spelling work.
+export const SEMANTIC_KEY_ALIASES = Object.freeze({
+  ...TIMEZONE_KEY_ALIASES,
+  departureLocationSecurityPrograms: "departureAirportSecurityPrograms",
+  destinationLocationSecurityPrograms: "destinationAirportSecurityPrograms",
+  passengerAirlineSSRs: "passengerAirlineSsrs",
+  passengerInformationSSRs: "passengerInformationSsrs",
+  passengerServiceSSRs: "passengerServiceSsrs"
+});
+
+/**
+ * Pure: semantics with every doc/proto spelling pair filled both ways, plus
+ * the proto's single `airlineLoungePlaceId` from the doc's `loungePlaceIDs`.
+ * @param {Record<string, *>} semantics
+ */
+export function mirrorSemanticAliases(semantics) {
+  const out = { ...semantics };
+  for (const [doc, proto] of Object.entries(SEMANTIC_KEY_ALIASES)) {
+    if (out[doc] !== undefined && out[proto] === undefined) out[proto] = out[doc];
+    else if (out[proto] !== undefined && out[doc] === undefined) out[doc] = out[proto];
+  }
+  if (Array.isArray(out.loungePlaceIDs) && out.loungePlaceIDs.length && out.airlineLoungePlaceId === undefined) out.airlineLoungePlaceId = out.loungePlaceIDs[0];
+  return out;
+}
 
 const SEAT_RE = /^(\d+)\s*([A-Za-z]+)$/;
 

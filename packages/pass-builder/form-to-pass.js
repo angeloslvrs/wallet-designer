@@ -1,5 +1,5 @@
 import { isEmptyTyped } from "./suggest-empty.js";
-import { SEMANTIC_CATALOG, TIMEZONE_KEY_ALIASES } from "./semantics.js";
+import { SEMANTIC_CATALOG, mirrorSemanticAliases } from "./semantics.js";
 import { applyPassDates } from "./expiry.js";
 import { resolvePassFields } from "./field-render.js";
 
@@ -62,19 +62,17 @@ export function formStateToPassJson(s, { resolveFields = true } = {}) {
   return resolveFields ? resolvePassFields(dated) : dated;
 }
 
-/** Filled-only semantics (per catalog type), with both tz spellings + wifiAccess. */
+/** Filled-only semantics (per catalog type), with doc + proto spellings + wifiAccess. */
 function emitSemantics(semantics = {}, wifi) {
   const out = {};
   for (const [k, v] of Object.entries(semantics)) {
     const type = SEMANTIC_CATALOG[k]?.type ?? "text";
     if (!isEmptyTyped(type, v)) out[k] = v;
   }
-  for (const [docKey, airportKey] of Object.entries(TIMEZONE_KEY_ALIASES)) {
-    if (out[docKey] && !out[airportKey]) out[airportKey] = out[docKey];
-    else if (out[airportKey] && !out[docKey]) out[docKey] = out[airportKey];
-  }
-  if (wifi?.length) out.wifiAccess = wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) }));
-  return out;
+  // Doc and proto spellings (time zones, security programs, SSRs, lounge) both ship.
+  const mirrored = mirrorSemanticAliases(out);
+  if (wifi?.length) mirrored.wifiAccess = wifi.map(w => ({ ssid: w.ssid, ...(w.password && { password: w.password }) }));
+  return mirrored;
 }
 
 function stripUndef(o) {

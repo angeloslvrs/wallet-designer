@@ -10,7 +10,7 @@
 // Each kind ships the same merge surface (fieldKeys / fields / bindings /
 // semantics) from GET /api/templates and GET /api/studio-templates.
 
-import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "@wpd/pass-builder/semantics.js";
+import { SEMANTIC_CATALOG, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "@wpd/pass-builder/semantics.js";
 import { formatSemanticValue } from "@wpd/pass-builder/suggest.js";
 import { isEmptyTyped } from "@wpd/pass-builder/suggest-empty.js";
 import { semanticKind, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
@@ -133,10 +133,14 @@ const FLIGHT_CORE = [
   "currentBoardingDate", "currentDepartureDate", "currentArrivalDate",
   "departureAirportTimeZone", "destinationAirportTimeZone"
 ];
-const REQUIRED = new Set(REQUIRED_SEMANTICS.map(canonicalSemantic));
+// Apple's 12 required tags for the iOS 26 boarding view (the published doc's
+// list — a pass missing any falls back to the legacy style), not just the 9
+// the pinned validator errors on.
+const REQUIRED = new Set(DOC_REQUIRED_SEMANTICS.map(canonicalSemantic));
 // Baked keys not worth a slot: derived at emit time or structural.
 const SKIP_BAKED = new Set(["wifiAccess", "duration", "eventType", "silenceRequested"]);
-const RECOMMENDED = new Set(DOC_REQUIRED_SEMANTICS.map(canonicalSemantic).filter(k => !REQUIRED.has(k)));
+// Apple's recommended tags (doc) plus the validator's warnings.
+const RECOMMENDED = new Set([...RECOMMENDED_SEMANTICS, "departureAirportName", "destinationAirportName", "departureLocation", "destinationLocation", "transitProvider"].map(canonicalSemantic).filter(k => !REQUIRED.has(k)));
 
 const LABELS = {
   airlineCode: "Airline", flightNumber: "Flight number", flightCode: "Flight code",
@@ -187,7 +191,7 @@ export function templateSlots(tpl) {
       label: LABELS[sem] ?? SEMANTIC_CATALOG[sem]?.label ?? first?.label ?? sem,
       widget: semanticWidget(sem), kind: semanticKind(sem),
       required: REQUIRED.has(sem), recommended: RECOMMENDED.has(sem),
-      perPassenger: PER_PASSENGER_LOCKED.has(sem) ? "locked" : PER_PASSENGER_DEFAULT.includes(sem) ? "default" : null,
+      perPassenger: PER_PASSENGER_LOCKED.has(sem) ? "locked" : PER_PASSENGER_DEFAULT.includes(sem) || SEMANTIC_CATALOG[sem]?.group === "passenger" ? "default" : null,
       // Blank = this value ships (template default) — never for volatile placeholders.
       fallback: volatile || isEmptyTyped(SEMANTIC_CATALOG[sem]?.type ?? "text", bakedValue) ? undefined : bakedValue
     };

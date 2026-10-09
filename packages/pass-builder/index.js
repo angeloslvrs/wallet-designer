@@ -7,7 +7,7 @@ import { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS } from "./form-assets.js"
 
 export { formStateToPassJson, signPkpass, validate };
 export { loadTemplate, applyTemplateData, templateFieldKeys, templateFieldDescriptors, buildPkpassFromTemplate, stripInternalIds, mirrorTimeZoneAliases, ensureBaseImageVariants, isSemanticDriven } from "./template.js";
-export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES } from "./semantics.js";
+export { seatSemantics, splitPersonName, BOARDING_SEMANTICS, SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_DATE_KEYS, TIMEZONE_KEY_ALIASES, SEMANTIC_KEY_ALIASES, mirrorSemanticAliases, SERVICE_SSR_OPTIONS } from "./semantics.js";
 export { parseBCBP, bcbpToSemantics } from "./bcbp.js";
 export { applyPassDates, addDaysPreservingOffset } from "./expiry.js";
 export { parseStrictIsoDateTime, parseLooseIsoDateTime, isStrictIsoDateTime, isLooseIsoDateTime, assertStrictIsoDateTime } from "./iso-date.js";

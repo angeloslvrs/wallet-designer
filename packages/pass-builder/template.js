@@ -11,7 +11,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { TIMEZONE_KEY_ALIASES, REQUIRED_SEMANTICS } from "./semantics.js";
+import { REQUIRED_SEMANTICS, mirrorSemanticAliases } from "./semantics.js";
 import { semanticKind, kindAttrs } from "./field-kinds.js";
 import { signPkpass } from "./sign.js";
 import { applyPassDates } from "./expiry.js";
@@ -318,12 +318,8 @@ export function ensureBaseImageVariants(assets) {
  */
 export function mirrorTimeZoneAliases(passJson) {
   if (!passJson?.semantics) return passJson;
-  const semantics = { ...passJson.semantics };
-  for (const [docKey, designerKey] of Object.entries(TIMEZONE_KEY_ALIASES)) {
-    if (semantics[docKey] !== undefined && semantics[designerKey] === undefined) semantics[designerKey] = semantics[docKey];
-    if (semantics[designerKey] !== undefined && semantics[docKey] === undefined) semantics[docKey] = semantics[designerKey];
-  }
-  return { ...passJson, semantics };
+  // Time zones and every other doc/proto spelling pair (SEMANTIC_KEY_ALIASES).
+  return { ...passJson, semantics: mirrorSemanticAliases(passJson.semantics) };
 }
 
 /**

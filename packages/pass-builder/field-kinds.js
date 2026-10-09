@@ -8,7 +8,7 @@
 import { BOARDING_SEMANTICS } from "./semantics.js";
 import { isStrictIsoDateTime } from "./iso-date.js";
 
-/** @typedef {"date"|"number"|"iata"|"name"|"seat"|"text"} FieldKind */
+/** @typedef {"date"|"number"|"iata"|"name"|"seat"|"timezone"|"text"} FieldKind */
 
 // Airport-code semantics are typed "string" by Apple, but the issuer enters a
 // 3-letter IATA code — recognise them by the conventional key suffix rather
@@ -34,6 +34,7 @@ export function semanticKind(semanticKey) {
     case "seats":      return "seat";
     default: // "string" or unknown
       if (isAirportCodeSemantic(semanticKey)) return "iata";
+      if (/TimeZone$/.test(semanticKey)) return "timezone";
       if (NUMERIC_STRING_SEMANTICS.has(semanticKey)) return "number";
       return "text";
   }
@@ -42,6 +43,12 @@ export function semanticKind(semanticKey) {
 const IATA_RE = /^[A-Za-z]{3}$/;
 const NUMBER_RE = /^-?\d+(\.\d+)?$/;
 const SEAT_RE = /^\d+\s*[A-Za-z]+$/;
+// Apple requires IANA zone names (e.g. America/Chicago); anything Intl can't
+// resolve won't place the flight's times on the device either.
+function isTimeZone(v) {
+  if (typeof v !== "string" || !/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(v)) return false;
+  try { new Intl.DateTimeFormat("en-US", { timeZone: v }); return true; } catch { return false; }
+}
 
 /**
  * HTML input affordances for a kind: what the UI puts on the `<input>` so a bad
@@ -75,6 +82,7 @@ export function validateFieldValue(descriptor, rawValue) {
     case "number": return NUMBER_RE.test(v) ? null : "Must be a number";
     case "date":   return isStrictIsoDateTime(v) ? null : "Must be a valid ISO date and time with timezone";
     case "seat":   return SEAT_RE.test(v)   ? null : "Seat must be a row and letter (e.g. 17C)";
+    case "timezone": return isTimeZone(v) ? null : "Use an IANA time zone (e.g. Asia/Manila)";
     default:       return null; // name / text — no format constraint
   }
 }

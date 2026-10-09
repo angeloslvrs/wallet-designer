@@ -218,6 +218,8 @@ describe("Studio design", () => {
     await settle();
     fillFlight();
     type(root.querySelector('[data-slot-input="sem:departureAirportTimeZone"] input'), "America/Los_Angeles");
+    // Apple requires the destination zone too (the pass falls back to the legacy style without it).
+    type(root.querySelector('[data-slot-input="sem:destinationAirportTimeZone"] input'), "America/New_York");
     click('[data-act="to-passengers"]');
     root.querySelector("#iw-paste").value = bcbp("TAN/LEA", "022C", "0007");
     click('[data-act="paste-add"]');
@@ -358,5 +360,19 @@ describe("routeTimesText", async () => {
   it("says when a route has no boarding time and counts arrival days", () => {
     expect(routeTimesText({ schedule: { departure: "09:10", arrival: "14:10", arrivalDayOffset: 0 } })).toBe("no boarding time · departs 09:10 · arrives 14:10");
     expect(routeTimesText({ schedule: { boarding: "22:40", departure: "23:10", arrival: "05:00", arrivalDayOffset: 1 } })).toBe("boards 22:40 · departs 23:10 · arrives 05:00 (+1 day)");
+  });
+});
+
+
+describe("Apple's required tags", () => {
+  it("blocks issuing until the destination zone is set, and rejects a non-IANA zone", async () => {
+    mountIssue(root, { template: "rocket", kind: "studio" });
+    await settle();
+    fillFlight();
+    type(root.querySelector('[data-slot-input="sem:departureAirportTimeZone"] input'), "America/Los_Angeles");
+    expect(root.querySelector("[data-ready]").textContent).toMatch(/Time zone · to/);
+    type(root.querySelector('[data-slot-input="sem:destinationAirportTimeZone"] input'), "New York");
+    root.querySelector('[data-slot-input="sem:destinationAirportTimeZone"] input').dispatchEvent(new Event("focusout", { bubbles: true }));
+    expect(root.querySelector('[data-field="sem:destinationAirportTimeZone"]').textContent).toMatch(/IANA time zone/);
   });
 });

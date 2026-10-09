@@ -162,3 +162,19 @@ describe("optional fields in the schema", async () => {
     expect(formStateToPassJson(s).boardingPass.backFields).toEqual([]);
   });
 });
+
+describe("doc ↔ proto semantic spellings", () => {
+  it("emits both spellings for security programs and SSRs, and the proto lounge id", () => {
+    const s = structuredClone(base);
+    s.semantics = { ...s.semantics, departureLocationSecurityPrograms: ["PKTransitSecurityProgramTSAPreCheck"], passengerServiceSSRs: ["WCHR"], loungePlaceIDs: ["I123", "I456"] };
+    const sem = formStateToPassJson(s).semantics;
+    expect(sem.departureAirportSecurityPrograms).toEqual(["PKTransitSecurityProgramTSAPreCheck"]);
+    expect(sem.passengerServiceSsrs).toEqual(["WCHR"]);
+    expect(sem.airlineLoungePlaceId).toBe("I123");
+  });
+  it("a design saved with the proto spelling still emits the doc spelling", () => {
+    const s = structuredClone(base);
+    s.semantics = { ...s.semantics, destinationAirportSecurityPrograms: ["X"] };
+    expect(formStateToPassJson(s).semantics.destinationLocationSecurityPrograms).toEqual(["X"]);
+  });
+});

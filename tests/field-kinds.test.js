@@ -92,3 +92,14 @@ describe("kindAttrs — input affordances per kind", () => {
     expect(kindAttrs("text")).toEqual({});
   });
 });
+
+describe("timezone kind", () => {
+  it("time-zone semantics validate as IANA names", () => {
+    expect(semanticKind("departureAirportTimeZone")).toBe("timezone");
+    expect(semanticKind("destinationLocationTimeZone")).toBe("timezone");
+    expect(validateFieldValue({ kind: "timezone" }, "Asia/Manila")).toBeNull();
+    expect(validateFieldValue({ kind: "timezone" }, "UTC")).toBeNull();
+    expect(validateFieldValue({ kind: "timezone" }, "Manila")).toMatch(/IANA/);
+    expect(validateFieldValue({ kind: "timezone" }, "+08:00")).toMatch(/IANA/);
+  });
+});
