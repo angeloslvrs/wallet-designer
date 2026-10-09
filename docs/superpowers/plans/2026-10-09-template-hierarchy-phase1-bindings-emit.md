@@ -172,9 +172,9 @@ it("resolves label tokens and 24h time fields by default; raw with resolveFields
 it("schema accepts timeFormat 24h and rejects other values", () => {
   const s = structuredClone(base);
   s.displayFields.auxiliary = [{ key: "b", label: "B", value: "2026-10-12T16:05:00+08:00", timeFormat: "24h" }];
-  expect(validate(s).valid).toBe(true);          // match validate()'s actual return shape in validate.js
+  expect(validate(s).ok).toBe(true);
   s.displayFields.auxiliary[0].timeFormat = "12h";
-  expect(validate(s).valid).toBe(false);
+  expect(validate(s).ok).toBe(false);
 });
 
 // tests/migrate.test.js — add
@@ -185,7 +185,7 @@ it("passes a new-shape state with timeFormat through untouched", () => {
 ```
 
 - [ ] **Step 2:** run → FAIL.
-- [ ] **Step 3: Implement** the option + schema entries. Check `validate.js`'s return shape and adjust the assertion to it before running.
+- [ ] **Step 3: Implement** the option + schema entries.
 - [ ] **Step 4:** run → PASS. Also run `npm run check` (all fixtures still validate) and `npm run build:pass -- --in fixtures/fully-loaded.json` (CERT_PROFILE=dev) to confirm a build still emits.
 
 ---
