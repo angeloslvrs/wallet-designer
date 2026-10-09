@@ -567,3 +567,14 @@ deploy first), merging/pushing the branch. **Deploy notes:** `routes/` is create
 the app root (`/opt/boardingpass/routes`, alongside `designs/`); `passes.route_id` is added on boot;
 rsync `packages/pass-schema/`, `packages/pass-builder/`, `apps/server/`, rebuilt
 `apps/designer/dist/`; `pm2 restart boardingpass`.
+
+## 2026-10-09 session (cont.) — template hierarchy merged + deployed
+
+`feat/template-hierarchy` fast-forwarded into `main` and pushed (both branches on origin; `main` =
+`b6b1419` before this note). Deployed to the box per `docs/deploy.md` (server, pass-builder,
+pass-schema, rebuilt dist; no dep changes; `pm2 restart`). DB backed up first:
+`state/passes.sqlite.bak-20261009-214431`. Verified: `/api/profile` prod, deployed `index-*.js`
+shasum matches local, `/api/routes` → `[]`, all 5 box designs list without errors,
+`passes.route_id` added on boot, the existing issued pass rebuilds (200, pkpass).
+**Not yet done (user's call):** Make airline on the box's `PR2987MNL-TAC` / `TAC-MNL` /
+`BR262-001`, and whether to delete `MNL-TAC` + `PAL` afterwards.
