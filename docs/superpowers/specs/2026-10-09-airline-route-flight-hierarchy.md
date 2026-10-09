@@ -1,6 +1,6 @@
 # Template hierarchy — Airline › Route › Flight
 
-**Status:** direction agreed 2026-10-09. Phase 1 done (plan `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`); phases 2–5 not started.
+**Status:** all five phases implemented on branch `feat/template-hierarchy` (plans: `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`, `…-phases2-5.md`; the latter records how the open questions below were defaulted). Not yet merged or deployed.
 
 ## Why
 

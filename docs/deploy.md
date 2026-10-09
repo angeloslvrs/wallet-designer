@@ -68,6 +68,7 @@ any pass (not just the EVA fixture) installs on a device.
   `node:sqlite`). A legacy `state/passes.json` is imported once on first boot
   (a timestamped `.bak` is written) and then ignored.
 - `designs/*.json` — Studio designs saved from the Design view (created on first save).
+- `routes/*.json` — saved routes (Airline › Route › Flight; created on first save).
 - `node_modules/`, `apps/designer/dist/` — build artifacts.
 
 ## Fast redeploy (from your dev machine)

@@ -1,5 +1,5 @@
 // Studio field extensions → plain Apple fields. A Studio design may carry three
-// things Wallet doesn't understand, and neither may reach an emitted pass.json:
+// things Wallet doesn't understand, and none may reach an emitted pass.json:
 //  - label tokens: "{departureCityName:upper}" fills a label from the pass's
 //    own semantics, so one airline layout serves every route;
 //  - timeFormat "24h": the field stores an ISO date (so Issue, bindings and

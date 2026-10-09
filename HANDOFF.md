@@ -307,7 +307,7 @@ Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
 
 > **UI overhaul in progress on branch `ui-overhaul`** — read the 2026-10-09 entries at the bottom first; they supersede the roadmap below for SPA work.
 >
-> **Next up (designed, not built):** template hierarchy Airline › Route › Flight — `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md`. Phase 1 plan (start at Task 1, branch `feat/template-hierarchy`): `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`.
+> **Template hierarchy Airline › Route › Flight: built on branch `feat/template-hierarchy`, not merged/deployed** — spec `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md`; see the last 2026-10-09 entries. Next: merge, deploy, then run Make airline on the box's PAL/EVA designs.
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
 2. Pick from the open roadmap (nothing in progress):
@@ -539,4 +539,32 @@ in the class needs escaping under the `v` flag) — in `inputs.js`.
 
 **Deploy notes:** no DB migration (same `template_bindings` table). rsync `packages/pass-schema/`,
 `packages/pass-builder/` (new `field-render.js`, `field-zones.js`), `apps/server/`, rebuilt
+`apps/designer/dist/`; `pm2 restart boardingpass`.
+
+## 2026-10-09 session (cont.) — template hierarchy phases 2–5 shipped (branch `feat/template-hierarchy`)
+
+Plan `docs/superpowers/plans/2026-10-09-template-hierarchy-phases2-5.md` (its "Decisions taken
+while planning" list the defaults chosen without asking). All five spec phases are now done:
+- **Routes** (`packages/pass-builder/route.js`, `apps/server/src/routes/flight-routes.js`):
+  `routes/<id>.json` via `/api/routes`; template/design DELETE 409s while routes reference them;
+  passes carry `routeId` (`passes.route_id`, auto `ALTER TABLE`).
+- **Issue from a route**: pre-filled Flight step + Date → schedule in each airport's zone; route
+  editor = Issue in `routeMode`; Save as route / Update route from any Flight step.
+- **Shelf**: grouped by airline code (name = first non-generic organization name, else the code —
+  so `cebpac`, whose pass says "Airline", shows as "5J"); routes listed under their template with
+  Issue / Edit / Move to (variants) / Delete / + Route; an airline design previews through its
+  first route.
+- **Make airline** (`packages/pass-builder/convert.js` + Templates review screen): per-value tier
+  (airline / route / drop) with flags; airport labels → tokens, time text → bound schedule time;
+  writes a new airline design + bindings + route, or adds the route to an existing airline.
+  Source never modified. Dry-run on a local copy of the box's `PR2987MNL-TAC`: 35 items, flags on
+  the cebupacificair.com links + `CebPac-WiFi` + the two airport links (MIAA parking, NAIA transit).
+- **Optional fields**: `optional: true` → left off the pass while blank; "opt" toggle in Design.
+- Browser-verified on the dev server (convert → shelf → issue from route with a date → route
+  editor), test data deleted afterwards. 545 tests green; check + designer build green.
+
+**Not done (needs the user):** running Make airline on the box's real designs (outward-facing;
+deploy first), merging/pushing the branch. **Deploy notes:** `routes/` is created on first save at
+the app root (`/opt/boardingpass/routes`, alongside `designs/`); `passes.route_id` is added on boot;
+rsync `packages/pass-schema/`, `packages/pass-builder/`, `apps/server/`, rebuilt
 `apps/designer/dist/`; `pm2 restart boardingpass`.
