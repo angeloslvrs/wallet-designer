@@ -473,11 +473,13 @@ Save sends + baselines one snapshot (mid-save edits stay dirty). Codex review: 5
 **Critique** (dual-agent `/impeccable critique`, snapshot `.impeccable/critique/2026-10-09T06-58-23Z…`):
 27/40 (phases 1–2 were 24). Fixed: flight blocker → "needs flight" + footer "Fix flight: … →",
 sticky preview, defaults as placeholders, plain paste errors, Design name/Start over/Fields
-headers. Deliberately NOT done: a confirm before issuing (the decided pattern is the inline
-"updates that pass" warning + honest "Issue 1 · update 1" CTA). Open: collapse "Also on this
-pass"/time zones on Flight; typed date pickers in Design → Fields; slimmer Design right pane;
-"apply to all passengers"; a help line for Share vs Vary. Detector overlay can't inject
-through the CSP (expected).
+headers. **Decided (user, 2026-10-09): no confirm before issuing** — keep the inline
+"updates that pass" warning + honest "Issue 1 · update 1" CTA. Then done at the user's request:
+Flight extras (time zones, cities, other template values) collapsed behind "More flight
+details" (auto-opens on an error inside); "Copy to all N" per passenger field (not name/seat);
+Share-vs-Vary explained; typed date pickers in Design → Fields (Suggest/BCBP keep ISO + style).
+Still open (unchosen): slimmer Design right pane (spec says keep "On the pass"). Detector overlay
+can't inject through the CSP (expected).
 
 **Deploy notes (when merged):** rsync `packages/pass-schema/` (new optional `meta.groupId`) and
 `packages/pass-builder/` + `apps/server/` as usual, plus a rebuilt `apps/designer/dist/`.

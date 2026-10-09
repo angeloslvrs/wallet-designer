@@ -86,7 +86,7 @@ Each phase ships green (`npm test`, `npm run check`, SPA build) and is deployabl
 2. **Templates shelf + Bindings** — `templates.js` view, bindings screen (extracted from `issue.js`). *(done 2026-10-09: shipped as `kind`/`preview`/`logo` on `GET /api/templates` plus `GET /api/studio-templates`, not a single `/api/library`.)*
 3. **Issue workspace** — `issue/` split into `flight.js`, `passengers.js`, `issued.js`; three-pane canvas; studio-template issuing; old `issue.js` deleted. *(done 2026-10-09: semantics-first `issue/model.js`; saved designs moved to `designs/` with `/api/designs`, studio cards gained Delete; `designName` stored in `passes.design_name`.)*
 4. **Design workspace** — `form.js`/`semantics-editor.js` re-homed into the canvas layout (left tabs), Save template. *(done 2026-10-09: `design.js`; Build .pkpass removed — Issue passes → saves then opens Issue.)*
-5. **Device log page + polish** — reduced-motion, keyboard nav, mobile collapse (board → cards; canvas → stacked), empty states, remove dead CSS. *(partial 2026-10-09: dead CSS + `--wpd-*` tokens removed, tablist arrow keys, sticky canvas, stacked mobile workspaces; open items in HANDOFF.)*
+5. **Device log page + polish** — reduced-motion, keyboard nav, mobile collapse (board → cards; canvas → stacked), empty states, remove dead CSS. *(done 2026-10-09: dead CSS + `--wpd-*` tokens removed, tablist arrow keys, sticky canvas, stacked mobile workspaces, collapsed flight extras, copy-to-all passengers, typed dates in Design fields.)*
 
 ### Invariants (do not break)
 
