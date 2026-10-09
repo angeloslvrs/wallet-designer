@@ -578,3 +578,23 @@ shasum matches local, `/api/routes` → `[]`, all 5 box designs list without err
 `passes.route_id` added on boot, the existing issued pass rebuilds (200, pkpass).
 **Not yet done (user's call):** Make airline on the box's `PR2987MNL-TAC` / `TAC-MNL` /
 `BR262-001`, and whether to delete `MNL-TAC` + `PAL` afterwards.
+
+## 2026-10-10 session — minimum + expand for Apple's boarding tags (branch `feat/template-hierarchy`)
+
+Read Apple's boarding-pass guide (`…/creating-an-airline-boarding-pass-using-semantic-tags.md`)
+and diffed it against the catalog. Plan: `docs/superpowers/plans/2026-10-10-minimum-plus-expand-semantics.md`.
+- **Decided (user):** forms show the minimum — Apple's 12 required tags + what the template uses —
+  with **+ Add field** for any other tag, everywhere (Issue, route editor, Design); the airline gets
+  **+ Add link** for the boarding-pass services page.
+- **Fixed:** Issue required only the validator's 9 (cities + destination zone were optional → silent
+  legacy fallback); time zones accepted any text (now IANA); bundle passes lacked the
+  `excludedSemantics: departureGate` that keeps pushed gates authoritative (FormState had it);
+  security-program keys used the proto spelling only (now both, plus SSR/lounge aliases).
+- **Added:** `membershipProgramStatus`, the three SSR arrays (Apple's codes as checklists),
+  `loungePlaceIDs`; `FormState.services` → top-level services keys.
+- **Box data (done with the user's OK):** `philippine-airlines` bindings += gate → departureGate,
+  terminal-arr → destinationTerminal, ff → membershipProgramNumber, fare-class → ticketFareClass.
+  Route `PR412-MNL-KIX` keeps `fields.terminal-arr`; `routeToShared` now feeds a raw route field
+  into the tag its field was later bound to, so no data edit was needed.
+- Pre-existing, unrelated: Design logs a CSP block for a `blob:` worker from a barcode/scanner
+  dependency (`default-src 'self'`, no `worker-src`).
