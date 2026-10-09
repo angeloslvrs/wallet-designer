@@ -1,5 +1,5 @@
 import {
-  SEMANTIC_CATALOG, REQUIRED_SEMANTICS, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, TIMEZONE_KEY_ALIASES
+  SEMANTIC_CATALOG, RECOMMENDED_SEMANTICS, DOC_REQUIRED_SEMANTICS, TIMEZONE_KEY_ALIASES
 } from "@wpd/pass-builder/semantics.js";
 import { semanticKind, kindAttrs, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput, isEmptyTyped, widgetFor, fieldHint } from "./inputs.js";
@@ -22,6 +22,12 @@ const TZ_TWIN = {};
 for (const [loc, air] of Object.entries(TIMEZONE_KEY_ALIASES)) { TZ_TWIN[loc] = air; TZ_TWIN[air] = loc; }
 const HIDDEN_KEYS = new Set(Object.keys(TIMEZONE_KEY_ALIASES));
 
+// Minimum + expand: Apple's 12 required tags (published doc — without them iOS
+// 26 shows the legacy pass) start on the form; recommended ones are marked but
+// added like any other tag, from the picker.
+const REQUIRED = new Set(DOC_REQUIRED_SEMANTICS);
+const RECOMMENDED = new Set([...RECOMMENDED_SEMANTICS, "departureAirportName", "destinationAirportName", "departureLocation", "destinationLocation", "transitProvider"].filter(k => !REQUIRED.has(k)));
+
 /** Drop empty values (emit-only-filled); keep typed shapes and real falsey values. */
 export function harvestSemantics(values = {}) {
   const out = {};
@@ -33,9 +39,9 @@ export function harvestSemantics(values = {}) {
 }
 
 /**
- * Render the semantics editor: required + recommended fields shown by default,
- * grouped under section headers, each with a typed input, a format hint, and
- * inline validation; optional fields added via a grouped picker.
+ * Render the semantics editor: Apple's required tags + whatever the design
+ * already carries, grouped under section headers, each with a typed input, a
+ * format hint and inline validation; any other tag added via a grouped picker.
  * @param {{values:Record<string,*>, onChange:(values:Record<string,*>)=>void}} opts
  *   `values` seeds the editor; a fresh copy is passed to onChange on each edit.
  */
@@ -44,7 +50,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
   const state = { ...values };
   const touched = new Set();
   const shown = new Set(
-    [...REQUIRED_SEMANTICS, ...RECOMMENDED_SEMANTICS, ...Object.keys(values)]
+    [...DOC_REQUIRED_SEMANTICS, ...Object.keys(values)]
       .filter(k => SEMANTIC_CATALOG[k] && !HIDDEN_KEYS.has(k))
   );
 
@@ -87,16 +93,17 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
     const row = el("div", { className: "sem-row" });
     row.dataset.sem = key;
 
+    const required = REQUIRED.has(key), recommended = RECOMMENDED.has(key);
     const lbl = el("label", {
-      textContent: entry.label + (entry.required ? " *" : entry.recommended ? " (recommended)" : "")
+      textContent: entry.label + (required ? " *" : recommended ? " (recommended)" : "")
     });
-    if (entry.required) lbl.title = "Required by Apple's boarding-pass validator";
-    else if (entry.recommended) lbl.title = "Recommended by Apple's boarding-pass validator";
+    if (required) lbl.title = "Required by Apple — without it iOS 26 shows the legacy boarding pass";
+    else if (recommended) lbl.title = "Recommended by Apple for the iOS 26 boarding pass";
 
     const field = el("div", { className: "sem-field" });
     const err = el("div", { className: "field-err" });
     const validate = (force) => {
-      const msg = validateFieldValue({ kind: semanticKind(key), required: entry.required }, state[key]);
+      const msg = validateFieldValue({ kind: semanticKind(key), required }, state[key]);
       err.textContent = msg ?? "";
       err.classList.toggle("show", Boolean(msg && (force || touched.has(key))));
     };
@@ -117,7 +124,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
   };
 
   // required first, then recommended, then optional (stable within each tier).
-  const tier = (k) => SEMANTIC_CATALOG[k].required ? 0 : SEMANTIC_CATALOG[k].recommended ? 1 : 2;
+  const tier = (k) => (REQUIRED.has(k) ? 0 : RECOMMENDED.has(k) ? 1 : 2);
   const orderGroups = (map) => [
     ...GROUP_ORDER.filter(g => map[g]),
     ...Object.keys(map).filter(g => !GROUP_ORDER.includes(g)).sort()
@@ -140,7 +147,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
   }
 
   function renderPicker() {
-    picker.replaceChildren(el("option", { value: "", textContent: "+ add optional semantic…" }));
+    picker.replaceChildren(el("option", { value: "", textContent: "+ Add field…" }));
     const map = {};
     for (const [key, entry] of Object.entries(SEMANTIC_CATALOG)) {
       if (shown.has(key) || HIDDEN_KEYS.has(key)) continue;
@@ -148,7 +155,7 @@ export function renderSemanticsEditor({ values = {}, onChange }) {
     }
     for (const g of orderGroups(map)) {
       const og = el("optgroup", { label: GROUP_LABEL[g] ?? g });
-      for (const [key, entry] of map[g]) og.append(el("option", { value: key, textContent: entry.label }));
+      for (const [key, entry] of map[g]) og.append(el("option", { value: key, textContent: entry.label + (RECOMMENDED.has(key) ? " (recommended)" : "") }));
       picker.append(og);
     }
   }

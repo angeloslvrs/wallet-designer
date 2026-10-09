@@ -18,10 +18,15 @@ describe("semantics editor — polish", () => {
     expect(sched.querySelector('[data-sem="originalBoardingDate"]')).toBeTruthy();
   });
 
-  it("marks required fields with * and recommended ones", () => {
+  it("starts from Apple's 12 required tags (marked *); recommended ones come from the picker, marked", () => {
     const { el } = render();
     expect(el.querySelector('[data-sem="airlineCode"] label').textContent).toMatch(/\*/);
-    expect(el.querySelector('[data-sem="seats"] label').textContent).toMatch(/recommended/i);
+    expect(el.querySelector('[data-sem="destinationCityName"] label').textContent).toMatch(/\*/);   // doc-required, not validator-required
+    expect(el.querySelector('[data-sem="seats"]')).toBeNull();
+    const opt = [...el.querySelectorAll(".sem-add option")].find(o => o.value === "seats");
+    expect(opt.textContent).toMatch(/recommended/i);
+    const { el: withSeats } = render({ seats: [{ seatRow: "1", seatNumber: "A" }] });
+    expect(withSeats.querySelector('[data-sem="seats"] label').textContent).toMatch(/recommended/i);
   });
 
   it("shows a format hint per field", () => {
