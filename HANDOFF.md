@@ -561,7 +561,7 @@ while planning" list the defaults chosen without asking). All five spec phases a
   the cebupacificair.com links + `CebPac-WiFi` + the two airport links (MIAA parking, NAIA transit).
 - **Optional fields**: `optional: true` → left off the pass while blank; "opt" toggle in Design.
 - Browser-verified on the dev server (convert → shelf → issue from route with a date → route
-  editor), test data deleted afterwards. 545 tests green; check + designer build green.
+  editor), test data deleted afterwards. 547 tests green; check + designer build green.
 
 **Not done (needs the user):** running Make airline on the box's real designs (outward-facing;
 deploy first), merging/pushing the branch. **Deploy notes:** `routes/` is created on first save at
