@@ -73,3 +73,42 @@ describe("Design editor — date fields", () => {
     expect(df.auxiliary[0]).toMatchObject({ value: "2026-11-02T07:30:00-08:00", timeStyle: "PKDateStyleShort" });
   });
 });
+
+describe("Design editor — 24-hour time fields and label tokens", () => {
+  const iso = "2026-10-12T16:05:00+08:00";
+  const withField = (f) => setPath("displayFields", { header: [], primary: [], secondary: [], back: [], auxiliary: [f] });
+
+  it("a timeFormat field gets the date picker and the toggle with 24-hour active", () => {
+    withField({ key: "boarding", label: "BOARDING", value: iso, timeFormat: "24h" });
+    renderForm(root, { section: "fields" });
+    expect(root.querySelector('.wpd-df-date input[type="date"]')).toBeTruthy();
+    const active = root.querySelector('.wpd-tfmt [aria-pressed="true"]');
+    expect(active.dataset.tfmt).toBe("24h");
+  });
+
+  it("toggles between phone format and 24-hour, keeping the ISO value", () => {
+    withField({ key: "boarding", label: "BOARDING", value: iso, dateStyle: "PKDateStyleNone", timeStyle: "PKDateStyleShort" });
+    renderForm(root, { section: "fields" });
+    root.querySelector('.wpd-tfmt [data-tfmt="24h"]').click();
+    expect(state.displayFields.auxiliary[0]).toEqual({ key: "boarding", label: "BOARDING", value: iso, timeFormat: "24h" });
+    root.querySelector('.wpd-tfmt [data-tfmt="device"]').click();
+    expect(state.displayFields.auxiliary[0]).toEqual({ key: "boarding", label: "BOARDING", value: iso, timeStyle: "PKDateStyleShort" });
+  });
+
+  it("a plain text field has no time toggle", () => {
+    withField({ key: "gate", label: "GATE", value: "12" });
+    renderForm(root, { section: "fields" });
+    expect(root.querySelector(".wpd-tfmt")).toBeNull();
+  });
+
+  it("explains label tokens in the Fields section", () => {
+    renderForm(root, { section: "fields" });
+    expect(root.textContent).toContain("{departureCityName:upper}");
+    expect(root.querySelector(".wpd-df-label").title).toContain("{semanticKey}");
+  });
+
+  it("applySuggestions keeps a timeFormat field's ISO value and format", () => {
+    const df = applySuggestions({ auxiliary: [{ key: "boarding", label: "BOARDING", value: "", timeFormat: "24h" }] }, { currentBoardingDate: iso });
+    expect(df.auxiliary[0]).toEqual({ key: "boarding", label: "BOARDING", value: iso, timeFormat: "24h" });
+  });
+});

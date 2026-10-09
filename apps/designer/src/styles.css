@@ -573,6 +573,7 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 /* display fields */
 .wpd-fields-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .wpd-fields-hint { font-size: 11px; color: var(--faint); }
+.wpd-fields-tokens { flex: 1 1 100%; order: 3; font-family: var(--mono); }
 .wpd-fsec { padding: 12px 0; border-top: 1px solid var(--line); }
 .wpd-fsec-head { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .wpd-df-row { display: flex; gap: 6px; align-items: center; margin: 5px 0; padding: 2px 0; border-radius: 0; }
@@ -582,6 +583,8 @@ main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden
 .wpd-df-row .wpd-df-value { flex: 1.4; min-width: 0; font-size: 12px; }
 .wpd-df-row.is-date { flex-wrap: wrap; }
 .wpd-df-row.is-date .wpd-df-date { flex: 1 1 100%; padding-left: 86px; }
+.wpd-tfmt { flex: 1 1 100%; display: flex; gap: 6px; padding-left: 86px; }
+.wpd-tfmt .wpd-fmt-btn { padding: 5px 10px; font-size: 11px; }
 .wpd-df-rm { flex: none; border: none; background: none; color: var(--faint); cursor: pointer; font: inherit; font-size: 14px; padding: 4px; }
 .wpd-df-rm:hover { color: var(--red); }
 .wpd-df-row.wpd-flash { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: var(--r-ctl); }

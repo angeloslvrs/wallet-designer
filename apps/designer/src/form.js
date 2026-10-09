@@ -31,8 +31,16 @@ const DESIGNER_SUGGEST_MAP = {
   membershipProgramNumber: "ff", departureTerminal: "terminal-dep", destinationTerminal: "terminal-arr"
 };
 
-/** A display field the pass formats as a date/time (its value must stay ISO-8601). */
-const isDateField = (f) => f?.dateStyle !== undefined || f?.timeStyle !== undefined;
+/**
+ * A display field holding a date/time (its value must stay ISO-8601): Wallet
+ * formats dateStyle/timeStyle fields; timeFormat "24h" ones are rendered
+ * "HH:mm" at emit (field-render.js).
+ */
+const isDateField = (f) => f?.dateStyle !== undefined || f?.timeStyle !== undefined || f?.timeFormat !== undefined;
+
+// Label tokens a label can carry (resolved from the pass's semantics at emit).
+const LABEL_TOKEN_HINT = "Labels can show flight values: {departureCityName:upper}, {destinationAirportName}, {flightCode} …";
+const LABEL_TOKEN_TITLE = "Use {semanticKey} or {semanticKey:upper} to fill the label from the flight data, e.g. {departureCityName:upper}";
 
 /**
  * Fill display fields from semantics through the Designer's suggest map. A
@@ -47,7 +55,7 @@ export function applySuggestions(displayFields, semantics) {
     if (!(f.key in filled)) continue;
     const raw = semantics?.[semOf[f.key]];
     if (isDateField(f) && typeof raw === "string") f.value = raw;
-    else { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; }
+    else { f.value = filled[f.key]; delete f.dateStyle; delete f.timeStyle; delete f.timeFormat; }
   }
   return df;
 }
@@ -240,6 +248,7 @@ function fieldsCard() {
   const body = h("div");
   const top = h("div", { class: "wpd-fields-top" },
     h("span", { class: "wpd-fields-hint", text: "click a field on the pass to jump here" }),
+    h("span", { class: "wpd-fields-hint wpd-fields-tokens", text: LABEL_TOKEN_HINT }),
     (() => {
       const b = h("button", { type: "button", class: "wpd-link", text: "Suggest from semantics" });
       b.addEventListener("click", () => {
@@ -276,7 +285,7 @@ function fieldsCard() {
     };
     const where = `${SECTION_LABEL[section]} field ${i + 1}`;
     const key = h("input", { class: "wpd-input wpd-df-key", value: f.key ?? "", placeholder: "key", "aria-label": `${where} key` });
-    const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL", "aria-label": `${where} label` });
+    const label = h("input", { class: "wpd-input wpd-df-label", value: f.label ?? "", placeholder: "LABEL", title: LABEL_TOKEN_TITLE, "aria-label": `${where} label` });
     // A date-styled field gets the typed date/time/offset picker (its value must
     // stay ISO-8601 — iOS rejects the pass otherwise); others a plain input.
     let value, focusTarget;
@@ -299,12 +308,34 @@ function fieldsCard() {
       setPath("displayFields", next);
       rerender();
     });
-    // A date row wraps: key · label · remove on top, the picker full-width below.
+    // A date row wraps: key · label · remove on top, the picker full-width below,
+    // then how the time shows: the phone's own format, or always 24-hour.
     const row = isDateField(f)
-      ? h("div", { class: "wpd-df-row is-date" }, key, label, rm, value)
+      ? h("div", { class: "wpd-df-row is-date" }, key, label, rm, value, timeFormatToggle(section, i, f, where))
       : h("div", { class: "wpd-df-row" }, key, label, value, rm);
     row.dataset.k = f.key ?? "";
     return row;
+  }
+
+  // Phone format: Wallet formats the ISO value in the phone's locale (12 h or
+  // 24 h per its setting). 24-hour: always "HH:mm" in the airport's time.
+  function timeFormatToggle(section, i, f, where) {
+    const fixed = f.timeFormat === "24h";
+    const set = (mode) => {
+      const next = structuredClone(state.displayFields ?? {});
+      const field = next[section][i];
+      if (mode === "24h") { field.timeFormat = "24h"; delete field.dateStyle; delete field.timeStyle; }
+      else { delete field.timeFormat; field.timeStyle ??= "PKDateStyleShort"; }
+      setPath("displayFields", next);
+      rerender();
+    };
+    const btn = (mode, text, on) => {
+      const b = h("button", { type: "button", class: "wpd-fmt-btn" + (on ? " is-active" : ""), text, "data-tfmt": mode, "aria-pressed": String(on) });
+      b.addEventListener("click", () => { if (!on) set(mode); });
+      return b;
+    };
+    return h("div", { class: "wpd-tfmt", role: "group", "aria-label": `${where} time format` },
+      btn("device", "Phone format", !fixed), btn("24h", "24-hour", fixed));
   }
 
   rerender();
