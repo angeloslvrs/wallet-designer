@@ -5,9 +5,9 @@ import { join } from "node:path";
 import AdmZip from "adm-zip";
 
 // Templates shelf data: Pass Designer bundles (`kind: "designer"`) and saved
-// Studio designs (`kind: "studio"`, from fixtures/) each carry a thumbnail-safe
+// Studio designs (`kind: "studio"`, from designs/ — see designs-route.test.js) each carry a thumbnail-safe
 // `preview` pass.json — no per-pass identity/secrets, no Designer `_id`s.
-let handleTemplateUpload, handleTemplateList, handleStudioTemplateList, previewPassJson;
+let handleTemplateUpload, handleTemplateList, previewPassJson;
 const PASS_JSON = JSON.stringify({
   formatVersion: 1, passTypeIdentifier: "pass.dev.placeholder", teamIdentifier: "T", serialNumber: "S",
   authenticationToken: "secret-token-xxxxxxxx", webServiceURL: "https://example.test/api/wallet",
@@ -21,7 +21,7 @@ function mkRes() { return { statusCode: 0, payload: null, status(c){this.statusC
 beforeAll(async () => {
   process.env.TEMPLATES_DIR = await mkdtemp(join(tmpdir(), "wpd-tpl-lib-"));
   process.env.STATE_PATH = join(await mkdtemp(join(tmpdir(), "wpd-state-lib-")), "passes.json");
-  ({ handleTemplateUpload, handleTemplateList, handleStudioTemplateList, previewPassJson } = await import("../apps/server/src/routes/templates.js"));
+  ({ handleTemplateUpload, handleTemplateList, previewPassJson } = await import("../apps/server/src/routes/templates.js"));
   const res = mkRes();
   await handleTemplateUpload({ params: { id: "lib" }, body: zipOf({ "pass.json": PASS_JSON, "icon.png": "x", "logo@2x.png": "png-bytes" }) }, res);
   expect(res.statusCode).toBe(201);
@@ -42,18 +42,7 @@ describe("designer templates — shelf fields", () => {
   });
 });
 
-describe("studio templates — saved designs", () => {
-  it("lists fixtures/ designs as kind=studio with a built preview pass.json", async () => {
-    const res = mkRes();
-    await handleStudioTemplateList({}, res);
-    const fl = res.payload.find(x => x.id === "fully-loaded");
-    expect(fl).toBeTruthy();
-    expect(fl.kind).toBe("studio");
-    expect(fl.error).toBeUndefined();
-    expect(fl.preview.boardingPass).toBeTruthy();
-    expect(fl.preview.authenticationToken).toBeUndefined();
-  });
-
+describe("previewPassJson", () => {
   it("previewPassJson never mutates its input", () => {
     const src = { authenticationToken: "a", boardingPass: { primaryFields: [{ _id: "x", key: "k" }] } };
     previewPassJson(src);

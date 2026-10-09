@@ -22,19 +22,23 @@ async function showProfile() {
   }
 }
 
-async function loadFixture(name) {
-  const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`);
-  if (!r.ok) throw new Error(`fixture not found: ${name}`);
-  const state = await r.json();
-  replaceState(state);
+// Load a FormState into the Design editor. Saved designs come from
+// /api/designs; `?fixture=<name>` deep links read the repo's read-only CI
+// fixtures from /api/fixtures.
+async function loadInto(url, what, name) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${what} not found: ${name}`);
+  replaceState(await r.json());
   renderForm(document.getElementById("form-pane"));
 }
+const loadDesign = (name) => loadInto(`/api/designs/${encodeURIComponent(name)}`, "design", name);
+const loadFixture = (name) => loadInto(`/api/fixtures/${encodeURIComponent(name)}`, "fixture", name);
 
-async function refreshFixturePicker() {
+async function refreshDesignPicker() {
   const picker = document.getElementById("fixture-picker");
   picker.length = 1; // keep the placeholder option, drop the rest
   try {
-    const names = await fetch("/api/fixtures").then(r => r.json());
+    const names = await fetch("/api/designs").then(r => r.json());
     for (const n of names) {
       const o = document.createElement("option");
       o.value = n;
@@ -44,28 +48,29 @@ async function refreshFixturePicker() {
   } catch { /* API offline */ }
 }
 
-function wireFixturePicker() {
+function wireDesignPicker() {
   const picker = document.getElementById("fixture-picker");
   picker.addEventListener("change", async e => {
     const name = e.target.value;
     if (!name) return;
-    try { await loadFixture(name); } catch (err) { alert(err.message); }
+    try { await loadDesign(name); } catch (err) { alert(err.message); }
     e.target.value = "";
   });
 }
 
-// "Saved designs" are FormState snapshots persisted via /api/fixtures — distinct
-// from ".pkpasstemplate" bundles, which the Issue view calls "templates".
+// Saved designs are FormState snapshots in designs/ (via /api/designs). The
+// Templates shelf lists them as `kind: "studio"` templates.
 async function saveDesign() {
   const name = prompt("Save current design as:", state.meta.serialNumber || "my-design");
   if (!name) return;
   const status = document.getElementById("build-status");
   try {
-    const r = await fetch(`/api/fixtures/${encodeURIComponent(name)}`, {
+    const r = await fetch(`/api/designs/${encodeURIComponent(name)}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state)
     });
-    if (r.ok) { await refreshFixturePicker(); status.textContent = `✓ saved design "${name}"`; }
-    else { status.textContent = `⚠ could not save design "${name}" (${r.status})`; }
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) { await refreshDesignPicker(); status.textContent = `✓ saved design "${name}"`; }
+    else { status.textContent = `⚠ could not save design "${name}" — ${body.error ?? r.status}`; }
   } catch (err) {
     status.textContent = `⚠ could not save design — ${err.message}`;
   }
@@ -96,7 +101,7 @@ function wireViewTabs(initialView = "flights") {
       onIssue: (id) => show("issue", { template: id }),
       onEditDesign: async (name) => {
         if (!confirm(`Open "${name}" in the Design editor? It replaces what's currently there.`)) return;
-        try { await loadFixture(name); show("designer"); } catch (err) { alert(err.message); }
+        try { await loadDesign(name); show("designer"); } catch (err) { alert(err.message); }
       },
       onNewDesign: () => {
         if (!confirm("Start a new design? Unsaved changes in the Design editor are replaced by the starter design.")) return;
@@ -167,8 +172,8 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   resetState();
   renderForm(document.getElementById("form-pane"));
 });
-wireFixturePicker();
-refreshFixturePicker();
+wireDesignPicker();
+refreshDesignPicker();
 document.getElementById("save-tpl-btn").addEventListener("click", saveDesign);
 wireViewTabs(new URLSearchParams(location.search).get("fixture") ? "designer" : "flights");
 wireClickToEdit();

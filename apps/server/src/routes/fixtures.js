@@ -1,10 +1,12 @@
 import { Router } from "express";
-import { readFile, readdir, writeFile, unlink } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { asyncHandler } from "../util/async-handler.js";
 
+// Read-only: fixtures/ holds the repo's tracked regression fixtures (CI builds
+// and schema-checks them). Exposed so `?fixture=<name>` deep-links still load one
+// into the Design view. Operator-saved designs live in designs/ (routes/designs.js).
 export const fixturesRouter = Router();
-// Saved Studio designs (FormState JSON). Shown as `kind: "studio"` templates.
 export const FIXTURES_DIR = "fixtures";
 const DIR = FIXTURES_DIR;
 const safeName = (n) => n.replace(/[^a-zA-Z0-9._-]/g, "");
@@ -25,27 +27,5 @@ fixturesRouter.get("/fixtures/:name", asyncHandler(async (req, res) => {
     res.type("application/json").send(raw);
   } catch {
     res.status(404).json({ error: `fixture not found: ${name}` });
-  }
-}));
-
-// Save the current form state as a named template (control-plane: LAN/auth only).
-fixturesRouter.put("/fixtures/:name", asyncHandler(async (req, res) => {
-  const name = safeName(req.params.name);
-  if (!name) return res.status(400).json({ error: "invalid name" });
-  try {
-    await writeFile(join(DIR, `${name}.json`), JSON.stringify(req.body, null, 2));
-    res.status(201).json({ ok: true, name });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}));
-
-fixturesRouter.delete("/fixtures/:name", asyncHandler(async (req, res) => {
-  const name = safeName(req.params.name);
-  try {
-    await unlink(join(DIR, `${name}.json`));
-    res.json({ ok: true });
-  } catch {
-    res.status(404).json({ error: `template not found: ${name}` });
   }
 }));

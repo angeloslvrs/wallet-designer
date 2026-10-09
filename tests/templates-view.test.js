@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview } from "../apps/designer/src/templates.js";
 
 // Templates shelf: Pass Designer bundles and Studio designs on one shelf, plus
-// the Bindings review screen. Studio designs have no Delete (fixtures/ also
-// holds CI's tracked regression fixtures); a refused template delete (409 while
+// the Bindings review screen. Studio designs (designs/) delete via
+// /api/designs/:name; a refused template delete (409 while
 // passes still rebuild from it) surfaces the server's reason; uploading a
 // bundle lands on its Bindings screen; confirming PUTs the edited map.
 const flush = () => new Promise(r => setTimeout(r, 0));
@@ -32,7 +32,8 @@ beforeEach(() => {
     const json = (body, ok = true, status = 200) => ({ ok, status, json: async () => body });
     if (u === "/api/templates") return json(designer);
     if (u === "/api/studio-templates") return json([{ id: "fully-loaded", kind: "studio", organizationName: "Rocket Partners Airlines", preview: { ...PREVIEW, logoText: "Rocket Partners" } }]);
-    if (u === "/api/passes") return json([{ serial: "a", template: "odyssey" }, { serial: "b", template: "odyssey" }]);
+    if (u === "/api/passes") return json([{ serial: "a", template: "odyssey" }, { serial: "b", template: "odyssey" }, { serial: "c", designName: "fully-loaded" }]);
+    if (opts.method === "DELETE" && u.startsWith("/api/designs/")) return json({ ok: true });
     if (opts.method === "DELETE") return json(deleteResp.body, deleteResp.ok, deleteResp.status);
     if (opts.method === "PUT" && u.endsWith("/bindings")) return json({ id: "odyssey", bindings: JSON.parse(opts.body) });
     if (opts.method === "POST" && u.startsWith("/api/templates/")) {
@@ -77,14 +78,25 @@ describe("Templates shelf", () => {
     expect(fl.querySelector(".wallet-card")).toBeTruthy();
   });
 
-  it("offers no Delete on studio designs and keeps Issue as the only primary", async () => {
+  it("counts studio issues by designName and keeps Issue as the only primary", async () => {
     mountTemplates(root, {});
     await settle();
-    expect(root.querySelector('.tpl-card[data-tpl="fully-loaded"] [data-act="tpl-del"]')).toBeNull();
+    expect(root.querySelector('.tpl-card[data-tpl="fully-loaded"]').textContent).toContain("1 issued");
     expect(root.querySelector('.tpl-card[data-tpl="odyssey"] [data-act="tpl-del"]')).toBeTruthy();
     const primaries = [...root.querySelectorAll(".btn-primary:not([disabled])")];
     expect(primaries.every(b => b.dataset.act === "issue")).toBe(true);
-    expect(root.querySelector('.tpl-card[data-tpl="fully-loaded"] .btn-primary').disabled).toBe(true);
+  });
+
+  it("deletes a studio design through /api/designs after a confirm that says issued passes keep working", async () => {
+    let asked = "";
+    globalThis.confirm = (msg) => { asked = msg; return true; };
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="fully-loaded"] [data-act="design-del"]').click();
+    await settle();
+    expect(asked).toMatch(/1 pass already issued from it keep working/);
+    expect(calls.some(c => c.method === "DELETE" && c.url === "/api/designs/fully-loaded")).toBe(true);
+    expect(calls.some(c => c.method === "DELETE" && c.url.startsWith("/api/templates/"))).toBe(false);
   });
 
   it("surfaces the server's reason when a template delete is refused", async () => {

@@ -8,7 +8,7 @@ import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/p
 import { randomBytes } from "node:crypto";
 import { dirname, join, resolve, sep } from "node:path";
 import { discoverBindings, formStateToPassJson, loadTemplate, migrateFormState, stripInternalIds, templateFieldKeys, templateFieldDescriptors } from "@wpd/pass-builder";
-import { FIXTURES_DIR } from "./fixtures.js";
+import { listDesignNames, readDesign } from "./designs.js";
 import { readTemplateZip } from "@wpd/pass-builder/template-zip.js";
 import { TEMPLATE_ID_RE, templateDir, templatesRoot } from "../pass-build.js";
 import { deleteTemplateBindings, saveTemplateBindings, snapshot } from "../storage.js";
@@ -74,16 +74,13 @@ export async function handleTemplateList(_req, res) {
 templatesRouter.get("/templates", asyncHandler(handleTemplateList));
 
 // GET /api/studio-templates — saved Studio designs (FormState snapshots under
-// fixtures/) as `kind: "studio"` shelf entries with a rendered preview pass.json.
+// designs/) as `kind: "studio"` shelf entries with a rendered preview pass.json.
 // A design that no longer builds is listed with `error` instead of hidden.
 export async function handleStudioTemplateList(_req, res) {
-  let files = [];
-  try { files = (await readdir(FIXTURES_DIR)).filter(f => f.endsWith(".json")); } catch { /* none */ }
   const out = [];
-  for (const file of files.sort()) {
-    const id = file.slice(0, -".json".length);
+  for (const id of await listDesignNames()) {
     try {
-      const state = migrateFormState(JSON.parse(await readFile(join(FIXTURES_DIR, file), "utf8")));
+      const state = migrateFormState(await readDesign(id));
       out.push({
         id,
         kind: "studio",

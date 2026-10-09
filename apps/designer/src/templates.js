@@ -7,7 +7,7 @@ import "./preview/wallet/wallet.css";
 // Templates view — one shelf for both kinds of template:
 //   designer: a Pass Designer `.pkpasstemplate` bundle (GET /api/templates)
 //   studio:   a design saved from the in-app Design view (GET /api/studio-templates,
-//             backed by fixtures/*.json)
+//             backed by designs/*.json; DELETE /api/designs/:name)
 // plus the Bindings review screen for a designer template (semanticKey → fieldKey,
 // PUT /api/templates/:id/bindings). Uploading a bundle lands on its Bindings screen.
 
@@ -92,6 +92,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   let designer = [];      // GET /api/templates
   let studio = [];        // GET /api/studio-templates
   let issued = {};        // template id → issued pass count
+  let issuedDesign = {};  // studio design name → issued pass count (pass.designName)
   let mode = bindingsFor ? { view: "bindings", id: bindingsFor } : { view: "shelf" };
   let draft = null;       // bindings screen: { semanticKey: fieldKey }; null = seed from server
   let flash = "";         // one-shot status line on the shelf
@@ -110,7 +111,11 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     designer = Array.isArray(d) ? d : [];
     studio = Array.isArray(s) ? s : [];
     issued = {};
-    for (const pass of Array.isArray(p) ? p : []) if (pass.template) issued[pass.template] = (issued[pass.template] ?? 0) + 1;
+    issuedDesign = {};
+    for (const pass of Array.isArray(p) ? p : []) {
+      if (pass.template) issued[pass.template] = (issued[pass.template] ?? 0) + 1;
+      else if (pass.designName) issuedDesign[pass.designName] = (issuedDesign[pass.designName] ?? 0) + 1;
+    }
     render();
   }
 
@@ -142,25 +147,29 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   }
 
   function studioCard(t) {
+    const del = `<button type="button" class="btn-link danger" data-act="design-del" data-id="${esc(t.id)}">Delete</button>`;
     if (t.error) {
       return `<article class="tpl-card is-broken" data-tpl="${esc(t.id)}" data-kind="studio">
         <div class="tpl-thumb tpl-thumb--broken">⚠</div>
         <div class="tpl-meta"><div class="tpl-name">${esc(t.id)}</div><div class="tpl-sub">Design won’t build: ${esc(t.error)}</div></div>
+        <div class="tpl-acts">${del}</div>
+        <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
       </article>`;
     }
-    // No Delete for studio designs: they live in fixtures/, which also holds the
-    // repo's tracked regression fixtures (CI builds and schema-checks them).
+    const n = issuedDesign[t.id] ?? 0;
     return `<article class="tpl-card" data-tpl="${esc(t.id)}" data-kind="studio">
       <div class="tpl-thumb" data-thumb="studio:${esc(t.id)}"></div>
       <div class="tpl-meta">
         <div class="tpl-name">${esc(t.organizationName || t.id)}</div>
-        <div class="tpl-sub">${esc(t.id)}${t.description ? ` · ${esc(t.description)}` : ""}</div>
+        <div class="tpl-sub">${esc(t.id)}${t.description ? ` · ${esc(t.description)}` : ""}${n ? ` · ${n} issued` : ""}</div>
       </div>
       <div class="tpl-chips"><span class="kind-chip kind-chip--studio">Studio design</span></div>
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
+        ${del}
         <button type="button" class="btn btn-primary btn-sm" disabled title="Issuing straight from a studio design arrives with the new Issue flow; until then, open the design and use Build">Issue →</button>
       </div>
+      <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
     </article>`;
   }
 
@@ -331,6 +340,25 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     await load();
   }
 
+  // Deleting a design only removes the look from the shelf: passes already
+  // issued from it carry their own FormState and keep updating.
+  async function deleteDesign(id) {
+    const n = issuedDesign[id] ?? 0;
+    const tail = n ? ` The ${n} pass${n === 1 ? "" : "es"} already issued from it keep working.` : "";
+    if (!confirm(`Delete studio design "${id}"?${tail}`)) return;
+    const st = $(`[data-tpl-status="${CSS.escape(id)}"]`) ?? $("#tpl-flash");
+    if (st) st.textContent = "Deleting…";
+    let r, j;
+    try {
+      r = await fetch(`/api/designs/${encodeURIComponent(id)}`, { method: "DELETE", signal });
+      j = await r.json().catch(() => ({}));
+    } catch (err) { if (signal.aborted) return; if (st) st.textContent = `✗ delete failed — ${err.message}`; return; }
+    if (signal.aborted) return;
+    if (!r.ok) { if (st) st.textContent = `✗ ${j.error ?? `delete failed (${r.status})`}`; return; }
+    flash = `✓ Deleted ${id}.`;
+    await load();
+  }
+
   root.addEventListener("click", (e) => {
     const t = e.target.closest("[data-act]");
     if (!t || !root.contains(t)) return;
@@ -342,6 +370,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     if (act === "bindings") { openBindings(id); return; }
     if (act === "back") { mode = { view: "shelf" }; draft = null; render(); return; }
     if (act === "tpl-del") { deleteTemplate(id); return; }
+    if (act === "design-del") { deleteDesign(id); return; }
     if (act === "bind-save") { saveBindings(); return; }
     if (act === "bind-add") {
       const sem = $("select[data-add-sem]")?.value, field = $("select[data-add-field]")?.value;

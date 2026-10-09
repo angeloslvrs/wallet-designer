@@ -70,7 +70,9 @@ reachable from private IPs/LAN only, or with admin Basic Auth
 | `DELETE /api/passes/:serial` · `/api/groups/:groupId` | Remove passes + registrations |
 | `POST /api/templates/:id` | Upload a zipped `.pkpasstemplate` (raw body) → `templates/<id>.pkpasstemplate/`; (re-)discovers its `semanticKey → fieldKey` bindings |
 | `GET /api/templates` | Installed templates (`kind: "designer"`) + the field keys and discovered bindings each declares, a thumbnail-safe `preview` pass.json and `logo` data URL |
-| `GET /api/studio-templates` | Saved Studio designs from `fixtures/` as `kind: "studio"` shelf entries with a built `preview` pass.json |
+| `GET /api/studio-templates` | Saved Studio designs from `designs/` as `kind: "studio"` shelf entries with a built `preview` pass.json |
+| `GET /api/designs` · `GET/PUT/DELETE /api/designs/:name` | Saved Studio designs (FormState JSON in `designs/`, gitignored user data). PUT is 201 on create, 200 on overwrite; names are file-stem slugs |
+| `GET /api/fixtures` · `GET /api/fixtures/:name` | **Read-only** CI regression fixtures (`fixtures/`), for `?fixture=<name>` deep links into the Design view |
 | `PUT /api/templates/:id/bindings` | Replace a template's `semanticKey → fieldKey` map with user-confirmed bindings (edited on the Templates → Bindings screen) |
 | `DELETE /api/templates/:id` | Remove a bundle — **409 while any stored pass references it** (installed passes rebuild from their template on every fetch) |
 | `/api/wallet/v1/*` | **Public.** The five Apple PassKit web-service endpoints (register/unregister device, list updated serials, fetch pass, log). Per-pass `ApplePass` token auth, timing-safe |
@@ -103,7 +105,8 @@ to APNs). Cert workflow: [`docs/cert-day.md`](docs/cert-day.md). Hosting
 - `scripts/` — dev cert bootstrap, placeholder-asset generator, CLI builder,
   Apple-validator runner (`validate-apple.js`), field-coverage generator
   (`field-coverage.mjs`).
-- `fixtures/` — sample FormState JSON for tests and demos.
+- `fixtures/` — tracked FormState regression fixtures (CI builds + schema-checks them; read-only over HTTP).
+- `designs/` — operator-saved Studio designs (gitignored user data, created on first save).
 
 ## Tests & QA
 
