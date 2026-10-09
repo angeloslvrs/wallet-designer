@@ -15,6 +15,7 @@ export { semanticKind, kindAttrs, validateFieldValue, normalizeFieldValue } from
 export { discoverBindings, collectFields } from "./bindings.js";
 export { resolvePassFields, LABEL_TOKEN_RE } from "./field-render.js";
 export { ROUTE_ID_RE, ROUTE_SEMANTICS, validateRoute, routeSchedule, suggestRouteId } from "./route.js";
+export { planConversion, applyConversion } from "./convert.js";
 export { imageAssetsFromBranding, BRANDING_IMAGE_SLOTS };
 export { suggestDisplayValues, formatSemanticValue } from "./suggest.js";
 export { migrateFormState } from "./migrate.js";
