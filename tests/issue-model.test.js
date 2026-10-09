@@ -291,3 +291,52 @@ describe("Issue round-trip: a value-less airline design with 24h times and token
     expect(v.primary[0]).toMatchObject({ label: "SAN FRANCISCO", value: "SFO" });
   });
 });
+
+describe("routes ↔ the Flight step's shared values", async () => {
+  const { routeToShared, routeFromShared, withRouteSemantics } = await import("../apps/designer/src/issue/model.js");
+  const tpl = {
+    fields: [
+      { key: "depart", label: "FROM", kind: "iata", boundSemantic: "departureAirportCode" },
+      { key: "boarding", label: "BOARDING", kind: "date", boundSemantic: "currentBoardingDate" },
+      { key: "dep", label: "DEPART", kind: "date", boundSemantic: "currentDepartureDate" },
+      { key: "arr", label: "ARRIVE", kind: "date", boundSemantic: "currentArrivalDate" },
+      { key: "note", label: "NOTE", kind: "text", boundSemantic: null },
+      { key: "seat", label: "SEAT", kind: "seat", boundSemantic: "seats" }
+    ],
+    bindings: {}, semantics: { airlineCode: "PR" },
+    preview: { boardingPass: { primaryFields: [{ key: "depart", label: "FROM", value: "" }], backFields: [{ key: "note", label: "NOTE", value: "" }] } }
+  };
+  const route = {
+    template: { kind: "studio", id: "pal" },
+    values: { flightNumber: 2987, departureAirportCode: "MNL", departureAirportName: "Ninoy Aquino Intl", departureLocationTimeZone: "Asia/Manila" },
+    schedule: { boarding: "16:05", departure: "16:35", arrival: "17:55" },
+    fields: { note: "Terminal 3" }
+  };
+
+  it("route values without a slot get one (as template semantics), then seed typed values", () => {
+    const t = withRouteSemantics(tpl, route);
+    expect(t.semantics).toMatchObject({ airlineCode: "PR", departureAirportName: "Ninoy Aquino Intl" });
+    const slots = templateSlots(t);
+    const shared = routeToShared(route, slots);
+    expect(shared).toMatchObject({
+      "sem:flightNumber": 2987, "sem:departureAirportCode": "MNL", "sem:departureAirportName": "Ninoy Aquino Intl",
+      "sem:departureAirportTimeZone": "Asia/Manila", "field:note": "Terminal 3"
+    });
+  });
+
+  it("saves the shared flight as a route: effective route values, times of day, raw fields; no gate/passenger/date", () => {
+    const slots = templateSlots(tpl);
+    const individual = defaultIndividual(slots);
+    const shared = {
+      "sem:flightNumber": 2987, "sem:departureAirportCode": "MNL", "sem:departureGate": "12",
+      "sem:currentBoardingDate": "2026-10-12T16:05:00+08:00", "sem:currentDepartureDate": "2026-10-12T23:35:00+08:00",
+      "sem:currentArrivalDate": "2026-10-13T01:10:00+08:00", "field:note": "Terminal 3"
+    };
+    const r = routeFromShared(slots, shared, individual);
+    expect(r.values).toMatchObject({ airlineCode: "PR", flightNumber: 2987, departureAirportCode: "MNL" });
+    expect(r.values.departureGate).toBeUndefined();
+    expect(Object.keys(r.values).some(k => /Date$/.test(k))).toBe(false);
+    expect(r.schedule).toEqual({ boarding: "16:05", departure: "23:35", arrival: "01:10", arrivalDayOffset: 1 });
+    expect(r.fields).toEqual({ note: "Terminal 3" });
+  });
+});

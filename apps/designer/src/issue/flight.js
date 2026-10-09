@@ -60,8 +60,21 @@ export function flightHtml(ctx) {
     const inGroup = sems.map(sem => shared.find(s => s.sem === sem)).filter(Boolean);
     inGroup.forEach(s => used.add(s.id));
     let extra = "";
-    if (title === "Flight") {
+    if (title === "Flight" && ctx.routeMode) {
       extra = `
+        <div class="iw-field">
+          <label class="iw-label" for="iw-route-id">Route id<span class="iw-req" aria-hidden="true">*</span></label>
+          <input id="iw-route-id" class="iw-input mono" value="${esc(ctx.routeId)}" placeholder="PR2987-MNL-TAC" autocomplete="off" />
+          <span class="iw-hint">Names the route on the Templates shelf</span>
+        </div>`;
+    } else if (title === "Flight") {
+      const dateField = ctx.route ? `
+        <div class="iw-field">
+          <label class="iw-label" for="iw-date">Date<span class="iw-req" aria-hidden="true">*</span></label>
+          <input id="iw-date" type="date" class="iw-input" value="${esc(ctx.flightDate)}" />
+          <span class="iw-hint">Fills boarding, departure and arrival from route ${esc(ctx.route.id)}</span>
+        </div>` : "";
+      extra = dateField + `
         <div class="iw-field">
           <label class="iw-label" for="iw-trip">Trip id<span class="iw-req" aria-hidden="true">*</span></label>
           <input id="iw-trip" class="iw-input mono" value="${esc(ctx.tripId)}" placeholder="RP248@2026-11-02" aria-describedby="err-trip" autocomplete="off" />
@@ -69,7 +82,7 @@ export function flightHtml(ctx) {
           <span class="iw-err" id="err-trip">${ctx.submitted && ctx.tripError ? esc(ctx.tripError) : ""}</span>
         </div>`;
     }
-    if (title === "Schedule") {
+    if (title === "Schedule" && !ctx.routeMode) {
       extra = `
         <div class="iw-field is-wide">
           <span class="iw-label" id="lbl-expiry">Pass expiry</span>
@@ -107,22 +120,30 @@ export function flightHtml(ctx) {
     .map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join("");
 
   const facts = ctx.facts;
-  return `
-    <div class="iw">
-      ${barHtml(ctx, facts.title)}
-      <div class="iw-main">
-        <div class="iw-flight">
-          <section class="iw-form stagger">
-            <div class="iw-head"><h1>Flight</h1><p class="view-sub">Shared by every pass on this trip. Grey values are this template’s defaults — type to replace them. Anything here can vary per passenger instead.</p></div>
-            ${groups}
-            ${restHtml}
+  const perPassenger = ctx.routeMode ? "" : `
             <section class="iw-group">
               <h2>Per passenger</h2>
               <p class="iw-group-sub">Everything above is entered once and shared by every pass. These are entered for each passenger instead (or come from their scanned boarding pass). <b>Share</b> moves one back up here; <b>Vary per passenger</b> moves a shared one down.</p>
               <div class="iw-chips">${chips}
                 ${varyOpts ? `<select class="iw-vary" data-act-change="vary" aria-label="Vary another field per passenger"><option value="">+ Vary per passenger…</option>${varyOpts}</select>` : ""}
               </div>
-            </section>
+            </section>`;
+  const head = ctx.routeMode
+    ? `<div class="iw-head"><h1>Route</h1><p class="view-sub">What every flight of this route shares — flight number, airports, times. Pick any date in the schedule pickers: only the times are saved. Gates, dates and passengers are set when you issue.</p></div>`
+    : `<div class="iw-head"><h1>Flight</h1><p class="view-sub">Shared by every pass on this trip. Grey values are this template’s defaults — type to replace them. Anything here can vary per passenger instead.</p></div>`;
+  const primary = ctx.routeMode
+    ? `<button type="button" class="btn btn-primary" data-act="route-save" data-primary>Save route</button>`
+    : `<button type="button" class="btn btn-primary" data-act="to-passengers" data-primary>Passengers →</button>`;
+  const quiet = ctx.routeMode ? "" : `<button type="button" class="btn" data-act="route-mode">Save as route</button>`;
+  return `
+    <div class="iw">
+      ${barHtml(ctx, ctx.routeMode ? ctx.routeId : facts.title)}
+      <div class="iw-main">
+        <div class="iw-flight">
+          <section class="iw-form stagger">
+            ${head}
+            ${groups}
+            ${restHtml}${perPassenger}
           </section>
           <aside class="iw-side card">
             <h2 class="iw-side-h">Shared values on the pass</h2>
@@ -131,6 +152,6 @@ export function flightHtml(ctx) {
           </aside>
         </div>
       </div>
-      ${footHtml({ primary: `<button type="button" class="btn btn-primary" data-act="to-passengers" data-primary>Passengers →</button>` })}
+      ${footHtml({ quiet, primary })}
     </div>`;
 }

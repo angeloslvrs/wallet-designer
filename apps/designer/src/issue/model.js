@@ -14,6 +14,7 @@ import { SEMANTIC_CATALOG, REQUIRED_SEMANTICS, DOC_REQUIRED_SEMANTICS, SEMANTIC_
 import { formatSemanticValue } from "@wpd/pass-builder/suggest.js";
 import { isEmptyTyped } from "@wpd/pass-builder/suggest-empty.js";
 import { semanticKind, validateFieldValue } from "@wpd/pass-builder/field-kinds.js";
+import { ROUTE_SEMANTICS } from "@wpd/pass-builder/route.js";
 
 const SERIAL_PAD = 3;
 
@@ -475,6 +476,69 @@ export function buildStudioIssueBody({ design, designName, groupId, serial, slot
   // design's sample ones would point at the wrong day.
   if (state.iOS26?.relevantDates) { state.iOS26 = { ...state.iOS26 }; delete state.iOS26.relevantDates; }
   return { ...state, ...(designName ? { designName } : {}) };
+}
+
+// ---- routes --------------------------------------------------------------------
+// A saved route (Airline › Route › Flight) pre-fills the Flight step: its values
+// become ordinary typed shared values (editable for this flight without touching
+// the route), and the Flight step's date composes the schedule from its times.
+
+/**
+ * The template with the route's values added to its baked semantics, so every
+ * route value has a slot (one the template doesn't bind or bake gets a "baked"
+ * slot) — call before templateSlots.
+ */
+export function withRouteSemantics(tpl, route) {
+  return { ...tpl, semantics: { ...(tpl?.semantics ?? {}), ...(route?.values ?? {}) } };
+}
+
+/** Shared values (slot id → value) a route fills. */
+export function routeToShared(route, slots) {
+  const out = {};
+  for (const [sem, v] of Object.entries(route?.values ?? {})) {
+    const slot = slots.find(s => s.sem === canonicalSemantic(sem));
+    if (slot && !isBlank(slot, v)) out[slot.id] = v;
+  }
+  for (const [key, v] of Object.entries(route?.fields ?? {})) {
+    if (slots.some(s => s.id === `field:${key}`) && v !== "") out[`field:${key}`] = v;
+  }
+  return out;
+}
+
+const hhmmOf = (iso) => (typeof iso === "string" ? /T(\d{2}:\d{2})/.exec(iso)?.[1] : undefined);
+const dayDiff = (a, b) => Math.round((Date.parse(`${a.slice(0, 10)}T12:00:00Z`) - Date.parse(`${b.slice(0, 10)}T12:00:00Z`)) / 864e5);
+
+/**
+ * The shared flight as a route body ({values, schedule, fields}): every route
+ * semantic's effective value (typed → derived → template default — so a route
+ * saved off a template's sample flight is self-contained), the schedule as times
+ * of day, and typed values of unbound fields. Gates, dates and per-passenger
+ * slots never enter a route.
+ */
+export function routeFromShared(slots, shared, individual = new Set()) {
+  const values = {}, fields = {};
+  for (const slot of slots) {
+    if (individual.has(slot.id)) continue;
+    if (slot.sem) {
+      if (!ROUTE_SEMANTICS.has(slot.sem)) continue;
+      const v = effectiveValue(slot, shared);
+      if (v !== undefined && !isBlank(slot, v)) values[slot.sem] = v;
+    } else if (slot.fieldKey) {
+      const v = shared[slot.id];
+      if (!isBlank(slot, v)) fields[slot.fieldKey] = String(v);
+    }
+  }
+  const at = (sem) => shared[`sem:${sem}`];
+  const schedule = {};
+  for (const [k, sem] of [["boarding", "currentBoardingDate"], ["departure", "currentDepartureDate"], ["arrival", "currentArrivalDate"]]) {
+    const t = hhmmOf(at(sem));
+    if (t) schedule[k] = t;
+  }
+  const dep = at("currentDepartureDate"), arr = at("currentArrivalDate");
+  if (typeof dep === "string" && typeof arr === "string" && schedule.departure && schedule.arrival) {
+    schedule.arrivalDayOffset = Math.min(3, Math.max(0, dayDiff(arr, dep)));
+  }
+  return { values, schedule, fields };
 }
 
 // ---- preview -------------------------------------------------------------------

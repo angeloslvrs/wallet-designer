@@ -45,7 +45,8 @@ function wireViewTabs(initialView = "flights") {
     flights:   () => import("./flights.js").then(m => (root, opts) => m.mountFlights(root, { showIssue: () => show("templates"), selectGroup: opts?.selectGroup })),
     templates: () => import("./templates.js").then(m => (root, opts) => m.mountTemplates(root, {
       bindingsFor: opts?.bindingsFor,
-      onIssue: (id, kind) => show("issue", { template: id, kind }),
+      onIssue: (id, kind, route) => show("issue", { template: id, kind, route }),
+      onRoute: (id, kind, route) => show("issue", { template: id, kind, route, routeMode: true }),
       onEditDesign: async (name) => {
         if (isDirty() && !confirm(`Open "${name}"? The editor has unsaved changes; they'll be replaced.`)) return;
         try { await openDesign(name); show("designer"); } catch (err) { alert(err.message); }
@@ -59,7 +60,7 @@ function wireViewTabs(initialView = "flights") {
     // Issue is a workspace, entered from a template card: it hides the nav and
     // offers ‹ Templates. `#issue` without a template lands back on the shelf.
     issue:     () => import("./issue/index.js").then(m => (root, opts) => m.mountIssue(root, {
-      template: opts?.template, kind: opts?.kind,
+      template: opts?.template, kind: opts?.kind, route: opts?.route, routeMode: opts?.routeMode,
       onBack: () => show("templates"),
       showTemplates: () => show("templates"),
       openFlight: (gid) => show("flights", { selectGroup: gid })

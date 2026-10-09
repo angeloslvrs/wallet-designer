@@ -14,7 +14,7 @@ const flush = () => new Promise(r => setTimeout(r, 0));
 const settle = async () => { for (let i = 0; i < 6; i++) await flush(); };
 const bcbp = (name, seat, seq) => ["M", "1", name.padEnd(20), "E", "ABC123".padEnd(7), "SFO", "JFK", "RP ", "0248 ", "306", "Y", seat, seq.padEnd(5), "1", "00"].join("");
 
-let root, posts, designer, studio, design, existing;
+let root, posts, designer, studio, design, existing, routes, routePuts, routeDeletes;
 const ok = (body, status = 200) => Promise.resolve({ ok: status < 400, status, json: async () => body });
 
 beforeEach(async () => {
@@ -25,6 +25,9 @@ beforeEach(async () => {
   const sp = formStateToPassJson(design), sb = discoverBindings(sp);
   studio = { id: "rocket", kind: "studio", fieldKeys: templateFieldKeys(sp), fields: templateFieldDescriptors(sp, sb), bindings: sb, semantics: design.semantics, preview: sp };
   posts = [];
+  routes = {};
+  routePuts = [];
+  routeDeletes = [];
   existing = [{ serial: "RP248@2026-11-02-001" }];
   globalThis.confirm = () => true;
   globalThis.fetch = (url, opts = {}) => {
@@ -40,6 +43,12 @@ beforeEach(async () => {
     }
     if (u === "/api/passes") return ok(existing);
     if (u === "/api/roster") return ok([]);
+    if (u.startsWith("/api/routes/")) {
+      const rid = decodeURIComponent(u.slice("/api/routes/".length));
+      if (opts.method === "PUT") { routePuts.push({ id: rid, body: JSON.parse(opts.body) }); return ok({ ok: true, id: rid }, 201); }
+      if (opts.method === "DELETE") { routeDeletes.push(rid); return ok({ ok: true }); }
+      return routes[rid] ? ok(routes[rid]) : ok({ error: "not found" }, 404);
+    }
     throw new Error(`unexpected fetch: ${opts.method ?? "GET"} ${u}`);
   };
   root = document.createElement("div");
@@ -220,5 +229,89 @@ describe("Studio design", () => {
     expect(posts[0].semantics.passengerName).toEqual({ givenName: "LEA", familyName: "TAN" });
     expect(posts[0].semantics.currentBoardingDate).toBe("2026-11-02T07:30:00-08:00");   // the airport's zone, not the browser's
     expect(JSON.stringify(posts[0])).not.toMatch(/ANGELO/);
+  });
+});
+
+
+describe("routes in the Issue workspace", () => {
+  const RP248 = {
+    id: "RP248-SFO-JFK", template: { kind: "designer", id: "dev-sample" },
+    values: { flightNumber: 248, departureAirportCode: "SFO", destinationAirportCode: "JFK", departureAirportTimeZone: "America/Los_Angeles", destinationAirportTimeZone: "America/New_York" },
+    schedule: { boarding: "07:30", departure: "08:00", arrival: "16:30", arrivalDayOffset: 0 }, fields: {}
+  };
+  const timeOf = (sid) => root.querySelector(`[data-slot-input="${sid}"] input[type=time]`).value;
+  const dateOf = (sid) => root.querySelector(`[data-slot-input="${sid}"] input[type=date]`).value;
+
+  it("issuing from a route pre-fills the flight; the Date composes the schedule; passes carry routeId", async () => {
+    routes[RP248.id] = RP248;
+    mountIssue(root, { template: "dev-sample", route: RP248.id });
+    await settle();
+    expect(root.querySelector('[data-slot-input="sem:flightNumber"] input').value).toBe("248");
+    expect(root.querySelector(".iw-title small").textContent).toContain("route RP248-SFO-JFK");
+    const date = root.querySelector("#iw-date");
+    date.value = "2026-11-02"; date.dispatchEvent(new Event("change", { bubbles: true }));
+    expect([dateOf("sem:currentBoardingDate"), timeOf("sem:currentBoardingDate"), timeOf("sem:currentArrivalDate")]).toEqual(["2026-11-02", "07:30", "16:30"]);
+    expect(root.querySelector("#iw-trip").value).toBe("RP248@2026-11-02");
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
+    click('[data-act="paste-add"]');
+    click('[data-act="issue"]');
+    await settle();
+    expect(posts).toHaveLength(1);
+    expect(posts[0].routeId).toBe("RP248-SFO-JFK");
+    expect(posts[0].data.semantics.currentDepartureDate).toBe("2026-11-02T08:00:00-08:00");
+    expect(posts[0].data.semantics.currentArrivalDate).toBe("2026-11-02T16:30:00-05:00");
+  });
+
+  it("route mode: Flight only, a route id, Save route PUTs times of day and returns to the shelf", async () => {
+    const back = [];
+    mountIssue(root, { template: "dev-sample", routeMode: true, onBack: () => back.push(1) });
+    await settle();
+    expect(root.querySelector('[data-act="to-passengers"]')).toBeNull();
+    expect(root.querySelector("#iw-trip")).toBeNull();
+    expect(root.querySelector(".iw-steps")).toBeNull();
+    fillFlight();
+    type(root.querySelector("#iw-route-id"), "RP248-SFO-JFK");
+    click('[data-act="route-save"]');
+    await settle();
+    expect(routePuts).toHaveLength(1);
+    const { id, body } = routePuts[0];
+    expect(id).toBe("RP248-SFO-JFK");
+    expect(body.template).toEqual({ kind: "designer", id: "dev-sample" });
+    expect(body.values.flightNumber).toBe(248);
+    expect(body.schedule).toEqual({ boarding: "07:30", departure: "08:00", arrival: "16:30", arrivalDayOffset: 0 });
+    expect(Object.keys(body.values).some(k => /Date$|Gate$|passengerName|seats/.test(k))).toBe(false);
+    expect(back).toEqual([1]);
+  });
+
+  it("editing a route keeps its id; renaming deletes the old one", async () => {
+    routes[RP248.id] = RP248;
+    mountIssue(root, { template: "dev-sample", route: RP248.id, routeMode: true, onBack: () => {} });
+    await settle();
+    expect(root.querySelector("#iw-route-id").value).toBe("RP248-SFO-JFK");
+    expect(timeOf("sem:currentDepartureDate")).toBe("08:00");
+    type(root.querySelector("#iw-route-id"), "RP248");
+    click('[data-act="route-save"]');
+    await settle();
+    expect(routePuts.map(p => p.id)).toEqual(["RP248"]);
+    expect(routeDeletes).toEqual(["RP248-SFO-JFK"]);
+  });
+
+  it("Save as route from the Flight step suggests an id, saves, and later passes carry it", async () => {
+    mountIssue(root, { template: "dev-sample" });
+    await settle();
+    fillFlight();
+    click('[data-act="route-mode"]');
+    expect(root.querySelector("#iw-route-id").value).toMatch(/^RP248/);
+    click('[data-act="route-save"]');
+    await settle();
+    expect(routePuts).toHaveLength(1);
+    expect(root.querySelector('[data-act="to-passengers"]')).toBeTruthy();
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
+    click('[data-act="paste-add"]');
+    click('[data-act="issue"]');
+    await settle();
+    expect(posts[0].routeId).toBe(routePuts[0].id);
   });
 });

@@ -19,10 +19,18 @@ export function barHtml(ctx, title) {
     return `<li><button type="button" class="iw-step ${state}" data-act="step" data-step="${k}" ${i === at ? 'aria-current="step"' : ""} ${disabled ? "disabled" : ""}><span class="iw-step-n">${i + 1}</span>${label}</button></li>`;
   }).join("");
   const kindLabel = ctx.kind === "studio" ? "Studio design" : "Pass Designer";
+  const sub = `${ctx.tpl.organizationName || ctx.tpl.id} · ${kindLabel}${ctx.route && !ctx.routeMode ? ` · route ${ctx.route.id}` : ""}`;
+  if (ctx.routeMode) {
+    return `
+    <header class="iw-bar">
+      <button type="button" class="btn btn-sm" data-act="back">‹ Templates</button>
+      <div class="iw-title"><b data-ws-title>${esc(title || "New route")}</b><small>${esc(sub)}</small></div>
+    </header>`;
+  }
   return `
     <header class="iw-bar">
       <button type="button" class="btn btn-sm" data-act="back">‹ Templates</button>
-      <div class="iw-title"><b data-ws-title>${esc(title || "New flight")}</b><small>${esc(ctx.tpl.organizationName || ctx.tpl.id)} · ${kindLabel}</small></div>
+      <div class="iw-title"><b data-ws-title>${esc(title || "New flight")}</b><small>${esc(sub)}</small></div>
       <nav aria-label="Issue steps"><ol class="iw-steps">${steps}</ol></nav>
     </header>`;
 }

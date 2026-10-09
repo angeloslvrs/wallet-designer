@@ -23,8 +23,9 @@ import "../preview/wallet/wallet.css";
 import {
   templateSlots, defaultIndividual, issueSlots, slotError, isBlank, effectiveValue, tripIdFrom, suggestSerials,
   parseBcbpLines, bcbpMismatch, serialReport, issueLabel, buildTemplateIssueBody, buildStudioIssueBody,
-  previewFor, rosterToValues, valuesToRoster, copyToClipboard
+  previewFor, rosterToValues, valuesToRoster, copyToClipboard, withRouteSemantics, routeToShared, routeFromShared
 } from "./model.js";
+import { routeSchedule, suggestRouteId, ROUTE_ID_RE } from "@wpd/pass-builder/route.js";
 import { flightHtml, flightFacts } from "./flight.js";
 import { passengersHtml, paxListHtml, pagerHtml } from "./passengers.js";
 import { issuedHtml, drawQrCodes } from "./issued.js";
@@ -35,10 +36,13 @@ const newPax = (values = {}, extra = {}) => ({ id: ++paxSeq, values, serial: "",
 
 /**
  * @param {HTMLElement} root
- * @param {{template?: string, kind?: "designer"|"studio", onBack?: () => void,
- *          openFlight?: (groupId: string) => void, showTemplates?: () => void}} opts
+ * `route` pre-fills the Flight step from a saved route (Airline › Route ›
+ * Flight) and adds a Date that composes its schedule; `routeMode` turns the
+ * workspace into the route editor (Flight step only, Save route).
+ * @param {{template?: string, kind?: "designer"|"studio", route?: string, routeMode?: boolean,
+ *          onBack?: () => void, openFlight?: (groupId: string) => void, showTemplates?: () => void}} opts
  */
-export function mountIssue(root, { template: id, kind = "designer", onBack, openFlight, showTemplates } = {}) {
+export function mountIssue(root, { template: id, kind = "designer", route: routeParam, routeMode: routeModeParam = false, onBack, openFlight, showTemplates } = {}) {
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
   const $ = (s) => root.querySelector(s);
@@ -66,6 +70,11 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   let roster = [];
   let results = [];          // issued screen
   let issuing = false;
+  let route = null;          // the saved route this flight comes from (or is editing)
+  let routeMode = routeModeParam;   // route editor: Flight step only, Save route
+  let routeModeFromShelf = routeModeParam;
+  let routeId = "";          // route editor: the id to save under
+  let flightDate = "";       // with a route: the date its times are composed on
 
   const slotById = (sid) => slots.find(s => s.id === sid);
   const sharedSlots = () => slots.filter(s => !individual.has(s.id));
@@ -104,7 +113,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
 
   function context() {
     return {
-      tpl, kind, step, slots, individual, shared, sharedTouched, submitted, tripId: effectiveTripId(), tripIdEdited, tripError: tripError(),
+      tpl, kind, step, route, routeMode, routeId, flightDate, slots, individual, shared, sharedTouched, submitted, tripId: effectiveTripId(), tripIdEdited, tripError: tripError(),
       expiry, moreOpen, pax, sel, mode, previewTab, pasteReport, roster, rosterEdit, existing, results, serials: serials(),
       facts: flightFacts(slots, shared, expiry), valuesFor, paxProblems, sharedErrors: sharedErrors()
     };
@@ -233,7 +242,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     }
   }
 
-  function refreshTitle() { const t = $("[data-ws-title]"); if (t) t.textContent = flightFacts(slots, shared, expiry).title || "New flight"; }
+  function refreshTitle() { const t = $("[data-ws-title]"); if (t) t.textContent = routeMode ? (routeId.trim() || "New route") : (flightFacts(slots, shared, expiry).title || "New flight"); }
 
   function refreshPaxList() {
     const host = $("[data-pax-list]");
@@ -267,6 +276,12 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   function refreshFooter() {
     const status = $("[data-ready]"), btn = $("[data-primary]");
     if (!status || !btn) return;
+    if (step === "flight" && routeMode) {
+      const ok = ROUTE_ID_RE.test(routeId.trim());
+      status.textContent = ok ? `Saves route ${routeId.trim()} — times of day only` : "Give the route an id (letters, digits, - . _)";
+      status.classList.toggle("is-ok", ok);
+      return;
+    }
     if (step === "flight") {
       const errs = sharedErrors();
       const missing = errs.filter(e => e.msg === "Required").map(e => e.slot.label);
@@ -297,6 +312,49 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     }
     const ok = results.filter(r => r.ok);
     status.textContent = ok.length ? `On the Flights board under ${ok[0].groupId}` : "";
+  }
+
+  // ---- routes ------------------------------------------------------------------
+  // The route's times on the chosen date, each in its airport's zone as the
+  // Flight step currently has it (typed or the template's).
+  function applyFlightDate(date) {
+    flightDate = date;
+    if (!route) return;
+    const zones = { departureAirportTimeZone: zoneFor("sem:currentDepartureDate"), destinationAirportTimeZone: zoneFor("sem:currentArrivalDate") };
+    const sched = routeSchedule({ values: zones, schedule: route.schedule }, date, (local, zone) => zoneOffset(local, zone));
+    for (const [sem, v] of Object.entries(sched)) if (slotById(`sem:${sem}`)) shared = { ...shared, [`sem:${sem}`]: v };
+  }
+
+  function enterRouteMode() {
+    routeMode = true;
+    routeModeFromShelf = false;
+    routeId = route?.id ?? suggestRouteId(routeFromShared(slots, shared, individual).values);
+    render();
+  }
+
+  async function saveRoute() {
+    const rid = routeId.trim();
+    if (!ROUTE_ID_RE.test(rid)) { refreshFooter(); $("#iw-route-id")?.focus(); return; }
+    const isRename = route && route.id !== rid;
+    if (!route || isRename) {
+      const exists = await fetch(`/api/routes/${encodeURIComponent(rid)}`, { signal }).then(r => r.ok).catch(() => false);
+      if (signal.aborted) return;
+      if (exists && !confirm(`A route called "${rid}" already exists. Replace it?`)) return;
+    }
+    const body = { template: { kind, id: tpl.id }, ...routeFromShared(slots, shared, individual) };
+    let r, j;
+    try {
+      r = await fetch(`/api/routes/${encodeURIComponent(rid)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+      j = await r.json().catch(() => ({}));
+    } catch { if (signal.aborted) return; toast("API offline"); return; }
+    if (signal.aborted) return;
+    if (!r.ok) { toast(`Couldn’t save the route: ${j.error ?? r.status}`); return; }
+    if (isRename) await fetch(`/api/routes/${encodeURIComponent(route.id)}`, { method: "DELETE", signal }).catch(() => {});
+    toast(`Route ${rid} saved`);
+    route = { ...body, id: rid };
+    if (routeModeFromShelf) { onBack?.(); return; }
+    routeMode = false;
+    render();
   }
 
   // ---- actions ----------------------------------------------------------------
@@ -375,6 +433,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     const batch = pax.map(p => {
       const args = { groupId, serial: p.serial, slots, values: valuesFor(p), barcodeMessage: p.barcodeMessage, expirationDate: expiry };
       const body = kind === "studio" ? buildStudioIssueBody({ ...args, design, designName: tpl.id }) : buildTemplateIssueBody({ ...args, template: tpl.id });
+      if (route) body.routeId = route.id;
       const name = p.values["sem:passengerName"];
       return { p, body, serial: p.serial, name: name ? [name.familyName, name.givenName].filter(Boolean).join(" / ").toUpperCase() : "Unnamed passenger" };
     });
@@ -435,6 +494,8 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
 
   const dirty = () => step !== "issued" && (pax.length > 0 || Object.values(shared).some(v => v !== undefined && v !== ""));
   function back() {
+    if (routeMode && routeModeFromShelf) { onBack?.(); return; }
+    if (routeMode) { routeMode = false; render(); return; }
     if (dirty() && !confirm("Leave this flight? Passengers you haven't issued are discarded.")) return;
     onBack?.();
   }
@@ -456,6 +517,8 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       return;
     }
     if (act === "issue") return issueAll();
+    if (act === "route-mode") return enterRouteMode();
+    if (act === "route-save") return saveRoute();
     if (act === "mode") { mode = t.dataset.mode; render(); return; }
     if (act === "paste-add") return addFromPaste($("#iw-paste")?.value ?? "");
     if (act === "scan") return scanOne();
@@ -504,6 +567,12 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   root.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-more]")) moreOpen = e.target.open; }, { capture: true, signal });
 
   root.addEventListener("change", (e) => {
+    if (e.target.id === "iw-date") {
+      applyFlightDate(e.target.value);
+      for (const sid of ["sem:currentBoardingDate", "sem:currentDepartureDate", "sem:currentArrivalDate"]) remountField(sid);
+      onValuesChanged("shared", "sem:currentDepartureDate");
+      return;
+    }
     if (e.target.matches("[data-act-change='vary']")) {
       const sid = e.target.value;
       if (sid) { setIndividual(new Set(individual).add(sid)); render(); }
@@ -512,6 +581,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
 
   root.addEventListener("input", (e) => {
     const t = e.target;
+    if (t.id === "iw-route-id") { routeId = t.value; refreshFooter(); const b = $("[data-ws-title]"); if (b) b.textContent = routeId.trim() || "New route"; return; }
     if (t.id === "iw-trip") { tripId = t.value; tripIdEdited = Boolean(t.value.trim()); reSuggestSerials(); refreshPaxList(); refreshTitle(); refreshFooter(); const err = $("#err-trip"); if (err && !tripError()) err.textContent = ""; return; }
     if (t.matches("[data-serial]")) {
       pax = pax.map((p, i) => (i === sel ? { ...p, serial: t.value, serialEdited: Boolean(t.value.trim()) } : p));
@@ -574,6 +644,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
         get("/api/roster").catch(() => [])
       ]);
       if (kind === "studio") design = await get(`/api/designs/${encodeURIComponent(id)}`);
+      if (routeParam) route = await get(`/api/routes/${encodeURIComponent(routeParam)}`);
     } catch {
       if (signal.aborted) return;
       root.innerHTML = `<div class="view"><div class="empty empty--action"><p>Couldn’t load “${esc(id)}”.</p><p class="hint">The API is offline or the template is gone.</p><button type="button" class="btn btn-primary" data-act="templates">Back to Templates</button></div></div>`;
@@ -586,10 +657,16 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       return;
     }
     tpl = { ...tpl, kind };
+    // Route values need slots even where the template neither binds nor bakes them.
+    if (route) tpl = withRouteSemantics(tpl, route);
     existing = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
     roster = Array.isArray(ros) ? ros : [];
     baseSlots = templateSlots(tpl);
     setIndividual(defaultIndividual(baseSlots));
+    if (route) {
+      shared = routeToShared(route, slots);
+      if (routeMode) { routeId = route.id; applyFlightDate(new Date().toISOString().slice(0, 10)); flightDate = ""; }
+    } else if (routeMode) routeId = "";
     render();
   }
 
