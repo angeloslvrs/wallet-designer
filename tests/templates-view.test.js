@@ -10,6 +10,16 @@ import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsRevi
 const flush = () => new Promise(r => setTimeout(r, 0));
 const settle = async () => { for (let i = 0; i < 5; i++) await flush(); };
 
+// A flat design to convert (Airline › Route): look + route + sample passenger.
+const SRC_DESIGN = {
+  meta: { passTypeId: "pass.dev.local", teamId: "DEV0000000", organizationName: "Philippine Airlines", serialNumber: "PAL", description: "Boarding pass" },
+  branding: { logoText: "", foregroundColor: "rgb(255,255,255)", backgroundColor: "rgb(0,29,95)", labelColor: "rgb(191,202,242)" },
+  barcode: { format: "PKBarcodeFormatQR", message: "M1DOE/JANE", altText: "" },
+  displayFields: { header: [{ key: "seat", label: "SEAT", value: "42A" }], primary: [{ key: "depart", label: "MANILA", value: "MNL" }], secondary: [{ key: "passenger", label: "PASSENGER", value: "JANE DOE" }], auxiliary: [{ key: "boarding", label: "BOARDING", value: "16:05" }], back: [] },
+  semantics: { airlineCode: "PR", flightCode: "PR2987", departureAirportCode: "MNL", departureCityName: "Manila", destinationAirportCode: "TAC", currentBoardingDate: "2026-08-28T16:05:00+08:00", passengerName: { givenName: "JANE", familyName: "DOE" }, seats: [{ seatRow: "42", seatNumber: "A" }] },
+  iOS26: { wifi: [{ ssid: "CebPac-WiFi" }] }
+};
+
 const PREVIEW = { logoText: "Odyssey Air", backgroundColor: "rgb(15,91,90)", boardingPass: {
   headerFields: [{ key: "gate", label: "GATE", value: "C4" }],
   primaryFields: [{ key: "origin", label: "TAIPEI", value: "TPE" }, { key: "dest", label: "MANILA", value: "MNL" }],
@@ -34,6 +44,8 @@ beforeEach(() => {
     const json = (body, ok = true, status = 200) => ({ ok, status, json: async () => body });
     if (u === "/api/templates") return json(designer);
     if (u === "/api/studio-templates") return json(studioList);
+    if (u === "/api/designs/pal-src" && !opts.method) return json(SRC_DESIGN);
+    if (opts.method === "PUT" && u.startsWith("/api/designs/") && !u.endsWith("/bindings")) return json({ ok: true, created: true }, true, 201);
     if (u === "/api/routes") return json(routesList);
     if (u.startsWith("/api/routes/")) return json({ ok: true });
     if (opts.method === "DELETE" && u.endsWith("/bindings")) return json({ ok: true });
@@ -275,5 +287,64 @@ describe("Shelf grouped by airline, with routes under their template", () => {
     await settle();
     expect(asked).toMatch(/PR2987-MNL-TAC/);
     expect(calls.some(c => c.method === "DELETE" && c.url === "/api/routes/PR2987-MNL-TAC")).toBe(true);
+  });
+});
+
+
+describe("Make airline from a design", () => {
+  const SRC = { id: "pal-src", kind: "studio", organizationName: "Philippine Airlines", semantics: { airlineCode: "PR" }, fieldKeys: ["seat", "depart", "passenger", "boarding"],
+    bindings: { seats: { fieldKey: "seat" }, departureAirportCode: { fieldKey: "depart" }, passengerName: { fieldKey: "passenger" } }, preview: PREVIEW, logo: null };
+
+  it("reviews every value and creates the airline design, its bindings and the route — the source stays", async () => {
+    studioList = [SRC];
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="pal-src"] [data-act="convert"]').click();
+    await settle();
+    expect(root.querySelector("h1").textContent).toContain("Make an airline from pal-src");
+    const wifi = root.querySelector('select[data-conv-item="wifi:0"]');
+    expect(wifi.value).toBe("drop");
+    expect(wifi.closest("tr").textContent).toMatch(/another airline/i);
+    expect(root.querySelector("#conv-name").value).toBe("philippine-airlines");
+    expect(root.querySelector("#conv-route").value).toBe("PR2987-MNL-TAC");
+    root.querySelector('[data-act="conv-create"]').click();
+    await settle();
+    const puts = calls.filter(c => c.method === "PUT");
+    expect(puts.map(c => c.url)).toEqual(["/api/designs/philippine-airlines", "/api/designs/philippine-airlines/bindings", "/api/routes/PR2987-MNL-TAC"]);
+    const airline = JSON.parse(puts[0].body);
+    expect(airline.semantics).toEqual({ airlineCode: "PR" });
+    expect(airline.displayFields.auxiliary[0]).toMatchObject({ key: "boarding", value: "", timeFormat: "24h" });
+    expect(JSON.parse(puts[1].body)).toMatchObject({ currentBoardingDate: "boarding", passengerName: "passenger" });
+    expect(JSON.parse(puts[2].body)).toMatchObject({ template: { kind: "studio", id: "philippine-airlines" }, schedule: { boarding: "16:05" } });
+    expect(calls.some(c => c.method === "DELETE")).toBe(false);
+    expect(root.querySelector("#tpl-flash").textContent).toMatch(/pal-src is unchanged/);
+  });
+
+  it("can add the route to an existing airline instead (no design written)", async () => {
+    studioList = [SRC, { ...SRC, id: "philippine-airlines" }];
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="pal-src"] [data-act="convert"]').click();
+    await settle();
+    expect(root.querySelector("#conv-target").value).toBe("philippine-airlines");
+    root.querySelector('[data-act="conv-create"]').click();
+    await settle();
+    const puts = calls.filter(c => c.method === "PUT");
+    expect(puts.map(c => c.url)).toEqual(["/api/routes/PR2987-MNL-TAC"]);
+    expect(JSON.parse(puts[0].body).template).toEqual({ kind: "studio", id: "philippine-airlines" });
+  });
+
+  it("a decision changes what's written", async () => {
+    studioList = [SRC];
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="pal-src"] [data-act="convert"]').click();
+    await settle();
+    const sel = root.querySelector('select[data-conv-item="wifi:0"]');
+    sel.value = "airline"; sel.dispatchEvent(new Event("change", { bubbles: true }));
+    root.querySelector('[data-act="conv-create"]').click();
+    await settle();
+    const airline = JSON.parse(calls.find(c => c.method === "PUT").body);
+    expect(airline.iOS26.wifi).toEqual([{ ssid: "CebPac-WiFi" }]);
   });
 });

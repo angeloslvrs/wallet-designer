@@ -1,6 +1,8 @@
 import { esc } from "./esc.js";
 import { BOARDING_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { toPassView } from "./preview/wallet/model.js";
+import { planConversion, applyConversion } from "@wpd/pass-builder/convert.js";
+import { formStateToPassJson } from "@wpd/pass-builder/form-to-pass.js";
 import { renderFront } from "./preview/wallet/card.js";
 import "./preview/wallet/wallet.css";
 
@@ -131,6 +133,7 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
   let mode = bindingsFor ? { view: "bindings", kind: "designer", id: bindingsFor } : { view: "shelf" };
   let draft = null;       // bindings screen: { semanticKey: fieldKey }; null = seed from server
   let flash = "";         // one-shot status line on the shelf
+  let conv = null;        // "Make airline" screen: { id, state, bindings, plan, decisions, target, name, routeId, busy }
 
   const $ = (s) => root.querySelector(s);
   const listOf = (kind) => (kind === "studio" ? studio : designer);
@@ -235,6 +238,7 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
         <button type="button" class="btn-link" data-act="bindings" data-id="${esc(t.id)}" data-kind="studio">Bindings</button>
+        <button type="button" class="btn-link" data-act="convert" data-id="${esc(t.id)}" title="Split this design into an airline look and a route">Make airline</button>
         ${del}
         <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="studio">Issue →</button>
       </div>
@@ -353,6 +357,7 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
   }
 
   function render() {
+    if (mode.view === "convert") { renderConvert(); return; }
     if (mode.view === "bindings") {
       if (draft === null) {
         const t = listOf(mode.kind).find(x => x.id === mode.id);
@@ -360,6 +365,106 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
       }
       renderBindings();
     } else renderShelf();
+  }
+
+  // ---- make airline (Airline › Route conversion) ----------------------------
+  const TIER_TEXT = { airline: "Keep on airline", route: "Move to route", drop: "Drop" };
+  const tierText = (it, t) => (t === "route" && it.id.startsWith("label:") ? "Fill from route" : t === "route" && it.id.startsWith("time:") ? "Bind to schedule" : TIER_TEXT[t]);
+  const DESIGN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+  async function openConvert(id) {
+    const t = studio.find(x => x.id === id);
+    let state;
+    try { const r = await fetch(`/api/designs/${encodeURIComponent(id)}`, { signal }); if (!r.ok) throw new Error(String(r.status)); state = await r.json(); }
+    catch { if (signal.aborted) return; flash = `✗ Couldn’t load ${id}.`; renderShelf(); return; }
+    if (signal.aborted) return;
+    const bindings = Object.fromEntries(Object.entries(t?.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]));
+    const plan = planConversion(state, bindings);
+    // Converting a second design of an airline already converted: add its route there.
+    const existing = studio.find(x => x.id === plan.suggestedName && x.id !== id && !x.error);
+    conv = { id, state, bindings, plan, decisions: {}, target: existing ? existing.id : "", name: plan.suggestedName, routeId: plan.suggestedRouteId, busy: false, error: "" };
+    mode = { view: "convert", id };
+    render();
+  }
+
+  function renderConvert() {
+    const c = conv;
+    if (!c) { mode = { view: "shelf" }; renderShelf(); return; }
+    const groups = [...new Set(c.plan.items.map(i => i.group))];
+    const rows = groups.map(g => `<tr class="conv-group"><th colspan="3">${esc(g)}</th></tr>` + c.plan.items.filter(i => i.group === g).map(it => {
+      const chosen = it.options.includes(c.decisions[it.id]) ? c.decisions[it.id] : it.tier;
+      const opts = it.options.map(o => `<option value="${o}" ${o === chosen ? "selected" : ""}>${esc(tierText(it, o))}</option>`).join("");
+      const ctl = it.options.length > 1 ? `<select class="bind-sel" data-conv-item="${esc(it.id)}" aria-label="${esc(it.what)}">${opts}</select>` : `<span class="conv-fixed">${esc(tierText(it, chosen))}</span>`;
+      const msg = it.flag ? `<span class="conv-flag">⚑ ${esc(it.flag)}</span>` : it.note ? `<span class="conv-note">${esc(it.note)}</span>` : "";
+      return `<tr><td><b>${esc(it.what)}</b><div class="conv-val">${esc(String(it.value).slice(0, 80))}</div>${msg}</td><td>${ctl}</td></tr>`;
+    }).join("")).join("");
+    const others = studio.filter(x => x.id !== c.id && !x.error);
+    const flagged = c.plan.items.filter(i => i.flag).length;
+    root.innerHTML = `
+      <div class="view tpl-view">
+        <div class="view-head">
+          <div><button type="button" class="btn btn-sm" data-act="back">‹ Templates</button>
+            <h1>Make an airline from ${esc(c.id)}</h1>
+            <p class="view-sub">Splits the design into an airline look (no flight or passenger values) and a route. Creates new files — ${esc(c.id)} stays as it is.${flagged ? ` <b class="warn-text">${flagged} to check</b>` : ""}</p></div>
+          <div class="tpl-head-acts">
+            <button type="button" class="btn" data-act="back">Cancel</button>
+            <button type="button" class="btn btn-primary" data-act="conv-create" ${c.busy ? "disabled" : ""}>${c.busy ? "Creating…" : "Create"}</button>
+          </div>
+        </div>
+        <div class="bind-split">
+          <div class="card bind-card">
+            <table class="bind-table conv-table"><tbody>${rows}</tbody></table>
+          </div>
+          <aside class="bind-side">
+            <div class="eyebrow">Airline</div>
+            <label class="conv-lbl" for="conv-target">Put the route on</label>
+            <select id="conv-target" class="bind-sel"><option value="" ${c.target ? "" : "selected"}>A new airline design</option>${others.map(o => `<option value="${esc(o.id)}" ${o.id === c.target ? "selected" : ""}>${esc(o.id)} (existing)</option>`).join("")}</select>
+            ${c.target ? "" : `<label class="conv-lbl" for="conv-name">New design name</label><input id="conv-name" class="iw-input mono" value="${esc(c.name)}" autocomplete="off" />`}
+            <label class="conv-lbl" for="conv-route">Route id <small>(blank = no route)</small></label>
+            <input id="conv-route" class="iw-input mono" value="${esc(c.routeId)}" autocomplete="off" />
+            <div class="eyebrow" style="margin-top:18px">${c.target ? "The new route on this look" : "The airline look, with this route"}</div>
+            <div class="bind-thumb" data-thumb="conv"></div>
+            <p class="tpl-status" id="conv-status">${esc(c.error)}</p>
+          </aside>
+        </div>
+      </div>`;
+    const out = applyConversion(c.state, c.bindings, c.plan, c.decisions);
+    try {
+      const merged = { ...out.airline, semantics: { ...out.airline.semantics, ...out.route.values } };
+      mountThumb($('[data-thumb="conv"]'), formStateToPassJson(merged), c.state.branding?.logoDataUrl ?? null);
+    } catch { /* preview is best-effort */ }
+  }
+
+  async function createConversion() {
+    const c = conv;
+    if (!c || c.busy) return;
+    const out = applyConversion(c.state, c.bindings, c.plan, c.decisions);
+    const name = (c.target || c.name).trim();
+    const rid = c.routeId.trim();
+    const fail = (msg) => { c.error = `✗ ${msg}`; c.busy = false; renderConvert(); };
+    if (!c.target) {
+      if (!DESIGN_NAME_RE.test(name)) return fail("Name the design with letters, digits, - . _");
+      if (studio.some(x => x.id === name)) return fail(`“${name}” already exists — pick it under “Put the route on”, or choose another name`);
+    }
+    if (rid && !DESIGN_NAME_RE.test(rid)) return fail("Route ids use letters, digits, - . _");
+    if (rid && routes.some(r => r.id === rid) && !confirm(`A route called "${rid}" already exists. Replace it?`)) return;
+    c.busy = true; c.error = ""; renderConvert();
+    const put = async (url, body) => {
+      const r = await fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error ?? `${url} → ${r.status}`); }
+    };
+    try {
+      if (!c.target) {
+        await put(`/api/designs/${encodeURIComponent(name)}`, out.airline);
+        await put(`/api/designs/${encodeURIComponent(name)}/bindings`, out.bindings);
+      }
+      if (rid) await put(`/api/routes/${encodeURIComponent(rid)}`, { template: { kind: "studio", id: name }, ...out.route });
+    } catch (err) { if (signal.aborted) return; return fail(err.message); }
+    if (signal.aborted) return;
+    flash = `✓ ${c.target ? `Added route ${rid} to ${name}` : `Created airline ${name}${rid ? ` and route ${rid}` : ""}`}. ${c.id} is unchanged — delete it when you’re happy.`;
+    conv = null;
+    mode = { view: "shelf" };
+    await load();
   }
 
   // ---- actions --------------------------------------------------------------
@@ -485,6 +590,8 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
     const t = e.target.closest("[data-act]");
     if (!t || !root.contains(t)) return;
     const { act, id, kind } = t.dataset;
+    if (act === "convert") { openConvert(id); return; }
+    if (act === "conv-create") { createConversion(); return; }
     if (act === "route-issue") { onIssue?.(id, kind, t.dataset.routeId); return; }
     if (act === "route-edit") { onRoute?.(id, kind, t.dataset.routeId); return; }
     if (act === "route-new") { onRoute?.(id, kind); return; }
@@ -494,7 +601,7 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
     if (act === "issue") { onIssue?.(id, kind ?? "designer"); return; }
     if (act === "edit-design") { onEditDesign?.(id); return; }
     if (act === "bindings") { openBindings(id, kind ?? "designer"); return; }
-    if (act === "back") { mode = { view: "shelf" }; draft = null; render(); return; }
+    if (act === "back") { mode = { view: "shelf" }; draft = null; conv = null; render(); return; }
     if (act === "tpl-del") { deleteTemplate(id); return; }
     if (act === "design-del") { deleteDesign(id); return; }
     if (act === "bind-save") { saveBindings(); return; }
@@ -505,6 +612,12 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
       draft = { ...draft, [sem]: field };
       renderBindings();
     }
+  }, { signal });
+
+  root.addEventListener("input", (e) => {
+    if (!conv) return;
+    if (e.target.id === "conv-name") conv.name = e.target.value;
+    if (e.target.id === "conv-route") conv.routeId = e.target.value;
   }, { signal });
 
   // Hovering a bindings row lights the matching field on the thumbnail.
@@ -520,6 +633,8 @@ export function mountTemplates(root, { onIssue, onRoute, onEditDesign, onNewDesi
   root.addEventListener("change", (e) => {
     if (e.target.id === "tpl-file") { upload(e.target.files?.[0]); e.target.value = ""; return; }
     if (e.target.dataset?.routeMove && e.target.value) { moveRoute(e.target.dataset.routeMove, e.target.value); return; }
+    if (conv && e.target.dataset?.convItem) { conv.decisions[e.target.dataset.convItem] = e.target.value; renderConvert(); return; }
+    if (conv && e.target.id === "conv-target") { conv.target = e.target.value; renderConvert(); return; }
     const sem = e.target.dataset?.bindSem;
     if (sem) {
       if (e.target.value) draft = { ...draft, [sem]: e.target.value };
