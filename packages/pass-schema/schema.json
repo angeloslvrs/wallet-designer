@@ -17,7 +17,8 @@
         "description": { "type": "string" },
         "webServiceURL": { "type": "string" },
         "authenticationToken": { "type": "string", "minLength": 16 },
-        "expirationDate": { "type": "string" }
+        "expirationDate": { "type": "string" },
+        "groupId": { "type": "string", "description": "Trip id (e.g. RP247@2026-06-01). Optional: derived from airline + flight + departure date when absent." }
       }
     },
     "branding": {

@@ -48,7 +48,8 @@ function open() {
       state_json           TEXT,
       data_json            TEXT,
       last_modified        TEXT NOT NULL,
-      update_tag           INTEGER
+      update_tag           INTEGER,
+      design_name          TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_passes_group ON passes(group_id);
     CREATE TABLE IF NOT EXISTS registrations (
@@ -87,6 +88,8 @@ function open() {
 function ensureUpdateTagColumn() {
   const cols = new Set(db.prepare("PRAGMA table_info(passes)").all().map(c => c.name));
   if (!cols.has("update_tag")) db.exec("ALTER TABLE passes ADD COLUMN update_tag INTEGER");
+  // The Studio design a FormState pass was issued from (Templates shelf counts).
+  if (!cols.has("design_name")) db.exec("ALTER TABLE passes ADD COLUMN design_name TEXT");
 }
 
 function metaValue(key) {
@@ -188,8 +191,8 @@ function importLegacyJson() {
  *  with it snapshot()'s key order — survives re-issues like the JSON store. */
 function writePass(serial, rec) {
   db.prepare(`
-    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified, update_tag)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO passes (serial, pass_type_identifier, authentication_token, group_id, template, state_json, data_json, last_modified, update_tag, design_name)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(serial) DO UPDATE SET
       pass_type_identifier = excluded.pass_type_identifier,
       authentication_token = excluded.authentication_token,
@@ -198,7 +201,8 @@ function writePass(serial, rec) {
       state_json           = excluded.state_json,
       data_json            = excluded.data_json,
       last_modified        = excluded.last_modified,
-      update_tag           = COALESCE(excluded.update_tag, passes.update_tag)
+      update_tag           = COALESCE(excluded.update_tag, passes.update_tag),
+      design_name          = excluded.design_name
   `).run(
     serial,
     rec.passTypeIdentifier ?? null,
@@ -208,7 +212,8 @@ function writePass(serial, rec) {
     rec.state !== undefined ? JSON.stringify(rec.state) : null,
     rec.data !== undefined ? JSON.stringify(rec.data) : null,
     rec.lastModified,
-    rec.updateTag ?? null
+    rec.updateTag ?? null,
+    rec.designName ?? null
   );
 }
 
@@ -224,6 +229,7 @@ function rowToRec(row) {
   if (row.data_json != null) rec.data = JSON.parse(row.data_json);
   rec.lastModified = row.last_modified;
   if (row.update_tag != null) rec.updateTag = Number(row.update_tag);
+  if (row.design_name != null) rec.designName = row.design_name;
   return rec;
 }
 
@@ -249,7 +255,12 @@ function assertSamePassType(existing, incomingPassTypeId, serial) {
   }
 }
 
-export async function savePass(state) {
+/**
+ * @param {object} state FormState
+ * @param {{designName?: string}} [opts] the saved Studio design it was issued
+ *   from, if any (recorded so the Templates shelf can count it).
+ */
+export async function savePass(state, { designName } = {}) {
   open();
   const serial = state.meta.serialNumber;
   // Keep the auth token STABLE for a serial. Rotating it on re-issue would 401
@@ -276,6 +287,7 @@ export async function savePass(state) {
     authenticationToken: token,
     groupId: deriveGroupId(state),   // all passengers on the same flight share this
     state: { ...state, meta },
+    ...(designName ? { designName } : {}),
     ...mutationStamp(existing)
   };
   writePass(serial, rec);

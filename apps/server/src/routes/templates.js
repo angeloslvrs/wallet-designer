@@ -81,12 +81,21 @@ export async function handleStudioTemplateList(_req, res) {
   for (const id of await listDesignNames()) {
     try {
       const state = migrateFormState(await readDesign(id));
+      const passJson = formStateToPassJson(state);
+      // Same merge surface as a designer bundle: bindings discovered from the
+      // design's own sample values, descriptors resolved through them. The
+      // Issue workspace then treats both kinds through one code path.
+      const bindings = discoverBindings(passJson);
       out.push({
         id,
         kind: "studio",
         description: state.meta?.description,
         organizationName: state.meta?.organizationName,
-        preview: previewPassJson(formStateToPassJson(state)),
+        fieldKeys: templateFieldKeys(passJson),
+        fields: templateFieldDescriptors(passJson, bindings),
+        bindings,
+        semantics: state.semantics ?? {},
+        preview: previewPassJson(passJson),
         logo: typeof state.branding?.logoDataUrl === "string" ? state.branding.logoDataUrl : null
       });
     } catch (err) {

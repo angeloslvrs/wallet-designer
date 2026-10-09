@@ -72,3 +72,15 @@ describe("/api/fixtures is read-only", () => {
     expect(methods.every(m => m === "get")).toBe(true);
   });
 });
+
+describe("studio templates share the designer merge surface", () => {
+  it("ships fieldKeys, descriptors, discovered bindings and semantics", async () => {
+    const list = (await call(handleStudioTemplateList, {})).payload;
+    const t = list.find(x => x.id === "rocket");
+    expect(t.fieldKeys).toContain("passenger");
+    expect(t.bindings.passengerName.fieldKey).toBe("passenger");
+    expect(t.bindings.seats.fieldKey).toBe("seat");
+    expect(t.fields.find(f => f.key === "boarding")).toMatchObject({ kind: "date", boundSemantic: "currentBoardingDate" });
+    expect(t.semantics.airlineCode).toBe("RP");
+  });
+});

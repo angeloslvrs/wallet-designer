@@ -20,6 +20,7 @@ import {
 import { bindingsForTemplate } from "../template-bindings.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
 import { asyncHandler } from "../util/async-handler.js";
+import { DESIGN_NAME_RE } from "./designs.js";
 
 export const adminRouter = Router();
 
@@ -222,14 +223,21 @@ export async function issueTemplatePass({ template, serialNumber, data = {}, gro
  */
 export async function registerPass(body = {}) {
   const isTemplate = typeof body?.template === "string";
-  const rec = isTemplate ? await issueTemplatePass(body) : await savePass(body);
+  // A FormState body may carry `designName` — the saved Studio design it was
+  // issued from. It's an envelope key, not part of the FormState.
+  const { designName, ...state } = isTemplate ? {} : (body ?? {});
+  if (designName !== undefined && (typeof designName !== "string" || !DESIGN_NAME_RE.test(designName))) {
+    throw new Error("designName must be a saved design name");
+  }
+  const rec = isTemplate ? await issueTemplatePass(body) : await savePass(state, { designName });
   return {
     serialNumber: isTemplate ? body.serialNumber : body.meta.serialNumber,
     authenticationToken: rec.authenticationToken,
     groupId: rec.groupId,
     lastModified: rec.lastModified,
     created: rec.created,
-    ...(rec.template && { template: rec.template })
+    ...(rec.template && { template: rec.template }),
+    ...(rec.designName && { designName: rec.designName })
   };
 }
 
@@ -330,7 +338,8 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     current: currentFieldsOf(rec),
     route: routeOf(rec, baseSem[rec.template]),
-    ...(rec.template && { template: rec.template })
+    ...(rec.template && { template: rec.template }),
+    ...(rec.designName && { designName: rec.designName })
   })));
 }));
 
