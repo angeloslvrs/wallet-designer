@@ -8,8 +8,10 @@ import "./preview/wallet/wallet.css";
 //   designer: a Pass Designer `.pkpasstemplate` bundle (GET /api/templates)
 //   studio:   a design saved from the in-app Design view (GET /api/studio-templates,
 //             backed by designs/*.json; DELETE /api/designs/:name)
-// plus the Bindings review screen for a designer template (semanticKey → fieldKey,
-// PUT /api/templates/:id/bindings). Uploading a bundle lands on its Bindings screen.
+// plus the Bindings review screen for either kind (semanticKey → fieldKey;
+// PUT /api/templates/:id/bindings or /api/designs/:name/bindings). Uploading a
+// bundle lands on its Bindings screen. A studio design's confirmed bindings
+// survive its sample values being cleared; "Reset to automatic" DELETEs them.
 
 const SEMANTIC_KEYS = Object.keys(BOARDING_SEMANTICS);
 const FIELD_ZONES = ["headerFields", "primaryFields", "secondaryFields", "auxiliaryFields", "backFields", "additionalInfoFields"];
@@ -93,11 +95,13 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   let studio = [];        // GET /api/studio-templates
   let issued = {};        // template id → issued pass count
   let issuedDesign = {};  // studio design name → issued pass count (pass.designName)
-  let mode = bindingsFor ? { view: "bindings", id: bindingsFor } : { view: "shelf" };
+  let mode = bindingsFor ? { view: "bindings", kind: "designer", id: bindingsFor } : { view: "shelf" };
   let draft = null;       // bindings screen: { semanticKey: fieldKey }; null = seed from server
   let flash = "";         // one-shot status line on the shelf
 
   const $ = (s) => root.querySelector(s);
+  const listOf = (kind) => (kind === "studio" ? studio : designer);
+  const bindingsUrl = (kind, id) => (kind === "studio" ? `/api/designs/${encodeURIComponent(id)}/bindings` : `/api/templates/${encodeURIComponent(id)}/bindings`);
 
   // ---- data -----------------------------------------------------------------
   async function load() {
@@ -157,15 +161,18 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       </article>`;
     }
     const n = issuedDesign[t.id] ?? 0;
+    // Discovered guesses only matter until the operator confirms the map.
+    const guesses = t.bindingsSaved ? 0 : guessCount(t.bindings);
     return `<article class="tpl-card" data-tpl="${esc(t.id)}" data-kind="studio">
       <div class="tpl-thumb" data-thumb="studio:${esc(t.id)}"></div>
       <div class="tpl-meta">
         <div class="tpl-name">${esc(t.organizationName || t.id)}</div>
         <div class="tpl-sub">${esc(t.id)}${t.description ? ` · ${esc(t.description)}` : ""}${n ? ` · ${n} issued` : ""}</div>
       </div>
-      <div class="tpl-chips"><span class="kind-chip kind-chip--studio">Studio design</span></div>
+      <div class="tpl-chips"><span class="kind-chip kind-chip--studio">Studio design</span>${guesses ? `<span class="kind-chip kind-chip--warn">${guesses} binding${guesses === 1 ? "" : "s"} to check</span>` : ""}</div>
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
+        <button type="button" class="btn-link" data-act="bindings" data-id="${esc(t.id)}" data-kind="studio">Bindings</button>
         ${del}
         <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="studio">Issue →</button>
       </div>
@@ -209,8 +216,9 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
 
   // ---- bindings -------------------------------------------------------------
   function renderBindings() {
-    const t = designer.find(x => x.id === mode.id && !x.error);
-    if (!t) { flash = `Template "${mode.id ?? ""}" isn’t installed.`; mode = { view: "shelf" }; renderShelf(); return; }
+    const studioKind = mode.kind === "studio";
+    const t = listOf(mode.kind).find(x => x.id === mode.id && !x.error);
+    if (!t) { flash = studioKind ? `Design "${mode.id ?? ""}" isn’t saved.` : `Template "${mode.id ?? ""}" isn’t installed.`; mode = { view: "shelf" }; renderShelf(); return; }
     const samples = fieldSamples(t.preview);
     const fieldOpts = (sel) => [""].concat(t.fieldKeys ?? []).map(k =>
       `<option value="${esc(k)}" ${k === sel ? "selected" : ""}>${esc(k || "— unbound")}</option>`).join("");
@@ -231,9 +239,10 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       <div class="view tpl-view">
         <div class="view-head">
           <div><button type="button" class="btn btn-sm" data-act="back">‹ Templates</button>
-            <h1>${esc(t.id)} · bindings</h1>
+            <h1>${esc(t.id)} · bindings</h1>${studioKind ? ` <span class="kind-chip kind-chip--studio">Studio design</span>` : ""}
             <p class="view-sub">${(t.fieldKeys ?? []).length} fields · ${Object.keys(draft).length} bound${guesses ? ` · <b class="warn-text">${guesses} to check</b>` : ` · <span class="ok-text">nothing to check</span>`}</p></div>
           <div class="tpl-head-acts">
+            ${studioKind && t.bindingsSaved ? `<button type="button" class="btn-link" data-act="bind-reset" title="Automatic bindings follow the design’s sample values; confirmed ones stay fixed when you clear them.">Reset to automatic</button>` : ""}
             <button type="button" class="btn" data-act="back">Later</button>
             <button type="button" class="btn btn-primary" data-act="bind-save">Confirm bindings</button>
           </div>
@@ -255,29 +264,34 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
           <aside class="bind-side">
             <div class="eyebrow">Template as exported · hover a row to find its field</div>
             <div class="bind-thumb" data-thumb="bind"></div>
+            ${studioKind ? `
+            <div class="eyebrow" style="margin-top:20px">Studio design</div>
+            <div class="kv"><span>Fields</span>${(t.fieldKeys ?? []).length}</div>
+            <div class="kv"><span>Bindings</span>${t.bindingsSaved ? "confirmed" : "automatic (from sample values)"}</div>
+            <div class="kv"><span>Issued from it</span>${issuedDesign[t.id] ?? 0}</div>` : `
             <div class="eyebrow" style="margin-top:20px">Bundle</div>
             <div class="kv"><span>pass.json</span>${(t.fieldKeys ?? []).length} fields</div>
             <div class="kv"><span>Images</span>${esc((t.assets ?? []).filter(a => /\.png$/i.test(a)).join(", ") || "none")}</div>
             <div class="kv"><span>Base icon.png</span>${hasBaseIcon ? "included" : `<span class="ok-text">synthesized from @2x</span>`}</div>
-            <div class="kv"><span>Issued from it</span>${issued[t.id] ?? 0}</div>
-            <button type="button" class="btn btn-sm" style="margin-top:16px" data-act="issue" data-id="${esc(t.id)}">Issue from this template →</button>
+            <div class="kv"><span>Issued from it</span>${issued[t.id] ?? 0}</div>`}
+            <button type="button" class="btn btn-sm" style="margin-top:16px" data-act="issue" data-id="${esc(t.id)}" data-kind="${studioKind ? "studio" : "designer"}">Issue from this template →</button>
           </aside>
         </div>
       </div>`;
     mountThumb($('[data-thumb="bind"]'), t.preview, t.logo);
   }
 
-  function openBindings(id) {
-    const t = designer.find(x => x.id === id);
+  function openBindings(id, kind = "designer") {
+    const t = listOf(kind).find(x => x.id === id);
     draft = Object.fromEntries(Object.entries(t?.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]));
-    mode = { view: "bindings", id };
+    mode = { view: "bindings", kind, id };
     render();
   }
 
   function render() {
     if (mode.view === "bindings") {
       if (draft === null) {
-        const t = designer.find(x => x.id === mode.id);
+        const t = listOf(mode.kind).find(x => x.id === mode.id);
         draft = Object.fromEntries(Object.entries(t?.bindings ?? {}).map(([sem, b]) => [sem, b.fieldKey]));
       }
       renderBindings();
@@ -286,12 +300,12 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
 
   // ---- actions --------------------------------------------------------------
   async function saveBindings() {
-    const id = mode.id;
+    const { id, kind } = mode;
     const status = $("#bind-status");
     if (status) status.textContent = "Saving…";
     let r, j;
     try {
-      r = await fetch(`/api/templates/${encodeURIComponent(id)}/bindings`, {
+      r = await fetch(bindingsUrl(kind, id), {
         method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft), signal
       });
       j = await r.json().catch(() => ({}));
@@ -299,6 +313,23 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     if (signal.aborted) return;
     if (!r.ok) { if (status) status.textContent = `✗ ${j.error ?? r.status}`; return; }
     flash = `✓ Saved ${Object.keys(j.bindings ?? {}).length} binding(s) for ${id}.`;
+    mode = { view: "shelf" };
+    draft = null;
+    await load();
+  }
+
+  // Studio only: forget the confirmed map so bindings follow the design's
+  // sample values again.
+  async function resetBindings() {
+    const { id } = mode;
+    const status = $("#bind-status");
+    if (status) status.textContent = "Resetting…";
+    let r;
+    try { r = await fetch(bindingsUrl("studio", id), { method: "DELETE", signal }); }
+    catch { if (signal.aborted) return; if (status) status.textContent = "✗ API offline"; return; }
+    if (signal.aborted) return;
+    if (!r.ok) { if (status) status.textContent = `✗ reset failed (${r.status})`; return; }
+    flash = `✓ ${id} is back to automatic bindings.`;
     mode = { view: "shelf" };
     draft = null;
     await load();
@@ -367,11 +398,12 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
     if (act === "new-design") { onNewDesign?.(); return; }
     if (act === "issue") { onIssue?.(id, kind ?? "designer"); return; }
     if (act === "edit-design") { onEditDesign?.(id); return; }
-    if (act === "bindings") { openBindings(id); return; }
+    if (act === "bindings") { openBindings(id, kind ?? "designer"); return; }
     if (act === "back") { mode = { view: "shelf" }; draft = null; render(); return; }
     if (act === "tpl-del") { deleteTemplate(id); return; }
     if (act === "design-del") { deleteDesign(id); return; }
     if (act === "bind-save") { saveBindings(); return; }
+    if (act === "bind-reset") { resetBindings(); return; }
     if (act === "bind-add") {
       const sem = $("select[data-add-sem]")?.value, field = $("select[data-add-field]")?.value;
       if (!sem || !field) return;

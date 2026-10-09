@@ -16,7 +16,7 @@ const PREVIEW = { logoText: "Odyssey Air", backgroundColor: "rgb(15,91,90)", boa
   secondaryFields: [{ key: "passenger", label: "PASSENGER", value: "SURNAME/GIVEN" }]
 }, barcodes: [{ format: "PKBarcodeFormatQR", message: "x", altText: "OD118" }] };
 
-let root, calls, designer, deleteResp;
+let root, calls, designer, studioList, deleteResp;
 beforeEach(() => {
   calls = [];
   deleteResp = { ok: false, status: 409, body: { error: 'template "odyssey" is referenced by 2 issued pass(es) — delete those passes first' } };
@@ -25,13 +25,15 @@ beforeEach(() => {
       bindings: { departureGate: { fieldKey: "gate", source: "value-match", confidence: "medium" }, currentBoardingDate: { fieldKey: "boardingTime", source: "date-proximity", confidence: "medium" }, passengerName: { fieldKey: "passenger", source: "manual", confidence: "high" } },
       preview: PREVIEW, logo: null }
   ];
+  studioList = [{ id: "fully-loaded", kind: "studio", organizationName: "Rocket Partners Airlines", preview: { ...PREVIEW, logoText: "Rocket Partners" } }];
   globalThis.confirm = () => true;
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
     calls.push({ url: u, method: opts.method ?? "GET", body: opts.body });
     const json = (body, ok = true, status = 200) => ({ ok, status, json: async () => body });
     if (u === "/api/templates") return json(designer);
-    if (u === "/api/studio-templates") return json([{ id: "fully-loaded", kind: "studio", organizationName: "Rocket Partners Airlines", preview: { ...PREVIEW, logoText: "Rocket Partners" } }]);
+    if (u === "/api/studio-templates") return json(studioList);
+    if (opts.method === "DELETE" && u.endsWith("/bindings")) return json({ ok: true });
     if (u === "/api/passes") return json([{ serial: "a", template: "odyssey" }, { serial: "b", template: "odyssey" }, { serial: "c", designName: "fully-loaded" }]);
     if (opts.method === "DELETE" && u.startsWith("/api/designs/")) return json({ ok: true });
     if (opts.method === "DELETE") return json(deleteResp.body, deleteResp.ok, deleteResp.status);
@@ -150,5 +152,69 @@ describe("Bindings screen", () => {
     const put = calls.find(c => c.method === "PUT");
     expect(JSON.parse(put.body)).toEqual({ departureGate: "gate", currentBoardingDate: "boardingTime", passengerName: "passenger", destinationAirportCode: "dest" });
     expect(root.querySelector("#tpl-flash").textContent).toMatch(/Saved 4 binding/);
+  });
+});
+
+describe("Bindings for Studio designs", () => {
+  const PAL = (saved) => ({
+    id: "pal", kind: "studio", organizationName: "Philippine Airlines", bindingsSaved: saved,
+    fieldKeys: ["gate", "boarding", "depart"],
+    bindings: saved
+      ? { currentBoardingDate: { fieldKey: "boarding", source: "manual", confidence: "high" } }
+      : { departureAirportCode: { fieldKey: "depart", source: "value-match", confidence: "medium" }, destinationAirportCode: { fieldKey: "gate", source: "value-match", confidence: "medium" } },
+    preview: PREVIEW, logo: null
+  });
+
+  it("a studio card offers Bindings, flags guesses only while nothing is confirmed", async () => {
+    studioList = [PAL(false)];
+    mountTemplates(root, {});
+    await settle();
+    const card = root.querySelector('.tpl-card[data-tpl="pal"]');
+    expect(card.querySelector('[data-act="bindings"][data-kind="studio"]')).toBeTruthy();
+    expect(card.textContent).toMatch(/1 binding to check/);
+    root._mountAbort.abort();
+    studioList = [PAL(true)];
+    mountTemplates(root, {});
+    await settle();
+    expect(root.querySelector('.tpl-card[data-tpl="pal"]').textContent).not.toMatch(/to check/);
+  });
+
+  it("opens the design's bindings and Confirm PUTs /api/designs/:name/bindings", async () => {
+    studioList = [PAL(false)];
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="pal"] [data-act="bindings"]').click();
+    expect(root.querySelector("h1").textContent).toContain("pal · bindings");
+    expect(root.textContent).toContain("Studio design");
+    const opts = [...root.querySelector('select[data-add-field]').options].map(o => o.value);
+    expect(opts).toEqual(["", "gate", "boarding", "depart"]);
+    root.querySelector("select[data-add-sem]").value = "currentBoardingDate";
+    root.querySelector("select[data-add-field]").value = "boarding";
+    root.querySelector('[data-act="bind-add"]').click();
+    root.querySelector('[data-act="bind-save"]').click();
+    await settle();
+    const put = calls.find(c => c.method === "PUT");
+    expect(put.url).toBe("/api/designs/pal/bindings");
+    expect(JSON.parse(put.body)).toEqual({ departureAirportCode: "depart", destinationAirportCode: "gate", currentBoardingDate: "boarding" });
+  });
+
+  it("Reset to automatic DELETEs the confirmed map (only offered once saved)", async () => {
+    studioList = [PAL(true)];
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="pal"] [data-act="bindings"]').click();
+    root.querySelector('[data-act="bind-reset"]').click();
+    await settle();
+    expect(calls.some(c => c.method === "DELETE" && c.url === "/api/designs/pal/bindings")).toBe(true);
+  });
+
+  it("designer bindings still PUT /api/templates/:id/bindings and have no reset", async () => {
+    mountTemplates(root, {});
+    await settle();
+    root.querySelector('.tpl-card[data-tpl="odyssey"] [data-act="bindings"]').click();
+    expect(root.querySelector('[data-act="bind-reset"]')).toBeNull();
+    root.querySelector('[data-act="bind-save"]').click();
+    await settle();
+    expect(calls.find(c => c.method === "PUT").url).toBe("/api/templates/odyssey/bindings");
   });
 });
