@@ -282,6 +282,11 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
       status.classList.toggle("is-ok", ok);
       return;
     }
+    if (step === "flight" && route && !flightDate) {
+      status.textContent = `Pick the flight’s date — route ${route.id} fills the schedule from it`;
+      status.classList.remove("is-ok");
+      return;
+    }
     if (step === "flight") {
       const errs = sharedErrors();
       const missing = errs.filter(e => e.msg === "Required").map(e => e.slot.label);
@@ -569,8 +574,9 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
   root.addEventListener("change", (e) => {
     if (e.target.id === "iw-date") {
       applyFlightDate(e.target.value);
-      for (const sid of ["sem:currentBoardingDate", "sem:currentDepartureDate", "sem:currentArrivalDate"]) remountField(sid);
       onValuesChanged("shared", "sem:currentDepartureDate");
+      render();   // schedule pickers, the date hint and the title all follow the day
+      $("#iw-date")?.focus();
       return;
     }
     if (e.target.matches("[data-act-change='vary']")) {

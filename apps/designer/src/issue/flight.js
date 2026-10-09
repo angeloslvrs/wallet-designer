@@ -60,6 +60,26 @@ export function flightFacts(slots, shared, expiry) {
 const SCHEDULE_SEMS = new Set(["currentBoardingDate", "currentDepartureDate", "currentArrivalDate"]);
 const routeEditable = (s) => !s.sem || ROUTE_SEMANTICS.has(s.sem) || SCHEDULE_SEMS.has(s.sem);
 
+/** The route's times as a hint: "departs 09:10 · arrives 14:10 · no boarding time". */
+export function routeTimesText(route) {
+  const s = route?.schedule ?? {};
+  const parts = [];
+  parts.push(s.boarding ? `boards ${s.boarding}` : "no boarding time");
+  if (s.departure) parts.push(`departs ${s.departure}`);
+  if (s.arrival) parts.push(`arrives ${s.arrival}${s.arrivalDayOffset ? ` (+${s.arrivalDayOffset} day${s.arrivalDayOffset === 1 ? "" : "s"})` : ""}`);
+  return parts.join(" · ");
+}
+
+function routeDateHtml(ctx) {
+  const picked = Boolean(ctx.flightDate);
+  return `
+        <div class="iw-field is-wide">
+          <label class="iw-label" for="iw-date">Date<span class="iw-req" aria-hidden="true">*</span></label>
+          <input id="iw-date" type="date" class="iw-input" value="${esc(ctx.flightDate)}" />
+          <span class="iw-hint">${picked ? "Filled from" : "Pick the day to fill the times below from"} route ${esc(ctx.route.id)}: ${esc(routeTimesText(ctx.route))}</span>
+        </div>`;
+}
+
 export function flightHtml(ctx) {
   const shared = ctx.slots.filter(s => !ctx.individual.has(s.id) && (!ctx.routeMode || routeEditable(s)));
   const field = (s) => fieldHtml(s, "shared", { values: ctx.shared, touched: ctx.sharedTouched, submitted: ctx.submitted, error: ctx.sharedErrors.find(e => e.slot.id === s.id)?.msg });
@@ -76,13 +96,7 @@ export function flightHtml(ctx) {
           <span class="iw-hint">Names the route on the Templates shelf</span>
         </div>`;
     } else if (title === "Flight") {
-      const dateField = ctx.route ? `
-        <div class="iw-field">
-          <label class="iw-label" for="iw-date">Date<span class="iw-req" aria-hidden="true">*</span></label>
-          <input id="iw-date" type="date" class="iw-input" value="${esc(ctx.flightDate)}" />
-          <span class="iw-hint">Fills boarding, departure and arrival from route ${esc(ctx.route.id)}</span>
-        </div>` : "";
-      extra = dateField + `
+      extra = `
         <div class="iw-field">
           <label class="iw-label" for="iw-trip">Trip id<span class="iw-req" aria-hidden="true">*</span></label>
           <input id="iw-trip" class="iw-input mono" value="${esc(ctx.tripId)}" placeholder="RP248@2026-11-02" aria-describedby="err-trip" autocomplete="off" />
@@ -98,8 +112,11 @@ export function flightHtml(ctx) {
           <span class="iw-hint">Blank = arrival + 1 day</span>
         </div>`;
     }
-    if (!inGroup.length && !extra) return "";
-    return `<section class="iw-group"><h2>${title}</h2><div class="iw-fields">${inGroup.map(field).join("")}${extra}</div></section>`;
+    // Issuing from a route: the Date comes first in Schedule — the route keeps
+    // times of day, so nothing below fills until a day is picked.
+    const lead = title === "Schedule" && ctx.route && !ctx.routeMode ? routeDateHtml(ctx) : "";
+    if (!inGroup.length && !extra && !lead) return "";
+    return `<section class="iw-group"><h2>${title}</h2><div class="iw-fields">${lead}${inGroup.map(field).join("")}${extra}</div></section>`;
   }).join("");
   // Everything else — time zones, city names, the template's other values —
   // sits behind one disclosure: usually right from the template's defaults.

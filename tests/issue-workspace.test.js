@@ -248,9 +248,16 @@ describe("routes in the Issue workspace", () => {
     await settle();
     expect(root.querySelector('[data-slot-input="sem:flightNumber"] input').value).toBe("248");
     expect(root.querySelector(".iw-title small").textContent).toContain("route RP248-SFO-JFK");
+    // The Date leads the Schedule group and names the route's times; the footer asks for it.
+    const sched = [...root.querySelectorAll(".iw-group")].find(g => g.querySelector("h2")?.textContent === "Schedule");
+    expect(sched.querySelector(".iw-field #iw-date")).toBeTruthy();
+    expect(sched.querySelector(".iw-field").contains(root.querySelector("#iw-date"))).toBe(true);
+    expect(sched.textContent).toContain("boards 07:30 · departs 08:00 · arrives 16:30");
+    expect(root.querySelector("[data-ready]").textContent).toMatch(/Pick the flight’s date/);
     const date = root.querySelector("#iw-date");
     date.value = "2026-11-02"; date.dispatchEvent(new Event("change", { bubbles: true }));
     expect([dateOf("sem:currentBoardingDate"), timeOf("sem:currentBoardingDate"), timeOf("sem:currentArrivalDate")]).toEqual(["2026-11-02", "07:30", "16:30"]);
+    expect(root.querySelector("#iw-date").closest(".iw-field").textContent).toContain("Filled from route RP248-SFO-JFK");
     expect(root.querySelector("#iw-trip").value).toBe("RP248@2026-11-02");
     click('[data-act="to-passengers"]');
     root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
@@ -330,5 +337,14 @@ describe("routes in the Issue workspace", () => {
     click('[data-act="issue"]');
     await settle();
     expect(posts[0].routeId).toBe(routePuts[0].id);
+  });
+});
+
+
+describe("routeTimesText", async () => {
+  const { routeTimesText } = await import("../apps/designer/src/issue/flight.js");
+  it("says when a route has no boarding time and counts arrival days", () => {
+    expect(routeTimesText({ schedule: { departure: "09:10", arrival: "14:10", arrivalDayOffset: 0 } })).toBe("no boarding time · departs 09:10 · arrives 14:10");
+    expect(routeTimesText({ schedule: { boarding: "22:40", departure: "23:10", arrival: "05:00", arrivalDayOffset: 1 } })).toBe("boards 22:40 · departs 23:10 · arrives 05:00 (+1 day)");
   });
 });
