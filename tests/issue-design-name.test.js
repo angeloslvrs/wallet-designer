@@ -44,3 +44,27 @@ describe("designName on FormState passes", () => {
     await expect(registerPass({ ...st, designName: 7 })).rejects.toThrow(/designName/);
   });
 });
+
+describe("status updates on a pass issued from a design with confirmed bindings", () => {
+  it("use the design's stored map (by designName); a pass without one falls back to discovery", async () => {
+    const { applyStatusToStoredPass } = await import("../apps/server/src/routes/admin.js");
+    const { saveTemplateBindings } = await import("../apps/server/src/storage.js");
+    await saveTemplateBindings("studio:pal", { currentBoardingDate: { fieldKey: "boarding", source: "manual", confidence: "high" } });
+    const st = await fixture();
+    // Drifted face: the time field doesn't match the semantic, so discovery can't bind it.
+    st.displayFields.auxiliary = [{ key: "boarding", label: "BOARDING", value: "", timeFormat: "24h" }];
+    const next = "2026-06-01T08:00:00-07:00";
+
+    st.meta = { ...st.meta, serialNumber: "DN-B1" };
+    await registerPass({ ...st, designName: "pal" });
+    const bound = await applyStatusToStoredPass("DN-B1", { currentBoardingDate: next });
+    expect(bound.rec.state.displayFields.auxiliary[0].value).toBe(next);
+    expect(bound.skipped).toEqual([]);
+
+    st.meta = { ...st.meta, serialNumber: "DN-B2" };
+    await registerPass(st);
+    const unbound = await applyStatusToStoredPass("DN-B2", { currentBoardingDate: next });
+    expect(unbound.rec.state.displayFields.auxiliary[0].value).toBe("");
+    expect(unbound.skipped).toContain("currentBoardingDate");
+  });
+});

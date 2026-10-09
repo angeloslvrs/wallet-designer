@@ -130,3 +130,54 @@ describe("normalizeStatusBody (route-layer back-compat aliases)", () => {
     expect(normalizeStatusBody(body)).toEqual(body);
   });
 });
+
+describe("applyStatus — 24h time fields and stored design bindings", () => {
+  const iso = "2026-10-12T16:05:00+08:00";
+  const timeState = () => ({
+    semantics: { currentBoardingDate: iso, departureGate: "A1" },
+    displayFields: {
+      header: [{ key: "gate", label: "GATE", value: "A1" }],
+      auxiliary: [{ key: "boarding", label: "BOARDING", value: iso, timeFormat: "24h" }]
+    }
+  });
+
+  it("binds a 24h field by date proximity: ISO written, timeFormat kept, banner set", () => {
+    const { state, skipped } = applyStatus(timeState(), { currentBoardingDate: "2026-10-12T16:45:00+08:00" });
+    const f = state.displayFields.auxiliary[0];
+    expect(f).toMatchObject({ value: "2026-10-12T16:45:00+08:00", timeFormat: "24h" });
+    expect(f.changeMessage).toBeTruthy();
+    expect(skipped).toEqual([]);
+  });
+
+  it("the rebuilt pass shows the new HH:mm with the banner intact", () => {
+    const { state } = applyStatus(timeState(), { currentBoardingDate: "2026-10-12T16:45:00+08:00" });
+    const full = { meta: { passTypeId: "p", teamId: "t", organizationName: "o", serialNumber: "s", description: "d" }, branding: {}, barcode: { format: "PKBarcodeFormatQR", message: "m", altText: "" }, ...state };
+    const f = formStateToPassJson(full).boardingPass.auxiliaryFields[0];
+    expect(f.value).toBe("16:45");
+    expect(f.timeFormat).toBeUndefined();
+    expect(f.changeMessage).toBeTruthy();
+  });
+
+  it("stored bindings reach a drifted field discovery can't match", () => {
+    const s = timeState();
+    s.displayFields.auxiliary[0].value = "";                       // drifted: no longer matches the semantic
+    const { state, skipped } = applyStatus(s, { currentBoardingDate: "2026-10-12T16:45:00+08:00" },
+      { bindings: { currentBoardingDate: { fieldKey: "boarding" } } });
+    expect(state.displayFields.auxiliary[0].value).toBe("2026-10-12T16:45:00+08:00");
+    expect(skipped).toEqual([]);
+  });
+
+  it("stored bindings overlay discovery instead of replacing it", () => {
+    const { state, skipped } = applyStatus(timeState(), { departureGate: "C4" },
+      { bindings: { currentBoardingDate: { fieldKey: "boarding" } } });
+    expect(state.displayFields.header[0].value).toBe("C4");          // value-matched gate still updates
+    expect(skipped).toEqual([]);
+  });
+
+  it("a stored binding to a field this pass lacks updates the semantic and reports skipped", () => {
+    const { state, skipped } = applyStatus(timeState(), { departureGate: "C4" },
+      { bindings: { departureGate: { fieldKey: "gone" } } });
+    expect(state.semantics.departureGate).toBe("C4");
+    expect(skipped).toEqual(["departureGate"]);
+  });
+});

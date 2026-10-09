@@ -10,14 +10,14 @@ import {
 import {
   savePass, saveTemplatePass, updatePassState, updatePassData, getPassRecord,
   devicesFor, unregisterDevice, snapshot, passesInGroup, deletePass, deleteGroup,
-  listRoster, saveRosterEntry, deleteRosterEntry
+  listRoster, saveRosterEntry, deleteRosterEntry, getTemplateBindings
 } from "../storage.js";
 import { pushUpdates } from "../apns.js";
 import {
   applyStatusToTemplateData, normalizeStatusBody, validateStatusBody,
   transitStatusDisplay, VOLATILE_ISSUE_SEMANTICS, changeMessageFor
 } from "../template-status.js";
-import { bindingsForTemplate } from "../template-bindings.js";
+import { bindingsForTemplate, studioBindingsId } from "../template-bindings.js";
 import { buildStoredPass, templateDir, TEMPLATE_ID_RE } from "../pass-build.js";
 import { asyncHandler } from "../util/async-handler.js";
 import { DESIGN_NAME_RE } from "./designs.js";
@@ -85,9 +85,12 @@ function setDisplayField(next, fieldKey, value, changeMessage) {
  * STATUS / DELAY rows (always shown, always bannered) live in
  * iOS26.additionalInfoFields. Object-form values ({value, changeMessage}) set
  * the semantic from .value and carry their changeMessage onto the bound field.
+ * `bindings` (a saved design's confirmed map) overlays discovery per key — it
+ * holds only what the operator confirmed, so discovery still covers the rest.
+ * @param {{bindings?: Record<string, {fieldKey: string}>}} [opts]
  * @returns {{state: object, skipped: string[]}}
  */
-export function applyStatus(state, body = {}) {
+export function applyStatus(state, body = {}, { bindings: stored } = {}) {
   const {
     departureGate, currentBoardingDate, currentDepartureDate, currentArrivalDate,
     transitProvider, securityScreening, delayed, transitStatus, transitStatusReason
@@ -97,7 +100,7 @@ export function applyStatus(state, body = {}) {
   const skipped = [];
   // Discover bindings from the PRE-change state: the display value still equals
   // the semantic, so value-match binds; updating both together keeps it bound.
-  const bindings = discoverBindings(stateDiscoveryJson(next));
+  const bindings = { ...discoverBindings(stateDiscoveryJson(next)), ...(stored ?? {}) };
 
   const set = (key, raw) => {
     const v = fieldDataValue(raw);
@@ -105,7 +108,9 @@ export function applyStatus(state, body = {}) {
     const fieldKey = bindings[key]?.fieldKey;
     if (!fieldKey) { if (v) skipped.push(key); return; }
     const explicitCM = (raw !== null && typeof raw === "object" && !Array.isArray(raw)) ? raw.changeMessage : undefined;
-    setDisplayField(next, fieldKey, v ?? "", v ? (explicitCM ?? changeMessageFor(key)) : undefined);
+    // A stored binding can name a field this pass's snapshot doesn't have —
+    // don't claim a visible update that didn't happen.
+    if (!setDisplayField(next, fieldKey, v ?? "", v ? (explicitCM ?? changeMessageFor(key)) : undefined) && v) skipped.push(key);
   };
   if (departureGate !== undefined)        set("departureGate", departureGate);
   if (currentBoardingDate !== undefined)  set("currentBoardingDate", currentBoardingDate);
@@ -354,7 +359,7 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
  * with no bound visible field (semantics still update for those). Returns
  * null when the serial is unknown.
  */
-async function applyStatusToStoredPass(serial, body) {
+export async function applyStatusToStoredPass(serial, body) {
   const rec = await getPassRecord(serial);
   if (!rec) return null;
   const normalized = normalizeStatusBody(body);
@@ -377,8 +382,11 @@ async function applyStatusToStoredPass(serial, body) {
   // semantics it could not bind to a visible field (so the console can say
   // "not on pass face: …" — honest, since FormState times are unbindable).
   let skipped = [];
+  // A pass issued from a saved design uses the design's confirmed bindings
+  // (overlaying discovery from the pass's own values).
+  const stored = rec.designName ? await getTemplateBindings(studioBindingsId(rec.designName)) : null;
   const updated = await updatePassState(serial, state => {
-    const r = applyStatus(migrateFormState(state), normalized);
+    const r = applyStatus(migrateFormState(state), normalized, stored ? { bindings: stored } : {});
     skipped = r.skipped;
     return r.state;
   });
