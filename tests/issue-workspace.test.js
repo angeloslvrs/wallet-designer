@@ -376,3 +376,32 @@ describe("Apple's required tags", () => {
     expect(root.querySelector('[data-field="sem:destinationAirportTimeZone"]').textContent).toMatch(/IANA time zone/);
   });
 });
+
+describe("minimum + Add field", () => {
+  it("starts from Apple's minimum; Add field brings in a flight-level tag or a per-passenger one", async () => {
+    mountIssue(root, { template: "rocket", kind: "studio" });
+    await settle();
+    const select = root.querySelector("#iw-add-field");
+    const offered = [...select.querySelectorAll("option")].map(o => o.value);
+    expect(offered).toContain("loungePlaceIDs");
+    expect(offered).toContain("passengerServiceSSRs");
+    expect(offered).not.toContain("transitStatus");             // day-of-travel status: Flights board
+    expect(offered).not.toContain("originalDepartureDate");     // twin of the departure slot
+    select.value = "loungePlaceIDs"; select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(root.querySelector('[data-slot-input="sem:loungePlaceIDs"]')).toBeTruthy();
+    expect(root.querySelector("[data-more]").open).toBe(true);
+    const again = root.querySelector("#iw-add-field");
+    expect([...again.querySelectorAll("option")].map(o => o.value)).not.toContain("loungePlaceIDs");
+    again.value = "passengerServiceSSRs"; again.dispatchEvent(new Event("change", { bubbles: true }));
+    expect([...root.querySelectorAll(".iw-chip")].map(c => c.textContent).join(" ")).toMatch(/Service requests/);
+  });
+
+  it("the route editor only offers route-level tags", async () => {
+    mountIssue(root, { template: "dev-sample", routeMode: true, onBack: () => {} });
+    await settle();
+    const offered = [...root.querySelectorAll("#iw-add-field option")].map(o => o.value).filter(Boolean);
+    expect(offered.length).toBeGreaterThan(0);
+    expect(offered).not.toContain("passengerServiceSSRs");
+    expect(offered).not.toContain("destinationGate");
+  });
+});

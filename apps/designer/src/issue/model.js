@@ -124,12 +124,13 @@ const PER_PASSENGER_DEFAULT = ["boardingSequenceNumber", "confirmationNumber", "
 
 // Every passenger can carry these, bound or not (scan + roster land here).
 const PASSENGER_CORE = ["passengerName", "seats", "boardingSequenceNumber", "confirmationNumber"];
-// The flight step always offers these, bound or not, in this order.
+// The flight step's minimum, bound or not, in this order: Apple's required
+// flight tags (+ the flight code they derive). Everything else appears when the
+// template binds or bakes it, or when the operator adds it ("+ Add field").
 const FLIGHT_CORE = [
   "airlineCode", "flightNumber", "flightCode",
   "departureAirportCode", "destinationAirportCode",
   "departureCityName", "destinationCityName",
-  "departureGate", "departureTerminal",
   "currentBoardingDate", "currentDepartureDate", "currentArrivalDate",
   "departureAirportTimeZone", "destinationAirportTimeZone"
 ];
@@ -158,7 +159,9 @@ const LABELS = {
 export function semanticWidget(sem) {
   if (/TimeZone$/.test(sem)) return "timezone";
   if (sem === "passengerCapabilities") return "capabilities";
-  return SEMANTIC_CATALOG[sem]?.type ?? "text";
+  const entry = SEMANTIC_CATALOG[sem];
+  if (entry?.type === "stringArray" && entry.enumOptions?.length) return "capabilities";
+  return entry?.type ?? "text";
 }
 
 /**
@@ -166,11 +169,12 @@ export function semanticWidget(sem) {
  * A slot is a semantic (`sem:<key>`, typed, possibly bound to a visible field)
  * or an unbound template field (`field:<key>`, entered raw).
  * @param {{fields?: object[], bindings?: object, semantics?: object, preview?: object}} tpl
+ * @param {{extra?: string[]}} [opts] tags the operator added ("+ Add field")
  * @returns {{id:string, sem?:string, fieldKey?:string, fieldKeys:string[], label:string,
  *            widget:string, kind:string, required:boolean, recommended:boolean,
  *            perPassenger:"locked"|"default"|null, fallback:*}[]}
  */
-export function templateSlots(tpl) {
+export function templateSlots(tpl, { extra = [] } = {}) {
   const fields = tpl?.fields ?? [];
   const baked = tpl?.semantics ?? {};
   const fieldByKey = Object.fromEntries(fields.map(f => [f.key, f]));
@@ -210,6 +214,10 @@ export function templateSlots(tpl) {
   for (const key of Object.keys(baked)) {
     const sem = canonicalSemantic(key);
     if (SEMANTIC_CATALOG[sem] && SEMANTIC_CATALOG[sem].group !== "status" && !SKIP_BAKED.has(sem)) push(semSlot(sem));
+  }
+  for (const key of extra) {
+    const sem = canonicalSemantic(key);
+    if (SEMANTIC_CATALOG[sem]) push(semSlot(sem));
   }
   const fc = out.find(x => x.sem === "flightCode");
   if (fc) fc.deriveFrom = { airlineCode: out.find(x => x.sem === "airlineCode")?.fallback, flightNumber: out.find(x => x.sem === "flightNumber")?.fallback };
@@ -501,9 +509,32 @@ export function withRouteSemantics(tpl, route) {
  * from the template itself: a route value blanked for one flight ships nothing
  * (the route's value isn't in the template), so the hint mustn't promise it.
  */
-export function routeSlots(tpl, route) {
-  const own = new Map(templateSlots(tpl).map(s => [s.id, s.fallback]));
-  return templateSlots(withRouteSemantics(tpl, route)).map(s => ({ ...s, fallback: own.get(s.id) }));
+export function routeSlots(tpl, route, opts = {}) {
+  const own = new Map(templateSlots(tpl, opts).map(s => [s.id, s.fallback]));
+  return templateSlots(withRouteSemantics(tpl, route), opts).map(s => ({ ...s, fallback: own.get(s.id) }));
+}
+
+// Tags never offered in "+ Add field": the twin spellings a slot already writes
+// (original* dates, *LocationTimeZone), day-of-travel status (the Flights
+// board's job) and derived/structural keys.
+const NOT_ADDABLE = new Set(["eventType", "silenceRequested", "wifiAccess", "duration"]);
+
+/**
+ * Apple tags the operator can add to this form, grouped for a picker:
+ * every catalog tag without a slot yet, minus twins, status and structural
+ * keys. `only` narrows the choice (the route editor passes route-level tags).
+ * @returns {{group: string, items: {sem: string, label: string}[]}[]}
+ */
+export function addableSemantics(slots, { only } = {}) {
+  const have = new Set(slots.filter(s => s.sem).map(s => s.sem));
+  const groups = {};
+  for (const [sem, entry] of Object.entries(SEMANTIC_CATALOG)) {
+    if (have.has(sem) || NOT_ADDABLE.has(sem) || canonicalSemantic(sem) !== sem || entry.group === "status") continue;
+    if (only && !only(sem)) continue;
+    (groups[entry.group] ??= []).push({ sem, label: LABELS[sem] ?? entry.label ?? sem });
+  }
+  const order = ["flight", "route", "schedule", "passenger", "pricing"];
+  return order.filter(g => groups[g]?.length).map(g => ({ group: g, items: groups[g].sort((a, b) => a.label.localeCompare(b.label)) }));
 }
 
 /** Shared values (slot id → value) a route fills. */
@@ -514,7 +545,12 @@ export function routeToShared(route, slots) {
     if (slot && !isBlank(slot, v)) out[slot.id] = v;
   }
   for (const [key, v] of Object.entries(route?.fields ?? {})) {
-    if (slots.some(s => s.id === `field:${key}`) && v !== "") out[`field:${key}`] = v;
+    if (v === "") continue;
+    if (slots.some(s => s.id === `field:${key}`)) { out[`field:${key}`] = v; continue; }
+    // The airline linked this field to a tag after the route was saved: the
+    // route's raw value fills the tag (unless the route also has the tag).
+    const bound = slots.find(s => s.sem && s.fieldKeys?.includes(key));
+    if (bound && out[bound.id] === undefined) out[bound.id] = v;
   }
   return out;
 }

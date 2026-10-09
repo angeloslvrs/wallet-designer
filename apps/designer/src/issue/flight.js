@@ -5,7 +5,7 @@
 import { DOC_REQUIRED_SEMANTICS } from "@wpd/pass-builder/semantics.js";
 import { ROUTE_SEMANTICS } from "@wpd/pass-builder/route.js";
 import { esc } from "../esc.js";
-import { canonicalSemantic, effectiveValue, isBlank } from "./model.js";
+import { addableSemantics, canonicalSemantic, effectiveValue, isBlank } from "./model.js";
 import { barHtml, footHtml, fieldHtml } from "./shell.js";
 
 const GROUPS = [
@@ -137,6 +137,20 @@ export function flightHtml(ctx) {
       </details>`
     : "";
 
+  // Minimum first; any other Apple tag on demand. The route editor only offers
+  // what a route keeps.
+  const GROUP_LABEL = { flight: "Flight", route: "Route", schedule: "Schedule", passenger: "Per passenger", pricing: "Pricing" };
+  const addable = addableSemantics(ctx.slots, ctx.routeMode ? { only: (sem) => ROUTE_SEMANTICS.has(sem) } : {});
+  const addHtml = addable.length ? `
+            <section class="iw-group iw-add">
+              <label class="iw-label" for="iw-add-field">Add an Apple field</label>
+              <select id="iw-add-field" class="iw-vary" data-act-change="add-field">
+                <option value="">+ Add field…</option>
+                ${addable.map(g => `<optgroup label="${esc(GROUP_LABEL[g.group] ?? g.group)}">${g.items.map(i => `<option value="${esc(i.sem)}">${esc(i.label)}</option>`).join("")}</optgroup>`).join("")}
+              </select>
+              <p class="iw-group-sub">The form starts with what Apple requires and what this template uses. Gate, terminals, loyalty, fare class, special-service badges and more are here when a flight needs them.</p>
+            </section>` : "";
+
   const ind = ctx.slots.filter(s => ctx.individual.has(s.id));
   const chips = ind.map(s => s.perPassenger === "locked"
     ? `<span class="iw-chip is-locked" title="Always per passenger">${esc(s.label)}</span>`
@@ -168,7 +182,7 @@ export function flightHtml(ctx) {
           <section class="iw-form stagger">
             ${head}
             ${groups}
-            ${restHtml}${perPassenger}
+            ${restHtml}${addHtml}${perPassenger}
           </section>
           <aside class="iw-side card">
             <h2 class="iw-side-h">Shared values on the pass</h2>

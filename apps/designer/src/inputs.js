@@ -59,6 +59,7 @@ export const joinIso = (local, offset) => (local ? `${local}:00${offset || offse
 // Type-aware emptiness lives in the package so the Suggest engine and the
 // designer share one implementation (drives emit-only-filled).
 export { isEmptyTyped } from "@wpd/pass-builder/suggest-empty.js";
+import { SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
 import { semanticKind } from "@wpd/pass-builder/field-kinds.js";
 
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
@@ -91,6 +92,8 @@ const applyAttrs = (inp, attrs = {}) => {
 export function widgetFor(key, type) {
   if (/TimeZone$/.test(key)) return "timezone";
   if (key === "passengerCapabilities") return "capabilities";
+  // A list with Apple-defined values (SSR codes…) is a checklist, not free text.
+  if (type === "stringArray" && SEMANTIC_CATALOG[key]?.enumOptions?.length) return "capabilities";
   return type;
 }
 

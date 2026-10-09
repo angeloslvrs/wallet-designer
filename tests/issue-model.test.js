@@ -332,6 +332,13 @@ describe("routes ↔ the Flight step's shared values", async () => {
     expect(slots.find(s => s.sem === "airlineCode").fallback).toBe("PR");
   });
 
+  it("a raw route field the airline has since linked to a tag fills that tag", () => {
+    const linked = { ...tpl, fields: tpl.fields.map(f => (f.key === "note" ? { ...f, boundSemantic: "destinationTerminal" } : f)) };
+    const shared = routeToShared({ values: {}, fields: { note: "1" } }, templateSlots(linked));
+    expect(shared["sem:destinationTerminal"]).toBe("1");
+    expect(routeToShared({ values: { destinationTerminal: "2" }, fields: { note: "1" } }, templateSlots(linked))["sem:destinationTerminal"]).toBe("2");
+  });
+
   it("saves the shared flight as a route: effective route values, times of day, raw fields; no gate/passenger/date", () => {
     const slots = templateSlots(tpl);
     const individual = defaultIndividual(slots);

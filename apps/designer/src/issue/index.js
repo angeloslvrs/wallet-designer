@@ -75,6 +75,7 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
   let routeModeFromShelf = routeModeParam;
   let routeId = "";          // route editor: the id to save under
   let flightDate = "";       // with a route: the date its times are composed on
+  let extra = [];            // Apple tags the operator added beyond the minimum
 
   const slotById = (sid) => slots.find(s => s.id === sid);
   const sharedSlots = () => slots.filter(s => !individual.has(s.id));
@@ -317,6 +318,23 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
     }
     const ok = results.filter(r => r.ok);
     status.textContent = ok.length ? `On the Flights board under ${ok[0].groupId}` : "";
+  }
+
+  const slotsNow = () => (route ? routeSlots(tpl, route, { extra }) : templateSlots(tpl, { extra }));
+
+  // "+ Add field": one more Apple tag on this form. A passenger-level tag starts
+  // per passenger; everything else joins the flight (under More flight details).
+  function addField(sem) {
+    if (!sem || extra.includes(sem)) return;
+    extra = [...extra, sem];
+    baseSlots = slotsNow();
+    const slot = baseSlots.find(s => s.sem === sem);
+    const next = new Set(individual);
+    if (slot?.perPassenger) next.add(slot.id);
+    setIndividual(next);
+    if (slot && !slot.perPassenger) moreOpen = true;
+    render();
+    root.querySelector(`[data-slot-input="${CSS.escape(`sem:${sem}`)}"] input, [data-slot-input="${CSS.escape(`sem:${sem}`)}"] select`)?.focus();
   }
 
   // ---- routes ------------------------------------------------------------------
@@ -587,6 +605,7 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
 
   root.addEventListener("change", (e) => {
     if (e.target.id === "iw-date") return onFlightDate(e.target.value);
+    if (e.target.matches("[data-act-change='add-field']")) { addField(e.target.value); return; }
     if (e.target.matches("[data-act-change='vary']")) {
       const sid = e.target.value;
       if (sid) { setIndividual(new Set(individual).add(sid)); render(); }
@@ -685,7 +704,7 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
     existing = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
     roster = Array.isArray(ros) ? ros : [];
     // Route values need slots even where the template neither binds nor bakes them.
-    baseSlots = route ? routeSlots(tpl, route) : templateSlots(tpl);
+    baseSlots = slotsNow();
     setIndividual(defaultIndividual(baseSlots));
     if (route) {
       shared = routeToShared(route, slots);
