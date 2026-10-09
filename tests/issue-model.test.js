@@ -293,7 +293,7 @@ describe("Issue round-trip: a value-less airline design with 24h times and token
 });
 
 describe("routes ↔ the Flight step's shared values", async () => {
-  const { routeToShared, routeFromShared, withRouteSemantics } = await import("../apps/designer/src/issue/model.js");
+  const { routeToShared, routeFromShared, withRouteSemantics, routeSlots } = await import("../apps/designer/src/issue/model.js");
   const tpl = {
     fields: [
       { key: "depart", label: "FROM", kind: "iata", boundSemantic: "departureAirportCode" },
@@ -324,6 +324,14 @@ describe("routes ↔ the Flight step's shared values", async () => {
     });
   });
 
+  it("route-only values get slots but no fallback: blanking one ships nothing, so nothing is promised", () => {
+    const slots = routeSlots(tpl, route);
+    const name = slots.find(s => s.sem === "departureAirportName");
+    expect(name).toBeTruthy();
+    expect(name.fallback).toBeUndefined();
+    expect(slots.find(s => s.sem === "airlineCode").fallback).toBe("PR");
+  });
+
   it("saves the shared flight as a route: effective route values, times of day, raw fields; no gate/passenger/date", () => {
     const slots = templateSlots(tpl);
     const individual = defaultIndividual(slots);
@@ -333,7 +341,9 @@ describe("routes ↔ the Flight step's shared values", async () => {
       "sem:currentArrivalDate": "2026-10-13T01:10:00+08:00", "field:note": "Terminal 3"
     };
     const r = routeFromShared(slots, shared, individual);
-    expect(r.values).toMatchObject({ airlineCode: "PR", flightNumber: 2987, departureAirportCode: "MNL" });
+    expect(r.values).toMatchObject({ flightNumber: 2987, departureAirportCode: "MNL" });
+    expect(r.values.airlineCode).toBeUndefined();   // the airline's, unless typed
+    expect(routeFromShared(slots, { ...shared, "sem:airlineCode": "2P" }, individual).values.airlineCode).toBe("2P");
     expect(r.values.departureGate).toBeUndefined();
     expect(Object.keys(r.values).some(k => /Date$/.test(k))).toBe(false);
     expect(r.schedule).toEqual({ boarding: "16:05", departure: "23:35", arrival: "01:10", arrivalDayOffset: 1 });

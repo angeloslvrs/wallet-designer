@@ -492,6 +492,16 @@ export function withRouteSemantics(tpl, route) {
   return { ...tpl, semantics: { ...(tpl?.semantics ?? {}), ...(route?.values ?? {}) } };
 }
 
+/**
+ * The template's slots with a slot for every route value — but fallbacks only
+ * from the template itself: a route value blanked for one flight ships nothing
+ * (the route's value isn't in the template), so the hint mustn't promise it.
+ */
+export function routeSlots(tpl, route) {
+  const own = new Map(templateSlots(tpl).map(s => [s.id, s.fallback]));
+  return templateSlots(withRouteSemantics(tpl, route)).map(s => ({ ...s, fallback: own.get(s.id) }));
+}
+
 /** Shared values (slot id → value) a route fills. */
 export function routeToShared(route, slots) {
   const out = {};
@@ -513,7 +523,8 @@ const dayDiff = (a, b) => Math.round((Date.parse(`${a.slice(0, 10)}T12:00:00Z`) 
  * semantic's effective value (typed → derived → template default — so a route
  * saved off a template's sample flight is self-contained), the schedule as times
  * of day, and typed values of unbound fields. Gates, dates and per-passenger
- * slots never enter a route.
+ * slots never enter a route; the airline code only when typed (it's the
+ * airline's, as conversion keeps it — a route overrides it only on purpose).
  */
 export function routeFromShared(slots, shared, individual = new Set()) {
   const values = {}, fields = {};
@@ -521,7 +532,7 @@ export function routeFromShared(slots, shared, individual = new Set()) {
     if (individual.has(slot.id)) continue;
     if (slot.sem) {
       if (!ROUTE_SEMANTICS.has(slot.sem)) continue;
-      const v = effectiveValue(slot, shared);
+      const v = slot.sem === "airlineCode" ? shared[slot.id] : effectiveValue(slot, shared);
       if (v !== undefined && !isBlank(slot, v)) values[slot.sem] = v;
     } else if (slot.fieldKey) {
       const v = shared[slot.id];

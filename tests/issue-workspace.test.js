@@ -263,6 +263,22 @@ describe("routes in the Issue workspace", () => {
     expect(posts[0].data.semantics.currentArrivalDate).toBe("2026-11-02T16:30:00-05:00");
   });
 
+  it("a studio design issues from a route: route semantics ship in the FormState body with routeId", async () => {
+    routes["RP248-STUDIO"] = { ...RP248, id: "RP248-STUDIO", template: { kind: "studio", id: "rocket" }, values: { ...RP248.values, departureAirportName: "San Francisco Intl" } };
+    mountIssue(root, { template: "rocket", kind: "studio", route: "RP248-STUDIO" });
+    await settle();
+    const date = root.querySelector("#iw-date");
+    date.value = "2026-11-02"; date.dispatchEvent(new Event("change", { bubbles: true }));
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = bcbp("SOLIVERES/ANGELO", "014A", "0042");
+    click('[data-act="paste-add"]');
+    click('[data-act="issue"]');
+    await settle();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatchObject({ designName: "rocket", routeId: "RP248-STUDIO" });
+    expect(posts[0].semantics).toMatchObject({ departureAirportName: "San Francisco Intl", currentDepartureDate: "2026-11-02T08:00:00-08:00", flightNumber: 248 });
+  });
+
   it("route mode: Flight only, a route id, Save route PUTs times of day and returns to the shelf", async () => {
     const back = [];
     mountIssue(root, { template: "dev-sample", routeMode: true, onBack: () => back.push(1) });

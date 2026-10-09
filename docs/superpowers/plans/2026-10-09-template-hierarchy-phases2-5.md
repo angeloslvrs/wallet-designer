@@ -6,7 +6,8 @@
 
 ## Decisions taken while planning (defaults; revisit if wrong)
 
-- **Route vocabulary** (`ROUTE_SEMANTICS`): flight identity (`airlineCode`, `flightCode`, `flightNumber`), the route group minus gates (gates are flight-level), and `duration`. Schedule is times of day in `schedule`, never ISO dates.
+- **Route vocabulary** (`ROUTE_SEMANTICS`): flight identity (`airlineCode`, `flightCode`, `flightNumber`), the route group minus gates (gates are flight-level), and `duration`. Schedule is times of day in `schedule`, never ISO dates. `airlineCode` is allowed but belongs to the airline: conversion keeps it there, and Save as route only writes it when the operator typed one (a deliberate override).
+- **Blank route values:** a route value blanked for one flight ships nothing (fallbacks come only from the template itself, `routeSlots`).
 - **Overnight:** `arrivalDayOffset` 0–3.
 - **Airline display name** on the grouped shelf: grouped by `semantics.airlineCode`; the name is the first non-generic `organizationName` among that code's templates (Studio first), where generic = "Airline"; else the code.
 - **Route-owned values in Issue** are pre-filled as ordinary typed values (editable per flight; editing doesn't touch the route). The Flight step gains a **Date** field that composes the schedule from the route's times in each airport's zone.

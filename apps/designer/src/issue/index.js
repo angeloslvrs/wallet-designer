@@ -23,7 +23,7 @@ import "../preview/wallet/wallet.css";
 import {
   templateSlots, defaultIndividual, issueSlots, slotError, isBlank, effectiveValue, tripIdFrom, suggestSerials,
   parseBcbpLines, bcbpMismatch, serialReport, issueLabel, buildTemplateIssueBody, buildStudioIssueBody,
-  previewFor, rosterToValues, valuesToRoster, copyToClipboard, withRouteSemantics, routeToShared, routeFromShared
+  previewFor, rosterToValues, valuesToRoster, copyToClipboard, routeSlots, routeToShared, routeFromShared
 } from "./model.js";
 import { routeSchedule, suggestRouteId, ROUTE_ID_RE } from "@wpd/pass-builder/route.js";
 import { flightHtml, flightFacts } from "./flight.js";
@@ -657,11 +657,10 @@ export function mountIssue(root, { template: id, kind = "designer", route: route
       return;
     }
     tpl = { ...tpl, kind };
-    // Route values need slots even where the template neither binds nor bakes them.
-    if (route) tpl = withRouteSemantics(tpl, route);
     existing = new Set((Array.isArray(passes) ? passes : []).map(p => p.serial));
     roster = Array.isArray(ros) ? ros : [];
-    baseSlots = templateSlots(tpl);
+    // Route values need slots even where the template neither binds nor bakes them.
+    baseSlots = route ? routeSlots(tpl, route) : templateSlots(tpl);
     setIndividual(defaultIndividual(baseSlots));
     if (route) {
       shared = routeToShared(route, slots);
