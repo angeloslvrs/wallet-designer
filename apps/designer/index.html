@@ -52,14 +52,14 @@
             <nav aria-label="Design sections"><div id="design-tabs" class="iw-tabs dw-tabs" role="tablist"></div></nav>
           </header>
           <div class="dw-ws">
-            <section id="form-pane" class="dw-left"></section>
+            <section id="form-pane" class="dw-left" role="tabpanel" aria-label="Design section"></section>
             <section id="preview-pane" class="iw-canvas">
               <nav id="tabs" class="iw-tabs iw-tabs--center" role="tablist" aria-label="Pass side">
                 <button type="button" role="tab" class="iw-tab active" data-tab="front" aria-selected="true">Front</button>
                 <button type="button" role="tab" class="iw-tab" data-tab="back" aria-selected="false">Back</button>
                 <button type="button" role="tab" class="iw-tab" data-tab="detail" aria-selected="false">iOS 26 detail</button>
               </nav>
-              <div id="preview-stage"></div>
+              <div id="preview-stage" role="tabpanel" aria-label="Pass preview"></div>
               <p id="preview-caption">Click a field on the pass to edit it. The preview is Apple-faithful.</p>
             </section>
             <aside id="design-side" class="dw-right"></aside>

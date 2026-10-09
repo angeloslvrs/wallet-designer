@@ -88,7 +88,8 @@ function wireViewTabs(initialView = "flights") {
   // #view in the URL deep-links a view — on load and when the hash changes.
   addEventListener("hashchange", () => { const v = location.hash.slice(1); if (panes[v] && v !== activeView) show(v); });
   const fromHash = location.hash.slice(1);
-  show(panes[fromHash] && fromHash !== "issue" ? fromHash : initialView);
+  // #issue needs a template: a cold link lands on the shelf to pick one.
+  show(fromHash === "issue" ? "templates" : panes[fromHash] ? fromHash : initialView);
   return show;
 }
 

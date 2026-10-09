@@ -18,21 +18,41 @@ export const DESIGN_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 let section = "look";
 let name = "";          // saved design this editor holds ("" = never saved)
-let savedJson = null;   // JSON of the state as last saved/loaded (dirty check)
+let savedHash = null;   // hash of the state as last saved/loaded (dirty check)
+let session = 0;        // bumps on open/new, so a slow Save can't relabel a newer editor
 let hooks = {};
 
-// The editor's FormState survives reloads (state.js persists it); so does which
-// saved design it is and what was last saved, or a reload would forget both.
+/** FNV-1a over the state's JSON: small enough to persist next to it (images and all). */
+export function stateHash(obj) {
+  const str = JSON.stringify(obj);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(16);
+}
+
+// The editor's FormState survives reloads (state.js persists it); so do which
+// saved design it is and what was last saved. The meta records the hash of the
+// state it describes: if the persisted state isn't that state (a write failed,
+// e.g. over quota), the identity is dropped rather than pinned on other content.
 const META_KEY = "wpd:design-meta";
-function persistMeta() { try { localStorage.setItem(META_KEY, JSON.stringify({ name, savedJson })); } catch { /* private mode */ } }
+function persistMeta() {
+  try { localStorage.setItem(META_KEY, JSON.stringify({ name, savedHash, stateHash: stateHash(state) })); }
+  catch { try { localStorage.removeItem(META_KEY); } catch { /* private mode */ } }
+}
 function restoreMeta() {
-  try { const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null"); if (m && typeof m === "object") { name = typeof m.name === "string" ? m.name : ""; savedJson = typeof m.savedJson === "string" ? m.savedJson : null; } }
-  catch { /* ignore */ }
+  try {
+    const m = JSON.parse(localStorage.getItem(META_KEY) ?? "null");
+    if (m && typeof m === "object" && m.stateHash === stateHash(state)) {
+      name = typeof m.name === "string" ? m.name : "";
+      savedHash = typeof m.savedHash === "string" ? m.savedHash : null;
+    }
+  } catch { /* ignore */ }
 }
 
 const $ = (s) => document.querySelector(s);
 const formPane = () => document.getElementById("form-pane");
-export const isDirty = () => JSON.stringify(state) !== savedJson;
+export const isDirty = () => stateHash(state) !== savedHash;
+const typedName = () => { const v = ($("#design-name")?.value ?? "").trim(); return DESIGN_NAME_RE.test(v) ? v : designNameFrom(v); };
 
 /** Slug a free-typed name into a design name ("Rocket Partners" → "rocket-partners"). */
 export function designNameFrom(s) {
@@ -49,7 +69,8 @@ function showSection(next) {
 function refreshChrome() {
   const title = $("#design-title"), sub = $("#design-sub"), nameInput = $("#design-name");
   if (title) title.textContent = name || state.meta?.organizationName || "New design";
-  if (sub) sub.textContent = `Studio design · ${!name ? "not saved yet" : isDirty() ? "unsaved changes" : "saved"}`;
+  const renamed = nameInput && nameInput.value.trim() && typedName() !== name;
+  if (sub) sub.textContent = `Studio design · ${!name ? "not saved yet" : isDirty() || renamed ? "unsaved changes" : "saved"}`;
   if (nameInput && document.activeElement !== nameInput && !nameInput.value) nameInput.value = name;
   renderSide();
 }
@@ -92,14 +113,19 @@ async function saveDesign({ quiet = false } = {}) {
     if (names.includes(next) && !confirm(`A template named “${next}” already exists. Replace it?`)) return false;
   }
   status.textContent = "Saving…";
+  // One snapshot is both what's sent and what counts as saved: edits made while
+  // the request is in flight stay dirty.
+  const snapshot = JSON.parse(JSON.stringify(state));
+  const mine = session;
   let r, j;
   try {
-    r = await fetch(`/api/designs/${encodeURIComponent(next)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(state) });
+    r = await fetch(`/api/designs/${encodeURIComponent(next)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(snapshot) });
     j = await r.json().catch(() => ({}));
   } catch (err) { status.textContent = `Not saved — ${err.message}`; return false; }
   if (!r.ok) { status.textContent = `Not saved — ${j.error ?? r.status}`; return false; }
+  if (mine !== session) return false;   // the editor moved on to another design meanwhile
   name = next;
-  savedJson = JSON.stringify(state);
+  savedHash = stateHash(snapshot);
   persistMeta();
   status.textContent = "";
   if (!quiet) toast(`Saved “${name}” to Templates`);
@@ -113,10 +139,11 @@ export async function openDesign(designName, { fixture = false } = {}) {
   const url = fixture ? `/api/fixtures/${encodeURIComponent(designName)}` : `/api/designs/${encodeURIComponent(designName)}`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${fixture ? "fixture" : "design"} not found: ${designName}`);
+  session++;
   replaceState(await r.json());
   // A fixture opens as an unsaved copy: saving it writes a new design, never fixtures/.
   name = fixture ? "" : designName;
-  savedJson = fixture ? null : JSON.stringify(state);
+  savedHash = fixture ? null : stateHash(state);
   persistMeta();
   const input = $("#design-name"); if (input) input.value = name;
   showSection("look");
@@ -125,9 +152,10 @@ export async function openDesign(designName, { fixture = false } = {}) {
 
 /** Start a fresh design from the starter. */
 export function newDesign() {
+  session++;
   resetState();
   name = "";
-  savedJson = null;
+  savedHash = null;
   persistMeta();
   const input = $("#design-name"); if (input) input.value = "";
   showSection("look");
@@ -160,7 +188,8 @@ export function initDesign(h) {
     if (act === "section") return showSection(t.dataset.section);
     if (act === "save") return saveDesign();
     if (act === "issue") {
-      if ((!name || isDirty()) && !(await saveDesign({ quiet: true }))) return;
+      // Save first unless the shelf already has exactly this design under this name.
+      if ((!name || isDirty() || typedName() !== name) && !(await saveDesign({ quiet: true }))) return;
       return hooks.onIssue?.(name);
     }
     if (act === "reset") {
@@ -175,7 +204,8 @@ export function initDesign(h) {
     if (key) jumpToField(key);
   });
 
-  subscribe(() => refreshChrome());
+  subscribe(() => { persistMeta(); refreshChrome(); });
+  $("#design-name")?.addEventListener("input", () => refreshChrome());
   showSection(section);
   refreshChrome();
 }

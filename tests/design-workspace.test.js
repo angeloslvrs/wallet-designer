@@ -82,6 +82,36 @@ describe("Design workspace", () => {
     expect(issued).toEqual(["to-issue"]);
   });
 
+  it("edits made while a save is in flight stay unsaved", async () => {
+    const { setPath } = await import("../apps/designer/src/state.js");
+    const real = globalThis.fetch;
+    let release;
+    globalThis.fetch = (url, opts = {}) => (opts.method === "PUT" ? new Promise(r => { release = () => r(real(url, opts)); }) : real(url, opts));
+    document.getElementById("design-name").value = "slow";
+    click("save");
+    await settle();
+    setPath("meta.description", "edited mid-save");
+    release(); await settle();
+    globalThis.fetch = real;
+    expect(design.isDirty()).toBe(true);
+    expect(document.getElementById("design-sub").textContent).toMatch(/unsaved changes/);
+  });
+
+  it("Issue saves under a newly typed name instead of reusing the loaded one", async () => {
+    document.getElementById("design-name").value = "first";
+    click("save"); await settle();
+    calls = [];
+    document.getElementById("design-name").value = "second";
+    click("issue"); await settle();
+    expect(calls.some(c => c.method === "PUT" && c.url === "/api/designs/second")).toBe(true);
+    expect(issued).toEqual(["second"]);
+  });
+
+  it("hashes state compactly for the persisted identity", () => {
+    expect(design.stateHash({ a: 1 })).toMatch(/^[0-9a-f]{1,8}$/);
+    expect(design.stateHash({ a: 1 })).not.toBe(design.stateHash({ a: 2 }));
+  });
+
   it("lists Apple's missing boarding tags on the right", () => {
     const side = document.getElementById("design-side").textContent;
     expect(side).toMatch(/Apple’s boarding tags/);
