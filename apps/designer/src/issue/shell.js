@@ -47,6 +47,15 @@ export function showValue(slot, v) {
   return String(v);
 }
 
+/** What a blank slot will ship as: a derived value or the template's default. */
+export function hintFor(slot, values) {
+  if (!isBlank(slot, values[slot.id])) return "";
+  const d = deriveFor(slot, values);
+  if (d !== undefined) return `Blank uses ${showValue(slot, d)}`;
+  if (slot.fallback !== undefined) return `Blank keeps the template’s ${showValue(slot, slot.fallback)}`;
+  return "";
+}
+
 /**
  * One slot's field: label, typed-input placeholder, quiet hint (template
  * default / derived value), and an error line that only fills after blur or
@@ -55,18 +64,13 @@ export function showValue(slot, v) {
 export function fieldHtml(slot, scope, { values, touched, submitted, error, wide = false }) {
   const id = cssId(slot.id);
   const show = error && (submitted || touched?.has(slot.id));
-  let hint = "";
-  if (isBlank(slot, values[slot.id])) {
-    const d = deriveFor(slot, values);
-    if (d !== undefined) hint = `Blank uses ${showValue(slot, d)}`;
-    else if (slot.fallback !== undefined) hint = `Blank keeps the template’s ${showValue(slot, slot.fallback)}`;
-  }
+  const hint = hintFor(slot, values);
   const req = slot.required ? `<span class="iw-req" aria-hidden="true">*</span>` : "";
   return `
     <div class="iw-field ${show ? "has-err" : ""} ${wide || slot.widget === "date" || slot.widget === "personName" ? "is-wide" : ""}" data-field="${esc(slot.id)}">
       <span class="iw-label" id="lbl-${scope}-${id}">${esc(slot.label)}${req}</span>
       <div class="iw-control" data-slot-input="${esc(slot.id)}" data-scope="${scope}"></div>
-      ${hint ? `<span class="iw-hint">${esc(hint)}</span>` : ""}
+      <span class="iw-hint" data-hint>${esc(hint)}</span>
       <span class="iw-err" id="err-${scope}-${id}">${show ? esc(error) : ""}</span>
     </div>`;
 }

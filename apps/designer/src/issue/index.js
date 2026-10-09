@@ -27,7 +27,7 @@ import {
 import { flightHtml, flightFacts } from "./flight.js";
 import { passengersHtml, paxListHtml, pagerHtml } from "./passengers.js";
 import { issuedHtml, drawQrCodes } from "./issued.js";
-import { cssId } from "./shell.js";
+import { cssId, hintFor, showValue } from "./shell.js";
 
 let paxSeq = 0;
 const newPax = (values = {}, extra = {}) => ({ id: ++paxSeq, values, serial: "", serialEdited: false, touched: new Set(), barcodeMessage: "", warn: [], ...extra });
@@ -137,6 +137,12 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
         }
       });
       ph.replaceChildren(input);
+      // A text-like control shows what blank ships as (template default) — never
+      // a generic example that reads like a value.
+      const single = input.querySelectorAll("input:not([type=date]):not([type=time]):not([title='UTC offset'])");
+      if (single.length === 1 && ["text", "timezone", "number"].includes(slot.widget)) {
+        single[0].placeholder = slot.fallback !== undefined ? showValue(slot, slot.fallback) : "";
+      }
       for (const inp of input.querySelectorAll("input, select")) {
         inp.setAttribute("aria-describedby", `err-${scope}-${cssId(sid)}`);
         if (!inp.hasAttribute("aria-label")) inp.setAttribute("aria-labelledby", `lbl-${scope}-${cssId(sid)}`);
@@ -204,12 +210,24 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       }
       const facts = $("[data-facts]"); if (facts) facts.innerHTML = flightFacts(slots, shared, expiry).html;
       refreshTitle();
+      refreshHints("shared");
     } else {
+      refreshHints("pax");
       refreshPaxList();
       refreshPager();
     }
     renderPreview();
     refreshFooter();
+  }
+
+  function refreshHints(scope) {
+    const values = scope === "shared" ? shared : valuesFor(pax[sel]);
+    for (const f of root.querySelectorAll(`[data-field]`)) {
+      const ph = f.querySelector(`[data-scope="${scope}"]`);
+      const h = f.querySelector("[data-hint]");
+      const slot = ph && slotById(f.dataset.field);
+      if (slot && h) h.textContent = hintFor(slot, values);
+    }
   }
 
   function refreshTitle() { const t = $("[data-ws-title]"); if (t) t.textContent = flightFacts(slots, shared, expiry).title || "New flight"; }
