@@ -350,3 +350,15 @@ describe("routes ↔ the Flight step's shared values", async () => {
     expect(r.fields).toEqual({ note: "Terminal 3" });
   });
 });
+
+describe("flight facts", async () => {
+  const { flightFacts } = await import("../apps/designer/src/issue/flight.js");
+  const slots = [{ id: "sem:departureTerminal", sem: "departureTerminal" }, { id: "sem:departureGate", sem: "departureGate" }];
+  const row = (html, k) => new RegExp(`<span>${k}</span>([^<]*|<span class="is-empty">—</span>)</div>`).exec(html)?.[1];
+  it("shows terminal and gate as separate rows — a terminal alone never reads as the gate", () => {
+    const { html } = flightFacts(slots, { "sem:departureTerminal": "1" }, "");
+    expect(row(html, "Terminal")).toBe("1");
+    expect(row(html, "Gate")).toBe('<span class="is-empty">—</span>');
+    expect(row(flightFacts(slots, { "sem:departureTerminal": "1", "sem:departureGate": "12" }, "").html, "Gate")).toBe("12");
+  });
+});

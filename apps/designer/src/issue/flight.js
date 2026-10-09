@@ -43,7 +43,9 @@ export function flightFacts(slots, shared, expiry) {
   rows.push(["Duration", Number.isFinite(ms) && ms > 0 ? `${Math.floor(ms / 3.6e6)} h ${Math.round((ms % 3.6e6) / 6e4)} m` : ""]);
   rows.push(["Boards", board ? `${hhmm(board)} ${offset(board)}` : ""]);
   rows.push(["Departs", dep ? `${hhmm(dep)} ${offset(dep)}` : ""]);
-  rows.push(["Gate", [v("departureGate"), v("departureTerminal") ? `T${String(v("departureTerminal")).replace(/^T/i, "")}` : ""].filter(Boolean).join(" · ")]);
+  // Separate rows: a combined "Gate" row read "T1" when only the terminal was set.
+  rows.push(["Terminal", v("departureTerminal") ? String(v("departureTerminal")) : ""]);
+  rows.push(["Gate", v("departureGate") ? String(v("departureGate")) : ""]);
   rows.push(["Expires", expiry ? `${dayLabel(expiry)} ${hhmm(expiry)}` : arr ? `${dayLabel(arr)} + 1 day` : "arrival + 1 day"]);
   const docKeys = [...new Set(DOC_REQUIRED_SEMANTICS.map(canonicalSemantic))].filter(k => k !== "passengerName");
   const have = docKeys.filter(k => bySem[k] && !isBlank(bySem[k], v(k))).length;
