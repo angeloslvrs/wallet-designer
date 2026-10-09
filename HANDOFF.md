@@ -306,6 +306,8 @@ Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
 ## Start here (next session)
 
 > **UI overhaul in progress on branch `ui-overhaul`** — read the 2026-10-09 entries at the bottom first; they supersede the roadmap below for SPA work.
+>
+> **Next up (designed, not built):** template hierarchy Airline › Route › Flight — `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md`.
 
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
 2. Pick from the open roadmap (nothing in progress):
@@ -490,3 +492,23 @@ box's `fixtures/`, if any — copy them over by hand if wanted).
 Dev: `.claude/launch.json` gained `designer-dev-alt` (API :4330, Vite :4331) for when another
 session holds :4318. Test passes/designs created while verifying were deleted; the store is
 back to the three seeded dev-sample passes. 456 tests green.
+
+## 2026-10-09 session (cont.) — template hierarchy spec (Airline › Route › Flight), design only
+
+**Decided (user):** templates become **Airline** (look + layout; a Studio design or a Pass
+Designer bundle) › **Route** (e.g. PR 2987 MNL→TAC: airports, terminals, zones, times of day)
+› **Flight** (route + date = the existing `groupId` / Flights-board row; never saved on the
+shelf). Booking ref stays a per-passenger value, not a tier. Routes fill values only; a layout
+difference is an airline *variant*. Also agreed: label tokens (`{departureAirportName:upper}`)
+so route data in labels doesn't force per-route layouts; Cebu Pacific leftovers get a review
+step on conversion; time fields come from the bound schedule date (device format or
+`timeFormat: "24h"`) instead of typed text.
+
+Spec: `docs/superpowers/specs/2026-10-09-airline-route-flight-hierarchy.md` (5 phases; phase 1
+= persisted Studio bindings, which conversion depends on — stripped designs can't be
+value-discovered). Not planned or implemented yet.
+
+**Conversion targets on the box** (`/opt/boardingpass/designs/`): `PR2987MNL-TAC` (latest edit,
+2026-08-27 per the `fixtures/` originals — the canonical PAL look), `TAC-MNL` (return route),
+`MNL-TAC` + `PAL` (older duplicates), `BR262-001` (EVA Air). File mtimes in `designs/` are all
+the copy time; use `fixtures/` mtimes for history.
