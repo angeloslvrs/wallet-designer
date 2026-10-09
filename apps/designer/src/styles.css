@@ -532,12 +532,12 @@ main { display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.
 /* The hidden attribute must win over the display rules above, or the views stack. */
 main[hidden], #flights-pane[hidden], #templates-pane[hidden], #issue-pane[hidden], #log-pane[hidden] { display: none !important; }
 #form-pane { overflow-y: auto; padding: 24px 32px 60px 40px; border-right: 1px solid var(--wpd-rule); }
-#preview-pane { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 26px 20px 40px; overflow-y: auto; background: #EFEFEC; }
+#preview-pane { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 26px 20px 40px; overflow-y: auto; background: var(--fill); }
 #issue-pane { padding: 26px 40px 60px; }
 
 /* Preview tabs: uppercase text, active = 700 + 2px black underline */
 #tabs { display: inline-flex; padding: 0; gap: 20px; background: none; border-radius: 0; align-self: center; }
-#tabs button { background: none; border: none; cursor: pointer; padding: 4px 0 6px; border-radius: 0; font: inherit; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--wpd-muted); }
+#tabs button { background: none; border: none; cursor: pointer; padding: 4px 0 6px; border-radius: 0; font: inherit; font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--wpd-muted); }
 #tabs button:hover { color: var(--wpd-ink); }
 #tabs button.active { background: none; color: var(--wpd-ink); font-weight: 700; box-shadow: inset 0 -2px 0 var(--wpd-rule); }
 #preview-stage { display: flex; align-items: flex-start; justify-content: center; min-height: 360px; width: 100%; }
