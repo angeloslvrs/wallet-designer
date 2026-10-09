@@ -251,3 +251,43 @@ describe("preview + roster", () => {
     expect(splitName("Juan Dela Cruz")).toEqual({ givenName: "Juan Dela", familyName: "Cruz" });
   });
 });
+
+describe("Issue round-trip: a value-less airline design with 24h times and token labels", async () => {
+  const { toPassView } = await import("../apps/designer/src/preview/wallet/model.js");
+  const base = JSON.parse(await readFile("fixtures/fully-loaded.json", "utf8"));
+  // What conversion produces: no sample passenger/schedule, a token label, a
+  // 24h time field and a confirmed binding (discovery has no values to use).
+  const airline = {
+    ...base,
+    semantics: { airlineCode: "RP" },
+    displayFields: {
+      header: [], secondary: [], back: [],
+      primary: [{ key: "depart", label: "{departureCityName:upper}", value: "" }],
+      auxiliary: [{ key: "boarding", label: "BOARDING", value: "", timeFormat: "24h" }]
+    }
+  };
+  const surface = formStateToPassJson(airline, { resolveFields: false });
+  const bindings = {
+    currentBoardingDate: { fieldKey: "boarding", source: "manual", confidence: "high" },
+    departureAirportCode: { fieldKey: "depart", source: "manual", confidence: "high" }
+  };
+  const tpl = { fields: templateFieldDescriptors(surface, bindings), bindings, semantics: airline.semantics, preview: surface };
+  const all = templateSlots(tpl);
+  const slots = issueSlots(all, defaultIndividual(all));
+  const values = { ...FLIGHT, ...PAX, "sem:departureCityName": "San Francisco" };
+
+  it("the boarding slot drives the 24h field: ISO stored, HH:mm built", () => {
+    expect(slots.find(s => s.sem === "currentBoardingDate").fieldKeys).toEqual(["boarding"]);
+    const body = buildStudioIssueBody({ design: airline, designName: "rp", groupId: "RP248@2026-11-02", serial: "RP248-001", slots, values });
+    expect(body.displayFields.auxiliary[0]).toMatchObject({ value: "2026-11-02T07:30:00-08:00", timeFormat: "24h" });
+    const built = formStateToPassJson(body).boardingPass;
+    expect(built.auxiliaryFields[0].value).toBe("07:30");
+    expect(built.primaryFields[0]).toMatchObject({ label: "SAN FRANCISCO", value: "SFO" });
+  });
+
+  it("the Issue preview renders the same", () => {
+    const v = toPassView(previewFor(tpl.preview, slots, values, "RP248-001"));
+    expect(v.auxiliary[0].value).toBe("07:30");
+    expect(v.primary[0]).toMatchObject({ label: "SAN FRANCISCO", value: "SFO" });
+  });
+});
