@@ -116,14 +116,14 @@ export function flightsFrom(list) {
 
 const scopeKey = (kind, id) => `${kind}:${id}`;
 
-export function mountFlights(root, { showIssue } = {}) {
+export function mountFlights(root, { showIssue, selectGroup } = {}) {
   // Re-mounted on every tab visit — drop the previous mount's listener or one
   // click would fire each action once per visit (duplicate pushes/deletes).
   root._mountAbort?.abort();
   const { signal } = (root._mountAbort = new AbortController());
 
   let flights = [];
-  let selected = null;        // gid of the flight in the panel
+  let selected = selectGroup ?? null;   // gid of the flight in the panel (preselected by Issue's "Open flight")
   // Typed (ISO-8601) editor values, keyed by scope ("grp:<gid>" / "pass:<serial>")
   // then field key. Pickers write here; update reads it back. Reset on load().
   let editorValues = {};

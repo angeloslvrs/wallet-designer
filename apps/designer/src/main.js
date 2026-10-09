@@ -95,10 +95,10 @@ function wireViewTabs(initialView = "flights") {
   // `opts` carries cross-view intent: { template } preselects Issue's template,
   // { bindingsFor } opens a template's Bindings screen.
   const loaders = {
-    flights:   () => import("./flights.js").then(m => (root) => m.mountFlights(root, { showIssue: () => show("templates") })),
+    flights:   () => import("./flights.js").then(m => (root, opts) => m.mountFlights(root, { showIssue: () => show("templates"), selectGroup: opts?.selectGroup })),
     templates: () => import("./templates.js").then(m => (root, opts) => m.mountTemplates(root, {
       bindingsFor: opts?.bindingsFor,
-      onIssue: (id) => show("issue", { template: id }),
+      onIssue: (id, kind) => show("issue", { template: id, kind }),
       onEditDesign: async (name) => {
         if (!confirm(`Open "${name}" in the Design editor? It replaces what's currently there.`)) return;
         try { await loadDesign(name); show("designer"); } catch (err) { alert(err.message); }
@@ -110,7 +110,14 @@ function wireViewTabs(initialView = "flights") {
         show("designer");
       }
     })),
-    issue:     () => import("./issue.js").then(m => (root, opts) => m.mountIssue(root, () => show("flights"), { template: opts?.template, showTemplates: () => show("templates") })),
+    // Issue is a workspace, entered from a template card: it hides the nav and
+    // offers ‹ Templates. `#issue` without a template lands back on the shelf.
+    issue:     () => import("./issue/index.js").then(m => (root, opts) => m.mountIssue(root, {
+      template: opts?.template, kind: opts?.kind,
+      onBack: () => show("templates"),
+      showTemplates: () => show("templates"),
+      openFlight: (gid) => show("flights", { selectGroup: gid })
+    })),
     log:       () => import("./log.js").then(m => (root) => m.mountLog(root))
   };
   const moveThumb = () => {
@@ -124,6 +131,7 @@ function wireViewTabs(initialView = "flights") {
     activeView = view;
     for (const [k, pane] of Object.entries(panes)) pane.hidden = k !== view;
     for (const b of tabs.querySelectorAll("button")) b.classList.toggle("active", b.dataset.view === view);
+    document.getElementById("app-shell").classList.toggle("is-workspace", view === "issue");
     moveThumb();
     if (view !== "designer") loaders[view]().then(mount => { if (activeView === view) mount(panes[view], opts); });
     history.replaceState(null, "", `#${view}`);

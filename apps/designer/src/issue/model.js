@@ -39,6 +39,28 @@ export function suggestSerial(groupId, n) {
 }
 
 /**
+ * Suggested serials for a batch: <groupId>-NNN, skipping numbers already issued
+ * (adding passengers to an existing flight must not default to overwriting
+ * its passes) and serials the operator typed by hand.
+ * @param {string} groupId
+ * @param {(string|null)[]} fixed per passenger: a hand-typed serial, or null to suggest
+ * @param {Set<string>} existing serials already on the server
+ * @returns {string[]}
+ */
+export function suggestSerials(groupId, fixed, existing = new Set()) {
+  const taken = new Set([...existing, ...fixed.filter(Boolean)]);
+  let n = 0;
+  return fixed.map(f => {
+    if (f) return f;
+    if (!(groupId ?? "").trim()) return "";
+    let s;
+    do s = suggestSerial(groupId, ++n); while (taken.has(s));
+    taken.add(s);
+    return s;
+  });
+}
+
+/**
  * One passenger's values: the trip's shared values overlaid with this row's
  * values for the keys marked individual. A shared value for an individual key
  * is dropped — it belongs to the row — so re-sharing never leaks a stale value.
@@ -173,6 +195,8 @@ export function templateSlots(tpl) {
   for (const sem of PASSENGER_CORE) push(semSlot(sem));
   for (const sem of Object.keys(boundTo)) if (SEMANTIC_CATALOG[sem]) push(semSlot(sem));
   for (const sem of REQUIRED) if (SEMANTIC_CATALOG[sem]) push(semSlot(sem));
+  const fc = out.find(x => x.sem === "flightCode");
+  if (fc) fc.deriveFrom = { airlineCode: out.find(x => x.sem === "airlineCode")?.fallback, flightNumber: out.find(x => x.sem === "flightNumber")?.fallback };
   for (const f of fields) {
     if (f.boundSemantic && SEMANTIC_CATALOG[canonicalSemantic(f.boundSemantic)]) continue;
     const widget = f.kind === "date" ? "date" : "text";
@@ -208,22 +232,35 @@ export function isBlank(slot, v) {
 }
 
 /**
- * Values derived from other values when the operator leaves a slot blank:
- * flightCode = airline + number. Returned map is slot id → value.
+ * A blank slot's value derived from other slots: flightCode = airline + number
+ * (each typed, else its template default) — only once either is typed, so an
+ * untouched template keeps its own code. The flightCode slot carries the
+ * defaults it needs (`deriveFrom`), so callers never thread the slot list.
+ * @returns {*} undefined when nothing derives
  */
-export function derivedValues(values) {
-  const out = {};
-  const al = (values["sem:airlineCode"] ?? "").toString().trim();
-  const no = values["sem:flightNumber"];
-  if (al && no !== undefined && no !== "") out["sem:flightCode"] = `${al}${no}`;
-  return out;
+export function deriveFor(slot, values) {
+  if (slot?.sem !== "flightCode") return undefined;
+  const typed = (id) => { const v = values[id]; return v !== undefined && v !== null && String(v).trim() !== ""; };
+  if (!typed("sem:airlineCode") && !typed("sem:flightNumber")) return undefined;
+  const al = (typed("sem:airlineCode") ? values["sem:airlineCode"] : slot.deriveFrom?.airlineCode ?? "").toString().trim().toUpperCase();
+  const no = typed("sem:flightNumber") ? values["sem:flightNumber"] : slot.deriveFrom?.flightNumber;
+  return al && no !== undefined && no !== "" ? `${al}${no}` : undefined;
+}
+
+/**
+ * The slots as issued: per-passenger slots lose their template default — a
+ * template's sample sequence number or booking ref must never ship as if it
+ * were this passenger's. Blank per-passenger values clear instead.
+ */
+export function issueSlots(slots, individual) {
+  return slots.map(s => (individual.has(s.id) ? { ...s, fallback: undefined, clearsWhenBlank: true } : s));
 }
 
 /** The value a slot will actually ship with: typed → derived → template default. */
 export function effectiveValue(slot, values) {
   const v = values[slot.id];
   if (!isBlank(slot, v)) return v;
-  const d = derivedValues(values)[slot.id];
+  const d = deriveFor(slot, values);
   if (d !== undefined) return d;
   return slot.fallback;
 }
@@ -337,21 +374,30 @@ export function issueLabel(total, updates) {
 
 // ---- issue bodies --------------------------------------------------------------
 
-/** The semantics one passenger's pass carries (filled-only, twins set). */
+/**
+ * The semantics one passenger's pass carries (filled-only, twins set). A blank
+ * per-passenger slot (issueSlots) is sent as null — the template merge deletes
+ * the baked sample value; studio bodies drop the key.
+ */
 export function passengerSemantics(slots, values) {
   const out = {};
+  const put = (sem, v) => {
+    out[sem] = v;
+    // One slot writes both spellings, so a template's baked twin can't disagree:
+    if (ORIGINAL_OF[sem]) out[ORIGINAL_OF[sem]] = v;   // at issue, scheduled = current
+    if (LOCATION_OF[sem]) out[LOCATION_OF[sem]] = v;   // *AirportTimeZone ↔ *LocationTimeZone
+  };
   for (const slot of slots) {
     if (!slot.sem) continue;
     const own = values[slot.id];
-    const v = isBlank(slot, own) ? derivedValues(values)[slot.id] : own;
-    if (v === undefined || isBlank(slot, v)) continue;
-    out[slot.sem] = slot.sem === "passengerName" ? { givenName: (v.givenName ?? "").trim(), familyName: (v.familyName ?? "").trim() } : v;
-    // One slot writes both spellings, so a template's baked twin can't disagree:
-    if (ORIGINAL_OF[slot.sem]) out[ORIGINAL_OF[slot.sem]] = v;   // at issue, scheduled = current
-    if (LOCATION_OF[slot.sem]) out[LOCATION_OF[slot.sem]] = v;   // *AirportTimeZone ↔ *LocationTimeZone
+    const v = isBlank(slot, own) ? deriveFor(slot, values) : own;
+    if (v === undefined || isBlank(slot, v)) { if (slot.clearsWhenBlank) put(slot.sem, null); continue; }
+    put(slot.sem, slot.sem === "passengerName" ? { givenName: (v.givenName ?? "").trim(), familyName: (v.familyName ?? "").trim() } : v);
   }
   return out;
 }
+
+const dropNulls = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null));
 
 /**
  * Visible field values one passenger's pass carries, by field key: bound fields
@@ -366,9 +412,9 @@ export function passengerFieldValues(slots, values) {
   for (const slot of slots) {
     for (const fk of slot.fieldKeys ?? []) {
       const own = values[slot.id];
-      const v = isBlank(slot, own) ? (derivedValues(values)[slot.id]) : own;
+      const v = isBlank(slot, own) ? deriveFor(slot, values) : own;
       if (v === undefined || isBlank(slot, v)) {
-        if (slot.sem && VOLATILE_SEMANTICS.has(slot.sem)) out[fk] = "";
+        if (slot.clearsWhenBlank || (slot.sem && VOLATILE_SEMANTICS.has(slot.sem))) out[fk] = "";
         continue;
       }
       if (!slot.sem) out[fk] = String(v).trim();
@@ -402,7 +448,7 @@ export function buildStudioIssueBody({ design, designName, groupId, serial, slot
   const s = (serial ?? "").trim();
   const base = { ...(state.semantics ?? {}) };
   for (const k of VOLATILE_SEMANTICS) delete base[k];
-  state.semantics = { ...base, ...passengerSemantics(slots, values) };
+  state.semantics = dropNulls({ ...base, ...passengerSemantics(slots, values) });
   const fieldValues = passengerFieldValues(slots, values);
   for (const zone of Object.keys(state.displayFields ?? {})) {
     state.displayFields[zone] = (state.displayFields[zone] ?? []).map(f => (f.key in fieldValues ? { ...f, value: fieldValues[f.key] } : f));
@@ -436,7 +482,7 @@ export function previewFor(previewPassJson, slots, values, serial) {
   }
   const sem = { ...(out.semantics ?? {}) };
   for (const k of VOLATILE_SEMANTICS) delete sem[k];
-  out.semantics = { ...sem, ...passengerSemantics(slots, values) };
+  out.semantics = dropNulls({ ...sem, ...passengerSemantics(slots, values) });
   if (serial && Array.isArray(out.barcodes)) out.barcodes = out.barcodes.map(b => ({ ...b, message: b.message, altText: serial }));
   return out;
 }

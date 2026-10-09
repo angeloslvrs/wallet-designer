@@ -3,7 +3,6 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateRosterBody } from "../apps/server/src/routes/admin.js";
-import { rosterEntryToRowValues, rowValuesToSemantics } from "../apps/designer/src/issue.js";
 
 // Saved passengers ("roster"): a server-side store of semantic-keyed entries
 // (spec: works across templates — semantics are Apple's fixed vocabulary, so
@@ -109,38 +108,5 @@ describe("POST /api/roster body validation", () => {
   });
 });
 
-describe("semantic ↔ field-key mapping through template bindings", () => {
-  // A template's discovered bindings: semanticKey → {fieldKey} (polarity rule:
-  // field keys are the template's arbitrary vocabulary, never guessed).
-  const bindings = {
-    passengerName: { fieldKey: "name", source: "label", confidence: "high" },
-    seats: { fieldKey: "seat", source: "label", confidence: "high" },
-    membershipProgramNumber: { fieldKey: "ff", source: "sample", confidence: "low" }
-  };
-
-  it("maps a roster entry's semantics onto the template's field keys on load", () => {
-    const entry = { id: "p_01", semantics: { passengerName: "DELACRUZ/ROBERTO", membershipProgramNumber: "5J-99120" } };
-    expect(rosterEntryToRowValues(entry, bindings)).toEqual({ name: "DELACRUZ/ROBERTO", ff: "5J-99120" });
-  });
-
-  it("drops semantics with no bound field (skippedFields polarity)", () => {
-    const entry = { id: "p_02", semantics: { passengerName: "X/Y", boardingGroup: "A" } };
-    expect(rosterEntryToRowValues(entry, bindings)).toEqual({ name: "X/Y" });
-    expect(rosterEntryToRowValues(entry, {})).toEqual({});
-    expect(rosterEntryToRowValues(entry, undefined)).toEqual({});
-  });
-
-  it("harvests a row's values back into semantics by inverting the bindings", () => {
-    expect(rowValuesToSemantics({ name: "REYES/PEDRO", seat: "14C", seq: "003" }, bindings))
-      .toEqual({ passengerName: "REYES/PEDRO", seats: "14C" });   // seq is unbound → dropped
-  });
-
-  it("drops empty values on save (a blank field is not a semantic)", () => {
-    expect(rowValuesToSemantics({ name: "  ", seat: "12A" }, bindings)).toEqual({ seats: "12A" });
-  });
-
-  it("round-trips: save a row, load it on a template with the same bindings", () => {
-    const semantics = rowValuesToSemantics({ name: "DELACRUZ/ELENA", ff: "5J-99121" }, bindings);
-    expect(rosterEntryToRowValues({ semantics }, bindings)).toEqual({ name: "DELACRUZ/ELENA", ff: "5J-99121" });
-  });
-});
+// Roster ↔ passenger mapping is semantic-keyed end to end now (no field-key
+// detour): see rosterToValues / valuesToRoster in tests/issue-model.test.js.

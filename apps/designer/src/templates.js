@@ -140,7 +140,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="bindings" data-id="${esc(t.id)}">Bindings</button>
         <button type="button" class="btn-link danger" data-act="tpl-del" data-id="${esc(t.id)}">Delete</button>
-        <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}">Issue →</button>
+        <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="designer">Issue →</button>
       </div>
       <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
     </article>`;
@@ -167,7 +167,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
         ${del}
-        <button type="button" class="btn btn-primary btn-sm" disabled title="Issuing straight from a studio design arrives with the new Issue flow; until then, open the design and use Build">Issue →</button>
+        <button type="button" class="btn btn-primary btn-sm" data-act="issue" data-id="${esc(t.id)}" data-kind="studio">Issue →</button>
       </div>
       <div class="tpl-status" data-tpl-status="${esc(t.id)}"></div>
     </article>`;
@@ -362,10 +362,10 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
   root.addEventListener("click", (e) => {
     const t = e.target.closest("[data-act]");
     if (!t || !root.contains(t)) return;
-    const { act, id } = t.dataset;
+    const { act, id, kind } = t.dataset;
     if (act === "upload") { $("#tpl-file")?.click(); return; }
     if (act === "new-design") { onNewDesign?.(); return; }
-    if (act === "issue") { onIssue?.(id); return; }
+    if (act === "issue") { onIssue?.(id, kind ?? "designer"); return; }
     if (act === "edit-design") { onEditDesign?.(id); return; }
     if (act === "bindings") { openBindings(id); return; }
     if (act === "back") { mode = { view: "shelf" }; draft = null; render(); return; }

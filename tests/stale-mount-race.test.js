@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountIssue } from "../apps/designer/src/issue.js";
+import { mountIssue } from "../apps/designer/src/issue/index.js";
 import { mountFlights } from "../apps/designer/src/flights.js";
 
 // Stale-mount race: each view mounts into the SAME reused pane element and aborts
@@ -19,12 +19,12 @@ function deferred() {
 }
 
 const TEMPLATE = {
-  id: "t1",
+  id: "t1", kind: "designer",
   fieldKeys: ["gate"],
-  fields: [{ key: "gate", label: "Gate", kind: "text" }],
-  bindings: {},
+  fields: [{ key: "gate", label: "Gate", kind: "text", boundSemantic: "departureGate" }],
+  bindings: { departureGate: { fieldKey: "gate", source: "manual", confidence: "high" } },
   semantics: {},
-  assets: []
+  preview: { boardingPass: { headerFields: [{ key: "gate", label: "GATE", value: "C4" }] } }
 };
 
 const LIST = [{
@@ -41,79 +41,64 @@ beforeEach(() => {
 afterEach(() => { root.remove(); delete globalThis.fetch; });
 
 describe("Issue — stale mount's load() must not blank the new mount", () => {
-  it("a late-resolving templates fetch from the aborted mount does not re-render over typed input", async () => {
-    const firstTemplates = deferred();
+  const ok = (body) => Promise.resolve({ ok: true, json: async () => body });
+  function stubFetch(first) {
     let templatesCalls = 0;
     globalThis.fetch = (url) => {
       const u = String(url);
       if (u.endsWith("/api/templates")) {
         templatesCalls++;
         // The first mount's fetch hangs until we release it after the re-mount.
-        return templatesCalls === 1 ? firstTemplates.promise : Promise.resolve({ json: async () => [TEMPLATE] });
+        return templatesCalls === 1 ? first.promise : ok([TEMPLATE]);
       }
-      if (u === "/api/passes") return Promise.resolve({ json: async () => [] });
-      if (u.endsWith("/api/roster")) return Promise.resolve({ json: async () => [] });
+      if (u === "/api/passes") return ok([]);
+      if (u.endsWith("/api/roster")) return ok([]);
       throw new Error(`unexpected fetch: ${u}`);
     };
+  }
 
-    // First mount — stuck on the deferred templates fetch.
-    mountIssue(root, () => {});
+  it("a late-resolving templates fetch from the aborted mount does not re-render over typed input", async () => {
+    const first = deferred();
+    stubFetch(first);
+    mountIssue(root, { template: "t1" });
     await flush();
-    expect(root.textContent).toMatch(/Loading templates/);
+    expect(root.textContent).toMatch(/Loading/);
 
     // Re-mount (user left Issue and came back) — aborts the first mount's signal.
-    mountIssue(root, () => {});
-    await flush();
+    mountIssue(root, { template: "t1" });
+    await flush(); await flush();
 
-    // The user types into the freshly-rendered new mount.
-    const serial = root.querySelector('.iss-row[data-i="0"] input[data-serial]');
-    expect(serial).toBeTruthy();
-    serial.value = "MYTRIP-001";
-    const gate = root.querySelector('input[data-shared-key="gate"]');
-    expect(gate).toBeTruthy();
+    const trip = root.querySelector("#iw-trip");
+    expect(trip).toBeTruthy();
+    trip.value = "MYTRIP";
+    const gate = root.querySelector('[data-slot-input="sem:departureGate"] input');
     gate.value = "B12";
 
-    // The stale first fetch finally resolves.
-    firstTemplates.resolve({ json: async () => [TEMPLATE] });
-    await flush();
-    await flush();
+    first.resolve({ ok: true, json: async () => [TEMPLATE] });
+    await flush(); await flush();
 
     // Same input nodes (no re-render) and the typed values survive.
-    expect(root.querySelector('.iss-row[data-i="0"] input[data-serial]')).toBe(serial);
-    expect(serial.value).toBe("MYTRIP-001");
-    expect(root.querySelector('input[data-shared-key="gate"]').value).toBe("B12");
+    expect(root.querySelector("#iw-trip")).toBe(trip);
+    expect(trip.value).toBe("MYTRIP");
+    expect(root.querySelector('[data-slot-input="sem:departureGate"] input').value).toBe("B12");
   });
 
-  it("an AbortError-rejecting stale fetch is swallowed (no 'API offline', input intact)", async () => {
-    const firstTemplates = deferred();
-    let templatesCalls = 0;
-    globalThis.fetch = (url) => {
-      const u = String(url);
-      if (u.endsWith("/api/templates")) {
-        templatesCalls++;
-        return templatesCalls === 1 ? firstTemplates.promise : Promise.resolve({ json: async () => [TEMPLATE] });
-      }
-      if (u === "/api/passes") return Promise.resolve({ json: async () => [] });
-      if (u.endsWith("/api/roster")) return Promise.resolve({ json: async () => [] });
-      throw new Error(`unexpected fetch: ${u}`);
-    };
-
-    mountIssue(root, () => {});
+  it("an AbortError-rejecting stale fetch is swallowed (no error screen, input intact)", async () => {
+    const first = deferred();
+    stubFetch(first);
+    mountIssue(root, { template: "t1" });
     await flush();
-    mountIssue(root, () => {});
-    await flush();
+    mountIssue(root, { template: "t1" });
+    await flush(); await flush();
 
-    const serial = root.querySelector('.iss-row[data-i="0"] input[data-serial]');
-    serial.value = "KEEP-001";
+    const trip = root.querySelector("#iw-trip");
+    trip.value = "KEEP";
+    first.reject(new DOMException("Aborted", "AbortError"));
+    await flush(); await flush();
 
-    // A real aborted fetch rejects with an AbortError — must be swallowed silently.
-    firstTemplates.reject(new DOMException("Aborted", "AbortError"));
-    await flush();
-    await flush();
-
-    expect(root.querySelector('.iss-row[data-i="0"] input[data-serial]')).toBe(serial);
-    expect(serial.value).toBe("KEEP-001");
-    expect(root.textContent).not.toMatch(/API offline/);
+    expect(root.querySelector("#iw-trip")).toBe(trip);
+    expect(trip.value).toBe("KEEP");
+    expect(root.textContent).not.toMatch(/Couldn’t load/);
   });
 });
 

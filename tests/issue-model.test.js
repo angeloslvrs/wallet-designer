@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { loadTemplate, templateFieldDescriptors, templateFieldKeys, discoverBindings, formStateToPassJson, applyTemplateData } from "../packages/pass-builder/index.js";
 import { parseBCBP, bcbpToSemantics } from "../packages/pass-builder/bcbp.js";
 import {
-  composeGroupId, suggestSerial, mergeTripValues, templateSlots, defaultIndividual, slotError, effectiveValue,
+  composeGroupId, suggestSerial, suggestSerials, mergeTripValues, templateSlots, defaultIndividual, issueSlots, slotError, effectiveValue,
   tripIdFrom, parseBcbpLines, bcbpMismatch, serialReport, issueLabel, passengerSemantics, passengerFieldValues,
   buildTemplateIssueBody, buildStudioIssueBody, previewFor, rosterToValues, valuesToRoster, splitName, displayName, canonicalSemantic
 } from "../apps/designer/src/issue/model.js";
@@ -44,6 +44,11 @@ describe("carried-over helpers", () => {
     expect(composeGroupId("RP247", "")).toBe("");
     expect(suggestSerial("RP247@2026-06-20", 3)).toBe("RP247@2026-06-20-003");
     expect(suggestSerial("", 1)).toBe("");
+  });
+  it("suggests batch serials that skip issued ones and keep hand-typed ones", () => {
+    const g = "RP248@2026-11-02";
+    expect(suggestSerials(g, [null, "MINE", null], new Set([`${g}-001`]))).toEqual([`${g}-002`, "MINE", `${g}-003`]);
+    expect(suggestSerials("", [null], new Set())).toEqual([""]);
   });
   it("mergeTripValues keeps individual keys from the row only", () => {
     expect(mergeTripValues({ a: 1, b: 2 }, { b: 9, c: 3 }, ["b"])).toEqual({ a: 1, b: 9 });
@@ -91,6 +96,28 @@ describe("slots", () => {
   it("derives flightCode and the trip id from the flight", () => {
     const slots = templateSlots(devSample);
     expect(tripIdFrom(FLIGHT, slots)).toBe("RP248@2026-11-02");
+    // a typed number with the template's airline left blank still re-derives the code
+    const fc = slots.find(s => s.sem === "flightCode");
+    expect(effectiveValue(fc, { "sem:flightNumber": 9 })).toBe("RP9");
+    expect(effectiveValue(fc, {})).toBe("RP247");   // untouched: the template's own code
+  });
+
+  it("per-passenger slots never ship the template's sample values", () => {
+    const base = templateSlots(devSample);
+    const slots = issueSlots(base, defaultIndividual(base));
+    const { "sem:departureGate": _gate, ...flight } = FLIGHT;
+    const values = { ...flight, "sem:passengerName": PAX["sem:passengerName"] };
+    const fv = passengerFieldValues(slots, values);
+    expect(fv.seq).toBe("");            // template sample "23" cleared
+    expect(fv.confirmation).toBe("");
+    const sem = passengerSemantics(slots, values);
+    expect(sem.boardingSequenceNumber).toBeNull();   // null deletes the baked value at merge
+    expect(sem.departureGate).toBeUndefined();       // shared + blank: template default stays
+    const merged = applyTemplateData(devSample._passJson, buildTemplateIssueBody({ template: "dev-sample", groupId: "G", serial: "S", slots, values }).data);
+    expect(merged.semantics.boardingSequenceNumber).toBeUndefined();
+    const st = buildStudioIssueBody({ design, groupId: "G", serial: "S", slots: issueSlots(templateSlots(studio), defaultIndividual(templateSlots(studio))), values });
+    expect(st.semantics.boardingSequenceNumber).toBeUndefined();
+    expect(st.semantics.confirmationNumber).toBeUndefined();
   });
 });
 

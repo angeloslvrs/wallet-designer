@@ -110,11 +110,12 @@ describe("Templates shelf", () => {
 
   it("routes Issue and Edit design to the host callbacks", async () => {
     const seen = [];
-    mountTemplates(root, { onIssue: (id) => seen.push(["issue", id]), onEditDesign: (id) => seen.push(["edit", id]) });
+    mountTemplates(root, { onIssue: (id, kind) => seen.push(["issue", id, kind]), onEditDesign: (id) => seen.push(["edit", id]) });
     await settle();
     root.querySelector('.tpl-card[data-tpl="odyssey"] [data-act="issue"]').click();
+    root.querySelector('.tpl-card[data-tpl="fully-loaded"] [data-act="issue"]').click();
     root.querySelector('.tpl-card[data-tpl="fully-loaded"] [data-act="edit-design"]').click();
-    expect(seen).toEqual([["issue", "odyssey"], ["edit", "fully-loaded"]]);
+    expect(seen).toEqual([["issue", "odyssey", "designer"], ["issue", "fully-loaded", "studio"], ["edit", "fully-loaded"]]);
   });
 
   it("uploading a bundle lands on its Bindings screen", async () => {

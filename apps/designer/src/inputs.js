@@ -17,6 +17,39 @@ const offsetForLocal = (local) => {
   return Number.isNaN(d.getTime()) ? localUtcOffset() : localUtcOffset(d);
 };
 
+/**
+ * The UTC offset ("+08:00") an IANA zone observes at a wall-clock time, or null
+ * when the zone is unknown. A flight's times are local to its airport, so their
+ * default offset comes from the airport's zone, not the operator's browser.
+ * @param {string} local "YYYY-MM-DDTHH:MM"
+ * @param {string} zone IANA zone, e.g. "Asia/Manila"
+ */
+export function zoneOffset(local, zone) {
+  if (!local || !zone) return null;
+  const at = Date.parse(`${local}:00Z`);
+  if (Number.isNaN(at)) return null;
+  let fmt;
+  try { fmt = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" }); } catch { return null; }
+  const offAt = (t) => {
+    const name = fmt.formatToParts(new Date(t)).find(p => p.type === "timeZoneName")?.value ?? "";
+    const m = /GMT([+-])(\d{2}):?(\d{2})?/.exec(name);
+    return m ? (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0)) : 0;
+  };
+  // The wall clock read as UTC is off by the zone's own offset: correct once
+  // (and again across a DST edge).
+  let mins = offAt(at);
+  mins = offAt(at - mins * 60_000);
+  const sign = mins < 0 ? "-" : "+", abs = Math.abs(mins);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+/** Re-anchor an ISO date-time's wall clock to a zone's offset (same local time). */
+export function withZoneOffset(iso, zone) {
+  const { local } = splitIso(iso);
+  const off = zoneOffset(local, zone);
+  return local && off ? `${local}:00${off}` : iso;
+}
+
 export const splitIso = (v) => {
   const m = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/.exec(v || "");
   return m ? { local: m[1], offset: m[2] || "" } : { local: "", offset: "" };
@@ -94,7 +127,7 @@ export function fieldHint(key, type) {
  *          attrs?:{maxLength?:number, pattern?:string, inputmode?:string}}} opts
  *   `attrs` (from field-kinds kindAttrs) constrain the text/number/timezone input.
  */
-export function renderTypedInput({ type, value, onChange, enumOptions = [], attrs = {}, label = "" }) {
+export function renderTypedInput({ type, value, onChange, enumOptions = [], attrs = {}, label = "", zone = null }) {
   const wrap = el("div", { className: "typed-input" });
   const fire = (v) => onChange?.(v);
 
@@ -131,7 +164,7 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       let offsetTouched = Boolean(offset);
       const sync = () => {
         const local = currentLocal();
-        if (!offsetTouched && local) off.value = offsetForLocal(local);
+        if (!offsetTouched && local) off.value = zoneOffset(local, typeof zone === "function" ? zone() : zone) ?? offsetForLocal(local);
         fire(joinIso(local, off.value.trim()));
       };
       dateInp.addEventListener("input", sync);
