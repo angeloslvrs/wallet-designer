@@ -265,6 +265,12 @@ export const statusOf = (rec) => {
   return (v ?? "").toString().trim() || "On Time";
 };
 const unwrap = (raw) => (raw !== null && typeof raw === "object") ? raw.value : raw;
+// Whether a transitStatus was ever pushed — the board shows "Not pushed" rather
+// than statusOf's "On Time" default for passes that never had one.
+export const hasStatusOf = (rec) => {
+  const sem = rec.data ? rec.data.semantics : migrateFormState(rec.state)?.semantics;
+  return Boolean((unwrap(sem?.transitStatus) ?? "").toString().trim());
+};
 // Current values for the Manage "Update" editor's fields, so the UI can show
 // what's already live instead of a generic example. Same semantics source as
 // statusOf; delay note lives in the additionalInfoFields "delay" row, whose
@@ -319,6 +325,7 @@ adminRouter.get("/passes", asyncHandler(async (_req, res) => {
     passenger: passengerOf(rec),
     seat: seatOf(rec),
     status: statusOf(rec),
+    statusSet: hasStatusOf(rec),
     lastModified: rec.lastModified,
     deviceCount: Object.values(snap.registrations).filter(d => d[serial]).length,
     current: currentFieldsOf(rec),

@@ -381,3 +381,28 @@ hops to 4319 — preview the live SPA at :4319. Plain `npm run dev` uses `.env` 
 **Next (Phase 3):** rebuild Issue as the three-pane canvas (template → flight → passengers →
 issued), including issuing from a studio design (record `designName` on the stored pass).
 
+**Impeccable critique + fixes (same day):** `/impeccable critique` scored phases 1–2 at 24/40
+(snapshot in `.impeccable/critique/`). Everything P0–P2 plus the minor observations was addressed:
+- Flights panel truth: `flightsFrom` derives trip-level `current`; the trip editor shows live
+  values as placeholders + "now …" hints; `GET /api/passes` gains `statusSet` (`hasStatusOf`) so
+  never-pushed passes read "Not pushed" instead of a fabricated On Time.
+- Panel reshaped: status keys (toggle, `aria-pressed`, no "—" key) + reason + gate visible;
+  boarding/departure/arrival behind "Change schedule…" (summary shows the live times); transit/
+  security/delay + Delete flight behind More. Push button narrates Pushing… → ✓ Pushed to N / ✓
+  Saved, status spans are `aria-live`, `toast.js` confirms; Clear and Delete confirm in flight
+  terms; 0-device flights say "Save update · no devices yet".
+- Mobile: scrollable masthead nav, wrapping keys, row tap scrolls the stacked panel into view,
+  Bindings rows become cards <760px. (Headless Chrome can't render <~500px wide — verify phone
+  layouts in the preview pane, not with `--window-size=390`.)
+- Accessibility: picker inputs get `aria-label`s (`renderTypedInput({label})`), bind selects
+  `aria-labelledby`, focus rings on rows/keys, 11px minimum functional text, contrast-safe
+  tokens in both themes (`--blue-btn` for button fills, `--blue-text` on soft tints, darker
+  light-theme green/amber/red/muted/faint), badge ping removed, theme-aware `::selection`/focus.
+- Bindings: `needsReview` separates real guesses (date-proximity, seat-composite, unrelated keys)
+  from name matches; samples in display format; hovering a row outlines the field on the
+  thumbnail; selects labelled. Templates: one primary (Issue →), studio cards get a disabled
+  Issue until Phase 3. `hashchange` deep links; `?theme=light|dark` previews a theme without
+  saving; profile badge says whether pushes go out ("prod · APNs live" / "dev · pushes logged").
+Detector after: 0 errors (was 1: the pulsing badge). Remaining warnings are the legacy Design
+view's 10px preview tabs (Phase 4) and two deliberate ones (Inter; the board header row).
+

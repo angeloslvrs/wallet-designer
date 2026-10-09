@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mountTemplates, templateIdFromFile, fieldSamples, guessCount } from "../apps/designer/src/templates.js";
+import { mountTemplates, templateIdFromFile, fieldSamples, guessCount, needsReview } from "../apps/designer/src/templates.js";
 
 // Templates shelf: Pass Designer bundles and Studio designs on one shelf, plus
 // the Bindings review screen. Studio designs have no Delete (fixtures/ also
@@ -22,7 +22,7 @@ beforeEach(() => {
   deleteResp = { ok: false, status: 409, body: { error: 'template "odyssey" is referenced by 2 issued pass(es) — delete those passes first' } };
   designer = [
     { id: "odyssey", kind: "designer", organizationName: "Odyssey Air", fieldKeys: ["gate", "origin", "dest", "passenger"], assets: ["icon@2x.png"],
-      bindings: { departureGate: { fieldKey: "gate", source: "value-match", confidence: "medium" }, passengerName: { fieldKey: "passenger", source: "manual", confidence: "high" } },
+      bindings: { departureGate: { fieldKey: "gate", source: "value-match", confidence: "medium" }, currentBoardingDate: { fieldKey: "boardingTime", source: "date-proximity", confidence: "medium" }, passengerName: { fieldKey: "passenger", source: "manual", confidence: "high" } },
       preview: PREVIEW, logo: null }
   ];
   globalThis.confirm = () => true;
@@ -51,8 +51,14 @@ describe("pure helpers", () => {
     expect(templateIdFromFile("Odyssey Air.pkpasstemplate.zip")).toBe("odyssey-air");
     expect(templateIdFromFile("cebpac.zip")).toBe("cebpac");
   });
-  it("collects sample values by field key and counts unconfirmed guesses", () => {
+  it("collects sample values by field key and counts only bindings that need a human look", () => {
     expect(fieldSamples(PREVIEW)).toMatchObject({ gate: "C4", origin: "TPE", passenger: "SURNAME/GIVEN" });
+    // departureGate → gate shares a word: matched. currentBoardingDate → boardingTime by timing: check.
+    expect(needsReview("departureGate", { fieldKey: "gate", source: "value-match", confidence: "medium" })).toBe(false);
+    expect(needsReview("flightCode", { fieldKey: "flight", source: "value-match", confidence: "medium" })).toBe(false);
+    expect(needsReview("seats", { fieldKey: "seat", source: "seat-composite", confidence: "medium" })).toBe(true);
+    expect(needsReview("destinationAirportCode", { fieldKey: "arrive", source: "value-match", confidence: "medium" })).toBe(true);
+    expect(needsReview("passengerName", { fieldKey: "x", source: "manual", confidence: "high" })).toBe(false);
     expect(guessCount(designer[0].bindings)).toBe(1);
   });
 });
@@ -64,18 +70,21 @@ describe("Templates shelf", () => {
     const od = root.querySelector('.tpl-card[data-tpl="odyssey"]');
     expect(od.dataset.kind).toBe("designer");
     expect(od.textContent).toContain("2 issued");
-    expect(od.textContent).toMatch(/1 binding to confirm/);
+    expect(od.textContent).toMatch(/1 binding to check/);
     expect(od.querySelector(".wallet-card")).toBeTruthy();     // Apple-faithful thumbnail
     const fl = root.querySelector('.tpl-card[data-tpl="fully-loaded"]');
     expect(fl.dataset.kind).toBe("studio");
     expect(fl.querySelector(".wallet-card")).toBeTruthy();
   });
 
-  it("offers no Delete on studio designs", async () => {
+  it("offers no Delete on studio designs and keeps Issue as the only primary", async () => {
     mountTemplates(root, {});
     await settle();
     expect(root.querySelector('.tpl-card[data-tpl="fully-loaded"] [data-act="tpl-del"]')).toBeNull();
     expect(root.querySelector('.tpl-card[data-tpl="odyssey"] [data-act="tpl-del"]')).toBeTruthy();
+    const primaries = [...root.querySelectorAll(".btn-primary:not([disabled])")];
+    expect(primaries.every(b => b.dataset.act === "issue")).toBe(true);
+    expect(root.querySelector('.tpl-card[data-tpl="fully-loaded"] .btn-primary').disabled).toBe(true);
   });
 
   it("surfaces the server's reason when a template delete is refused", async () => {
@@ -114,8 +123,10 @@ describe("Bindings screen", () => {
     mountTemplates(root, { bindingsFor: "odyssey" });
     await settle();
     const gateRow = root.querySelector('[data-sem-row="departureGate"]');
-    expect(gateRow.textContent).toMatch(/guess/i);
+    expect(gateRow.textContent).toMatch(/matched/i);
     expect(gateRow.querySelector(".bind-sample").textContent).toBe("C4");
+    expect(root.querySelector('[data-sem-row="currentBoardingDate"]').textContent).toMatch(/check/i);
+    expect(gateRow.querySelector("select").getAttribute("aria-labelledby")).toBe("sem-departureGate");
     expect(root.querySelector('[data-sem-row="passengerName"]').textContent).toMatch(/confirmed/i);
     // Add a binding, then confirm.
     root.querySelector("select[data-add-sem]").value = "destinationAirportCode";
@@ -124,7 +135,7 @@ describe("Bindings screen", () => {
     root.querySelector('[data-act="bind-save"]').click();
     await settle();
     const put = calls.find(c => c.method === "PUT");
-    expect(JSON.parse(put.body)).toEqual({ departureGate: "gate", passengerName: "passenger", destinationAirportCode: "dest" });
-    expect(root.querySelector("#tpl-flash").textContent).toMatch(/Saved 3 binding/);
+    expect(JSON.parse(put.body)).toEqual({ departureGate: "gate", currentBoardingDate: "boardingTime", passengerName: "passenger", destinationAirportCode: "dest" });
+    expect(root.querySelector("#tpl-flash").textContent).toMatch(/Saved 4 binding/);
   });
 });

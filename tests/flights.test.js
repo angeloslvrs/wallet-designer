@@ -31,7 +31,7 @@ beforeEach(() => {
   root = document.createElement("div");
   document.body.appendChild(root);
 });
-afterEach(() => { root.remove(); delete globalThis.fetch; root._mountAbort?.abort(); });
+afterEach(() => { root.remove(); delete globalThis.fetch; root._mountAbort?.abort(); document.getElementById("toast")?.remove(); });
 
 describe("flightsFrom — board rows from the flat pass list", () => {
   it("groups by groupId, reads route/gate/times from the first pass that has them, and sorts by departure", () => {
@@ -94,6 +94,32 @@ describe("Flights board + panel", () => {
     panel.querySelector('button[data-act="grp-update"]').click();
     await flush();
     expect(pushed).toEqual([{ departureGate: "56", currentBoardingDate: "2026-06-14T15:10:00+09:00" }]);
+  });
+
+  it("shows the flight's live gate and times in the trip editor instead of made-up examples", async () => {
+    mountFlights(root, {});
+    await flush();
+    const ed = root.querySelector('.fl-editor[data-scope="grp"]');
+    expect(ed.querySelector('input[data-f="departureGate"]').placeholder).toBe("12");
+    expect(ed.querySelector('.fl-field--departureGate .fl-f-current').textContent).toContain("now 12");
+    expect(ed.querySelector('.fl-sched > summary').textContent).toMatch(/departure/i);
+    // The picker's inputs carry accessible names.
+    expect(ed.querySelector('[data-typed-status="currentBoardingDate"] input[type="date"]').getAttribute("aria-label")).toBe("Boarding date");
+  });
+
+  it("walks the push button through Pushing… → ✓ and announces the result", async () => {
+    mountFlights(root, {});
+    await flush();
+    const panel = root.querySelector('.fl-panel');
+    const gate = panel.querySelector('input[data-f="departureGate"]');
+    gate.value = "56"; ev(gate, "input");
+    const btn = panel.querySelector('button[data-act="grp-update"]');
+    btn.click();
+    expect(btn.textContent).toBe("Pushing…");
+    await flush();
+    expect(btn.textContent).toMatch(/✓/);
+    expect(panel.querySelector('[data-grp-status]').getAttribute("aria-live")).toBe("polite");
+    expect(document.getElementById("toast")?.textContent).toMatch(/✓/);
   });
 
   it("pushes nothing and reports when every field is untouched", async () => {

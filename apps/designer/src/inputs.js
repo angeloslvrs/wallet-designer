@@ -94,7 +94,7 @@ export function fieldHint(key, type) {
  *          attrs?:{maxLength?:number, pattern?:string, inputmode?:string}}} opts
  *   `attrs` (from field-kinds kindAttrs) constrain the text/number/timezone input.
  */
-export function renderTypedInput({ type, value, onChange, enumOptions = [], attrs = {} }) {
+export function renderTypedInput({ type, value, onChange, enumOptions = [], attrs = {}, label = "" }) {
   const wrap = el("div", { className: "typed-input" });
   const fire = (v) => onChange?.(v);
 
@@ -113,9 +113,13 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       wrap.style.cssText = "display:flex;gap:6px;align-items:center;flex-wrap:wrap";
       const { local, offset } = splitIso(value);
       const [localDate = "", localTime = ""] = local ? local.split("T") : [];
+      const lbl = (part) => (label ? `${label} ${part}` : part);
       const dateInp = el("input", { type: "date", value: localDate });
+      dateInp.setAttribute("aria-label", lbl("date"));
       const timeInp = el("input", { type: "time", step: "60", value: localTime });
+      timeInp.setAttribute("aria-label", lbl("time"));
       const off = el("input", { type: "text", value: offset, placeholder: localUtcOffset(), title: "UTC offset" });
+      off.setAttribute("aria-label", lbl("UTC offset"));
       off.pattern = "Z|[+-][0-9]{2}:[0-9]{2}";
       off.maxLength = 6;
       dateInp.style.cssText = "flex:1 1 118px;min-width:0";

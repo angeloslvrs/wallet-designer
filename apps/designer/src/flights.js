@@ -3,6 +3,7 @@ import { buildStatusBody, describePushResult, validateStatusValues } from "./ops
 import { semanticKind } from "@wpd/pass-builder/field-kinds.js";
 import { renderTypedInput } from "./inputs.js";
 import { appleWalletButton } from "./wallet-badge.js";
+import { toast } from "./toast.js";
 
 // Flights view — the landing screen: a departures board (one row per trip /
 // groupId) with a docked control panel for the selected flight. The panel
@@ -11,42 +12,44 @@ import { appleWalletButton } from "./wallet-badge.js";
 // per-pass editor (POST /api/passes/:serial/status), Add-to-Wallet and Delete.
 
 // Status-editor fields. Keys are Apple's semantic keys (the status API
-// vocabulary). transitStatus renders as a row of keys backed by a hidden
-// input; the rest are typed pickers (dates) or plain inputs.
-const STATUS_FIELDS = [
-  ["transitStatus", "Status", "", ["", "On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]],
+// vocabulary). The common one-field pushes (status, reason, gate) stay
+// visible; the schedule and the rarely-touched fields sit behind disclosures.
+const STATUS_VOCAB = ["On Time", "Boarding", "Delayed", "Cancelled", "Diverted"];
+const QUICK_FIELDS = [
+  ["transitStatus", "Status", "", STATUS_VOCAB],
   ["transitStatusReason", "Reason shown on device", "e.g. crew availability"],
-  ["departureGate", "Gate", "B9"],
+  ["departureGate", "Gate", "e.g. B9"]
+];
+const SCHEDULE_FIELDS = [
   ["currentBoardingDate", "Boarding", ""],
   ["currentDepartureDate", "Departure", ""],
   ["currentArrivalDate", "Arrival", ""]
 ];
-// Rarely-touched fields live behind a "More" disclosure.
 const MORE_FIELDS = [
   ["transitProvider", "Transit info", ""],
   ["securityScreening", "Security", ""],
   ["delayed", "Delay note", ""]
 ];
-const ALL_FIELDS = [...STATUS_FIELDS, ...MORE_FIELDS];
+const EDITOR_KEYS = [...QUICK_FIELDS, ...SCHEDULE_FIELDS, ...MORE_FIELDS].map(f => f[0]);
 // Clearing resets the delay/status banner only; schedule fields are left alone.
 const CLEAR_BODY = { delayed: "", transitStatus: "", transitStatusReason: "" };
 
 export const STATUS_SLUG = { "On Time": "ontime", "Boarding": "boarding", "Delayed": "delayed", "Cancelled": "cancelled", "Diverted": "diverted" };
-// Trip status = the most severe status across its passes.
+// Trip status = the most severe status across its passes. A pass that has
+// never had a status pushed carries `statusSet: false` from the API and shows
+// as "Not pushed" rather than a fabricated "On Time".
 const STATUS_SEVERITY = ["Cancelled", "Diverted", "Delayed", "Boarding", "On Time"];
-const pillHtml = (status, attr = "") => {
-  const s = status || "On Time";
-  return `<span class="st-pill st-pill--${STATUS_SLUG[s] || "other"}" ${attr}>${esc(s)}</span>`;
-};
+const hasStatus = (p) => p.statusSet !== false && Boolean(p.status);
+const pillClass = (status) => status ? `st-pill st-pill--${STATUS_SLUG[status] || "other"}` : "st-pill st-pill--draft";
+const pillHtml = (status, attr = "") => `<span class="${pillClass(status)}" ${attr}>${esc(status || "Not pushed")}</span>`;
 export const tripStatusOf = (members) => {
-  const set = new Set(members.map(p => p.status || "On Time"));
-  return STATUS_SEVERITY.find(s => set.has(s)) ?? [...set][0] ?? "On Time";
+  const set = new Set(members.filter(hasStatus).map(p => p.status));
+  return STATUS_SEVERITY.find(s => set.has(s)) ?? [...set][0] ?? "";
 };
 function setPillEl(el, status) {
   if (!el) return;
-  const s = status || "On Time";
-  el.className = `st-pill st-pill--${STATUS_SLUG[s] || "other"} flap`;
-  el.textContent = s;
+  el.className = `${pillClass(status)} flap`;
+  el.textContent = status || "Not pushed";
 }
 
 const fmtWhen = (s) => {
@@ -73,11 +76,15 @@ const ago = (s) => {
   if (h < 48) return `${h} h ago`;
   return `${Math.round(h / 24)} d ago`;
 };
+const localZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } };
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /**
  * Fold the flat GET /api/passes list into board rows, one per groupId.
  * Pure — exported for tests. Flights with a known departure sort first by it;
- * undated ones follow in list order.
+ * undated ones follow in list order. `current` is the trip-level live value
+ * per editor key (first pass that has one), so the trip editor can show what
+ * is live instead of a made-up example.
  */
 export function flightsFrom(list) {
   const groups = new Map();
@@ -88,14 +95,15 @@ export function flightsFrom(list) {
   }
   const rows = [...groups.entries()].map(([gid, members]) => {
     const first = (pick) => { for (const m of members) { const v = pick(m); if (v) return v; } return undefined; };
-    const departs = first(m => m.current?.currentDepartureDate);
+    const current = {};
+    for (const k of EDITOR_KEYS) current[k] = first(m => m.current?.[k]);
     return {
-      gid, members,
+      gid, members, current,
       flight: first(m => m.route?.flight) ?? gid,
       from: first(m => m.route?.from), to: first(m => m.route?.to),
       toCity: first(m => m.route?.toCity),
-      gate: first(m => m.current?.departureGate),
-      departs, boards: first(m => m.current?.currentBoardingDate),
+      gate: current.departureGate,
+      departs: current.currentDepartureDate, boards: current.currentBoardingDate,
       status: tripStatusOf(members),
       template: first(m => m.template),
       devices: members.reduce((n, p) => n + (p.deviceCount || 0), 0),
@@ -123,12 +131,16 @@ export function mountFlights(root, { showIssue } = {}) {
   const $ = (s) => root.querySelector(s);
   const setStatus = (serial, msg) => { const el = $(`[data-status="${CSS.escape(serial)}"]`); if (el) el.textContent = msg; };
   const setGrpStatus = (gid, msg) => { const el = $(`[data-grp-status="${CSS.escape(gid)}"]`); if (el) el.textContent = msg; };
+  const narrow = () => typeof matchMedia === "function" && matchMedia("(max-width: 1080px)").matches;
 
   const shell = (body, meta = "") => `
     <div class="view fl-view">
       <div class="view-head">
         <div><h1>Departures</h1><p class="view-sub">${meta}</p></div>
-        <div class="fl-head-right"><span class="fl-clock" data-clock></span>${showIssue ? `<button type="button" class="btn btn-primary" data-act="new-flight">New flight</button>` : ""}</div>
+        <div class="fl-head-right">
+          <div class="fl-clock-wrap"><span class="fl-clock" data-clock></span><small>${esc(localZone() || "local time")}</small></div>
+          ${showIssue ? `<button type="button" class="btn btn-primary" data-act="new-flight">New flight</button>` : ""}
+        </div>
       </div>
       ${body}
     </div>`;
@@ -137,14 +149,15 @@ export function mountFlights(root, { showIssue } = {}) {
   function boardRow(f) {
     const dest = f.toCity || f.to || "—";
     const sub = [f.to && f.toCity ? f.to : null, f.from ? `from ${f.from}` : null, f.template ? esc(f.template) : null].filter(Boolean).join(" · ");
+    const sel = f.gid === selected;
     return `
-      <div class="fl-row ${f.gid === selected ? "is-selected" : ""}" data-flight="${esc(f.gid)}" role="button" tabindex="0">
+      <div class="fl-row ${sel ? "is-selected" : ""}" data-flight="${esc(f.gid)}" role="button" tabindex="0" aria-pressed="${sel}" aria-label="${esc(f.flight)} to ${esc(dest)}">
         <div class="fl-flight">${esc(f.flight)}</div>
         <div class="fl-gate ${f.gate ? "" : "is-empty"}">${esc(f.gate || "—")}</div>
         <div class="fl-dest">${esc(dest)}<small>${sub || esc(f.gid)}</small></div>
-        <div class="fl-time">${f.departs ? `${esc(fmtTime(f.departs))}<small>${esc(fmtDay(f.departs))}${f.boards ? ` · boards ${esc(fmtTime(f.boards))}` : ""}</small>` : `<span class="is-empty">—</span>`}</div>
+        <div class="fl-time">${f.departs ? `${esc(fmtTime(f.departs))}<small>${esc(fmtDay(f.departs))}</small>${f.boards ? `<small>boards ${esc(fmtTime(f.boards))}</small>` : ""}` : `<span class="is-empty">—</span>`}</div>
         <div>${pillHtml(f.status, `data-chip-trip="${esc(f.gid)}"`)}</div>
-        <div class="fl-count">${f.members.length} <span>· ${f.devices} on device</span><div class="fl-bar"><i style="width:${f.members.length ? Math.round(100 * f.devices / f.members.length) : 0}%"></i></div></div>
+        <div class="fl-count">${f.members.length} <span>· ${f.devices} on device</span><div class="fl-bar" aria-hidden="true"><i style="width:${f.members.length ? Math.round(100 * f.devices / f.members.length) : 0}%"></i></div></div>
       </div>`;
   }
   const boardHtml = () => `
@@ -154,31 +167,36 @@ export function mountFlights(root, { showIssue } = {}) {
     </div>`;
 
   // ---- editors --------------------------------------------------------------
-  // One status editor (trip-wide or per-pass). `current` (per-pass only) shows
-  // what's already live as placeholder/hint — never a submittable value, so an
+  // One status editor (trip-wide or per-pass). `current` shows what's already
+  // live as the placeholder / "now …" hint — never a submittable value, so an
   // untouched field means "don't change this" (buildStatusBody drops empties).
   function fieldHtml([key, label, ph, options], kind, id, current) {
     const cur = current?.[key];
+    const idBase = `${kind}-${id}-${key}`.replace(/[^a-zA-Z0-9_-]/g, "_");
     let control;
     if (options) {
-      // Status keys: a segmented row writing into a hidden input (same data-f
-      // contract as every other field). "(no change)" is the empty key.
-      control = `<div class="fl-keys" data-keys="${esc(key)}">${options.map(o =>
-        `<button type="button" class="fl-key" data-status-key="${esc(o)}" title="${esc(o || "no change")}">${esc(o || "—")}</button>`).join("")}</div><input type="hidden" data-f="${esc(key)}" value="" />`;
+      // Status keys: a toggle group writing into a hidden input (same data-f
+      // contract as every field). Nothing pressed = no change.
+      control = `<div class="fl-keys" role="group" aria-label="${esc(label)}" data-keys="${esc(key)}">${options.map(o =>
+        `<button type="button" class="fl-key" data-status-key="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")}</div><input type="hidden" data-f="${esc(key)}" value="" />`;
     } else if (semanticKind(key) === "date") {
-      control = `<div class="fl-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" title="${esc(label)}"></div>`;
+      control = `<div class="fl-typed" data-typed-status="${esc(key)}" data-scope="${esc(kind)}" data-scope-id="${esc(id)}" data-label="${esc(label)}"></div>`;
     } else {
-      control = `<input data-f="${esc(key)}" placeholder="${esc(cur || ph)}" title="${esc(label)}" />`;
+      control = `<input id="${idBase}" data-f="${esc(key)}" placeholder="${esc(cur || ph)}" />`;
     }
-    const showHint = cur && (semanticKind(key) === "date" || Boolean(options));
-    const hint = showHint ? ` <span class="fl-f-current">now ${esc(semanticKind(key) === "date" ? fmtWhen(cur) : cur)}</span>` : "";
-    return `<label class="fl-field fl-field--${esc(key)}"><span class="fl-f-label">${esc(label)}${hint}</span>${control}<span class="field-err" data-ferr="${esc(key)}"></span></label>`;
+    const hint = cur ? ` <span class="fl-f-current">now ${esc(semanticKind(key) === "date" ? fmtWhen(cur) : cur)}</span>` : "";
+    const labelTag = options || semanticKind(key) === "date" ? "div" : "label";
+    const forAttr = labelTag === "label" ? ` for="${idBase}"` : "";
+    return `<div class="fl-field fl-field--${esc(key)}"><${labelTag} class="fl-f-label"${forAttr}>${esc(label)}${hint}</${labelTag}>${control}<span class="field-err" data-ferr="${esc(key)}" role="alert"></span></div>`;
   }
-  function editorHtml(kind, id, actsHtml, current) {
-    const main = STATUS_FIELDS.map(f => fieldHtml(f, kind, id, current)).join("");
+  function editorHtml(kind, id, actsHtml, current, extraHtml = "") {
+    const quick = QUICK_FIELDS.map(f => fieldHtml(f, kind, id, current)).join("");
+    const sched = SCHEDULE_FIELDS.map(f => fieldHtml(f, kind, id, current)).join("");
     const more = MORE_FIELDS.map(f => fieldHtml(f, kind, id, current)).join("");
-    return `<div class="fl-editor" data-scope="${esc(kind)}" data-scope-id="${esc(id)}">${main}
-      <details class="fl-more"><summary>More — transit info, security, delay note</summary><div class="fl-more-body">${more}</div></details>
+    const schedNow = SCHEDULE_FIELDS.map(([k, label]) => current?.[k] ? `${label.toLowerCase()} ${fmtTime(current[k])}` : null).filter(Boolean).join(" · ");
+    return `<div class="fl-editor" data-scope="${esc(kind)}" data-scope-id="${esc(id)}">${quick}
+      <details class="fl-sched"><summary>Change schedule…${schedNow ? ` <span class="fl-f-current">${esc(schedNow)}</span>` : ""}</summary><div class="fl-sched-body">${sched}</div></details>
+      <details class="fl-more"><summary>More — transit info, security, delay note</summary><div class="fl-more-body">${more}${extraHtml}</div></details>
       <div class="fl-editor-acts">${actsHtml}</div></div>`;
   }
 
@@ -190,6 +208,7 @@ export function mountFlights(root, { showIssue } = {}) {
       ph.replaceChildren(renderTypedInput({
         type: "date",
         value: editorValues[sk][key],
+        label: ph.dataset.label,
         onChange: (v) => {
           (editorValues[sk] ??= {})[key] = v;
           const span = ph.parentElement?.querySelector("[data-ferr]");
@@ -203,13 +222,13 @@ export function mountFlights(root, { showIssue } = {}) {
   // ---- panel ----------------------------------------------------------------
   function passRow(p) {
     const editor = editorHtml("pass", p.serial,
-      `<button type="button" data-act="pass-update" data-serial="${esc(p.serial)}" class="btn btn-primary btn-sm">Push to this pass</button>` +
+      `<button type="button" data-act="pass-update" data-serial="${esc(p.serial)}" class="btn btn-primary btn-sm">${p.deviceCount ? `Push to this pass` : "Save for this pass"}</button>` +
       `<button type="button" data-act="pass-clear" data-serial="${esc(p.serial)}" class="btn btn-sm">Clear status</button>`,
       p.current);
     return `
       <div class="fl-pass" data-row="${esc(p.serial)}">
         <div class="fl-pass-main">
-          ${pillHtml(p.status, `data-chip-pass="${esc(p.serial)}"`)}
+          ${pillHtml(hasStatus(p) ? p.status : "", `data-chip-pass="${esc(p.serial)}"`)}
           <b class="fl-pass-name">${esc(p.passenger || "—")}</b>
           <span class="fl-pass-seat">${esc(p.seat || "—")}</span>
           <code class="fl-pass-serial" title="${esc(p.serial)}">${esc(p.serial)}</code>
@@ -217,29 +236,31 @@ export function mountFlights(root, { showIssue } = {}) {
         </div>
         <div class="fl-pass-acts">
           ${appleWalletButton(`/api/passes/${encodeURIComponent(p.serial)}/pkpass`)}
-          <button type="button" data-act="del" data-serial="${esc(p.serial)}" class="btn-link danger">Delete</button>
+          <button type="button" data-act="del" data-serial="${esc(p.serial)}" class="btn-link danger">Delete pass</button>
         </div>
         <details class="fl-pass-edit">
           <summary>Update just this pass</summary>
           ${editor}
         </details>
-        <div class="fl-status" data-status="${esc(p.serial)}"></div>
+        <div class="fl-status" data-status="${esc(p.serial)}" role="status" aria-live="polite"></div>
       </div>`;
   }
 
   function panelHtml(f) {
     if (!f) return `<aside class="card fl-panel fl-panel--empty"><p class="empty">Select a flight to update it.</p></aside>`;
+    const pushLabel = f.devices ? `Push to ${plural(f.devices, "device")}` : "Save update · no devices yet";
     const editor = editorHtml("grp", f.gid,
-      `<button type="button" data-act="grp-update" data-grp="${esc(f.gid)}" class="btn btn-primary">Push to ${f.devices} device${f.devices === 1 ? "" : "s"}</button>` +
+      `<button type="button" data-act="grp-update" data-grp="${esc(f.gid)}" class="btn btn-primary" title="${f.devices ? "Updates every pass on this flight and notifies the phones that added one" : "No phone has added a pass from this flight yet; the update is stored and ships when one does"}">${pushLabel}</button>` +
       `<button type="button" data-act="grp-clear" data-grp="${esc(f.gid)}" class="btn">Clear status</button>` +
-      `<span class="fl-grp-status" data-grp-status="${esc(f.gid)}"></span>`);
+      `<span class="fl-grp-status" data-grp-status="${esc(f.gid)}" role="status" aria-live="polite"></span>`,
+      f.current,
+      `<div class="fl-danger"><button type="button" data-act="grp-del" data-grp="${esc(f.gid)}" class="btn-link danger">Delete flight and its ${plural(f.members.length, "pass", "passes")}</button></div>`);
     const route = f.from || f.to ? `${esc(f.from || "?")} → ${esc(f.to || "?")}` : esc(f.gid);
     return `
-      <aside class="card fl-panel" data-panel="${esc(f.gid)}">
+      <aside class="card fl-panel" data-panel="${esc(f.gid)}" aria-label="Update ${esc(f.flight)}">
         <div class="fl-panel-head">
-          <div><h2>${esc(f.flight)} <span class="fl-route">${route}</span></h2>
-            <p class="fl-panel-sub">${f.departs ? `${esc(fmtDay(f.departs))} · dep ${esc(fmtTime(f.departs))}` : "no departure time"} · ${f.members.length} pass${f.members.length === 1 ? "" : "es"} · ${f.devices} on device${f.lastModified ? ` · updated ${esc(ago(f.lastModified))}` : ""}</p></div>
-          <button type="button" data-act="grp-del" data-grp="${esc(f.gid)}" class="btn-link danger">Delete flight</button>
+          <h2>${esc(f.flight)} <span class="fl-route">${route}</span></h2>
+          <p class="fl-panel-sub">${f.departs ? `${esc(fmtDay(f.departs))} · dep ${esc(fmtTime(f.departs))}` : "no departure time"} · ${plural(f.members.length, "pass", "passes")} · ${f.devices} on device${f.lastModified ? ` · updated ${esc(ago(f.lastModified))}` : ""}</p>
         </div>
         ${editor}
         <div class="fl-passes">
@@ -256,10 +277,16 @@ export function mountFlights(root, { showIssue } = {}) {
     mountDateFields(host);
   }
 
-  function select(gid) {
+  function select(gid, { scroll = false } = {}) {
     selected = gid;
-    for (const row of root.querySelectorAll(".fl-row")) row.classList.toggle("is-selected", row.dataset.flight === gid);
+    for (const row of root.querySelectorAll(".fl-row")) {
+      const on = row.dataset.flight === gid;
+      row.classList.toggle("is-selected", on);
+      row.setAttribute("aria-pressed", String(on));
+    }
     renderPanel();
+    // On a stacked (narrow) layout the panel sits below the board: bring it up.
+    if (scroll && narrow()) $(".fl-panel-host")?.scrollIntoView?.({ block: "start", behavior: "smooth" });
   }
 
   // ---- load -----------------------------------------------------------------
@@ -289,28 +316,49 @@ export function mountFlights(root, { showIssue } = {}) {
     const passes = list.length, devices = flights.reduce((n, f) => n + f.devices, 0);
     root.innerHTML = shell(
       `<div class="fl-split"><div class="stagger">${boardHtml()}</div><div class="fl-panel-host"></div></div>`,
-      `${flights.length} flight${flights.length === 1 ? "" : "s"} · ${passes} pass${passes === 1 ? "" : "es"} · ${devices} on device${devices === 1 ? "" : "s"}`
+      `${plural(flights.length, "flight")} · ${plural(passes, "pass", "passes")} · ${devices} on device${devices === 1 ? "" : "s"}`
     );
     renderPanel();
   }
 
   // ---- pushes ---------------------------------------------------------------
-  async function pushOne(serial, body) {
-    setStatus(serial, "Pushing…");
-    const j = await fetch(`/api/passes/${encodeURIComponent(serial)}/status`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
-    }).then(r => r.json()).catch(() => ({}));
-    if (signal.aborted) return {};
-    setStatus(serial, describePushResult(j));
+  // The push button narrates its own state (Pushing… → ✓ Pushed) so the
+  // highest-stakes click in the product doesn't end in silence.
+  async function withButtonState(btn, work) {
+    const orig = btn?.innerHTML;
+    if (btn) { btn.disabled = true; btn.classList.add("is-busy"); btn.innerHTML = "Pushing…"; }
+    let j;
+    try { j = await work(); }
+    finally {
+      if (btn && !signal.aborted) {
+        if (j?.ok) {
+          btn.classList.remove("is-busy"); btn.classList.add("is-done");
+          const sent = j.results ? j.results.reduce((n, r) => n + (r.push?.sent ?? 0), 0) : (j.push?.sent ?? 0);
+          btn.innerHTML = sent ? `✓ Pushed to ${plural(sent, "device")}` : "✓ Saved";
+          setTimeout(() => { if (!signal.aborted && btn.isConnected) { btn.innerHTML = orig; btn.classList.remove("is-done"); btn.disabled = false; } }, 2200);
+        } else { btn.innerHTML = orig; btn.classList.remove("is-busy"); btn.disabled = false; }
+      }
+    }
     return j;
   }
-  async function pushGroup(gid, body) {
-    setGrpStatus(gid, "Pushing…");
-    const j = await fetch(`/api/groups/${encodeURIComponent(gid)}/status`, {
+  async function pushOne(serial, body, btn) {
+    setStatus(serial, "Pushing…");
+    const j = await withButtonState(btn, () => fetch(`/api/passes/${encodeURIComponent(serial)}/status`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
-    }).then(r => r.json()).catch(() => ({}));
+    }).then(r => r.json()).catch(() => ({})));
+    if (signal.aborted) return {};
+    setStatus(serial, describePushResult(j));
+    if (j?.ok) toast(describePushResult(j));
+    return j;
+  }
+  async function pushGroup(gid, body, btn) {
+    setGrpStatus(gid, "Pushing…");
+    const j = await withButtonState(btn, () => fetch(`/api/groups/${encodeURIComponent(gid)}/status`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal
+    }).then(r => r.json()).catch(() => ({})));
     if (signal.aborted) return {};
     setGrpStatus(gid, describePushResult(j));
+    if (j?.ok) toast(describePushResult(j));
     return j;
   }
 
@@ -326,13 +374,13 @@ export function mountFlights(root, { showIssue } = {}) {
   function setGroupStatus(gid, status) {
     const f = flights.find(x => x.gid === gid);
     if (!f) return;
-    for (const m of f.members) { m.status = status; setPillEl(passPill(m.serial), status); }
+    for (const m of f.members) { m.status = status; m.statusSet = true; setPillEl(passPill(m.serial), status); }
     recomputeTripPill(gid);
   }
   function setPassStatus(gid, serial, status) {
     const f = flights.find(x => x.gid === gid);
     const m = f?.members.find(x => x.serial === serial);
-    if (m) m.status = status;
+    if (m) { m.status = status; m.statusSet = true; }
     setPillEl(passPill(serial), status);
     recomputeTripPill(gid);
   }
@@ -350,14 +398,14 @@ export function mountFlights(root, { showIssue } = {}) {
       span.textContent = msg ?? ""; span.classList.toggle("show", Boolean(msg));
     }
   }
-  async function runUpdate(container, { kind, id, setMsg }) {
+  async function runUpdate(container, { kind, id, setMsg, btn }) {
     const values = collectEditorValues(container, scopeKey(kind, id));
     const errs = validateStatusValues(values);
     showEditorErrors(container, errs);
-    if (Object.keys(errs).length) { setMsg(`✗ fix ${Object.keys(errs).length} invalid field(s) before pushing`); return { ok: false }; }
+    if (Object.keys(errs).length) { setMsg(`✗ fix ${plural(Object.keys(errs).length, "invalid field")} before pushing`); return { ok: false }; }
     const body = buildStatusBody(values);
     if (!body) { setMsg("✗ nothing to update — change at least one field"); return { ok: false }; }
-    const j = kind === "grp" ? await pushGroup(id, body) : await pushOne(id, body);
+    const j = kind === "grp" ? await pushGroup(id, body, btn) : await pushOne(id, body, btn);
     return { ok: !!j?.ok, body };
   }
 
@@ -367,47 +415,69 @@ export function mountFlights(root, { showIssue } = {}) {
     if (key) {
       const grp = key.closest("[data-keys]");
       const hidden = grp?.parentElement?.querySelector('input[data-f="transitStatus"]');
-      for (const b of grp.querySelectorAll("[data-status-key]")) b.classList.toggle("is-on", b === key);
-      if (hidden) hidden.value = key.dataset.statusKey;
+      const wasOn = key.getAttribute("aria-pressed") === "true";
+      for (const b of grp.querySelectorAll("[data-status-key]")) {
+        const on = b === key && !wasOn;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", String(on));
+      }
+      if (hidden) hidden.value = wasOn ? "" : key.dataset.statusKey;   // pressing the active key un-sets it
       return;
     }
     const row = e.target.closest(".fl-row");
-    if (row) { select(row.dataset.flight); return; }
+    if (row) { select(row.dataset.flight, { scroll: true }); return; }
 
     const t = e.target.closest("[data-act]");
     if (!t) return;
     const act = t.dataset.act, serial = t.dataset.serial, grp = t.dataset.grp;
-    const gidOf = (s) => flights.find(f => f.members.some(m => m.serial === s))?.gid;
+    const flightOf = (s) => flights.find(f => f.members.some(m => m.serial === s));
+    const gidOf = (s) => flightOf(s)?.gid;
 
     if (act === "new-flight" || act === "add-pax") { showIssue?.(); return; }
     if (act === "del") {
-      if (!confirm(`Delete pass ${serial}?`)) return;
+      const f = flightOf(serial), m = f?.members.find(x => x.serial === serial);
+      if (!confirm(`Delete the pass for ${m?.passenger || serial} on ${f?.flight || "this flight"}?${m?.deviceCount ? `\n\nIt is on ${plural(m.deviceCount, "phone")}; those copies stop updating.` : ""}`)) return;
       setStatus(serial, "Deleting…");
       try {
         const r = await fetch(`/api/passes/${encodeURIComponent(serial)}`, { method: "DELETE", signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        toast(`Deleted ${m?.passenger || serial}`);
         load();
       } catch (err) { if (signal.aborted) return; setStatus(serial, `✗ delete failed — ${err.message}`); }
       return;
     }
     if (act === "grp-update") {
-      const { ok, body } = await runUpdate(t.closest(".fl-editor"), { kind: "grp", id: grp, setMsg: (m) => setGrpStatus(grp, m) });
+      const { ok, body } = await runUpdate(t.closest(".fl-editor"), { kind: "grp", id: grp, setMsg: (m) => setGrpStatus(grp, m), btn: t });
       if (ok && body?.transitStatus) setGroupStatus(grp, body.transitStatus);
       return;
     }
     if (act === "pass-update") {
-      const { ok, body } = await runUpdate(t.closest(".fl-editor"), { kind: "pass", id: serial, setMsg: (m) => setStatus(serial, m) });
+      const { ok, body } = await runUpdate(t.closest(".fl-editor"), { kind: "pass", id: serial, setMsg: (m) => setStatus(serial, m), btn: t });
       if (ok && body?.transitStatus) setPassStatus(gidOf(serial), serial, body.transitStatus);
       return;
     }
-    if (act === "grp-clear") { const j = await pushGroup(grp, { ...CLEAR_BODY }); if (j?.ok) setGroupStatus(grp, "On Time"); return; }
-    if (act === "pass-clear") { const j = await pushOne(serial, { ...CLEAR_BODY }); if (j?.ok) setPassStatus(gidOf(serial), serial, "On Time"); return; }
+    if (act === "grp-clear") {
+      const f = flights.find(x => x.gid === grp);
+      if (!confirm(`Clear the delay/status on ${f ? plural(f.members.length, "pass", "passes") : "this flight"} and push?`)) return;
+      const j = await pushGroup(grp, { ...CLEAR_BODY }, t);
+      if (j?.ok) setGroupStatus(grp, "On Time");
+      return;
+    }
+    if (act === "pass-clear") {
+      if (!confirm("Clear the delay/status on this pass and push?")) return;
+      const j = await pushOne(serial, { ...CLEAR_BODY }, t);
+      if (j?.ok) setPassStatus(gidOf(serial), serial, "On Time");
+      return;
+    }
     if (act === "grp-del") {
-      if (!confirm(`Delete ALL passes on ${grp}?`)) return;
+      const f = flights.find(x => x.gid === grp);
+      const name = f ? `${f.flight}${f.to ? ` → ${f.to}` : ""}` : grp;
+      if (!confirm(`Delete ${name}?\n\n${f ? `${plural(f.members.length, "pass", "passes")}, ${f.devices} on devices.` : ""} Installed copies stop updating and can't be restored.`)) return;
       setGrpStatus(grp, "Deleting…");
       try {
         const r = await fetch(`/api/groups/${encodeURIComponent(grp)}`, { method: "DELETE", signal });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        toast(`Deleted ${name}`);
         load();
       } catch (err) { if (signal.aborted) return; setGrpStatus(grp, `✗ delete failed — ${err.message}`); }
       return;
@@ -416,7 +486,7 @@ export function mountFlights(root, { showIssue } = {}) {
 
   root.addEventListener("keydown", (e) => {
     const row = e.target.closest?.(".fl-row");
-    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(row.dataset.flight); }
+    if (row && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); select(row.dataset.flight, { scroll: true }); }
   }, { signal });
 
   // Validate a plain editor field when focus leaves it.

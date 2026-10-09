@@ -3,6 +3,8 @@
 const KEY = "wpd:theme";
 
 export function currentTheme() {
+  const q = new URLSearchParams(location.search).get("theme");
+  if (q === "light" || q === "dark") return q;   // one-off preview, not persisted
   try {
     const saved = localStorage.getItem(KEY);
     if (saved === "light" || saved === "dark") return saved;
@@ -10,9 +12,9 @@ export function currentTheme() {
   return globalThis.matchMedia?.("(prefers-color-scheme: light)")?.matches ? "light" : "dark";
 }
 
-export function applyTheme(theme) {
+export function applyTheme(theme, { persist = true } = {}) {
   document.documentElement.dataset.theme = theme;
-  try { localStorage.setItem(KEY, theme); } catch { /* ignore */ }
+  if (persist) { try { localStorage.setItem(KEY, theme); } catch { /* ignore */ } }
   for (const b of document.querySelectorAll("[data-theme-toggle]")) {
     b.textContent = theme === "light" ? "☾" : "☀";
     b.title = theme === "light" ? "Switch to dark" : "Switch to light";
@@ -25,7 +27,7 @@ export function toggleTheme() {
 }
 
 export function initTheme() {
-  applyTheme(currentTheme());
+  applyTheme(currentTheme(), { persist: !new URLSearchParams(location.search).get("theme") });
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-theme-toggle]")) toggleTheme();
   });

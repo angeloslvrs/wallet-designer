@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { statusOf } from "../apps/server/src/routes/admin.js";
+import { statusOf, hasStatusOf } from "../apps/server/src/routes/admin.js";
 
 // statusOf derives the Manage status chip from a stored pass record's
 // transitStatus semantic, for both record shapes, defaulting to "On Time".
@@ -22,5 +22,15 @@ describe("statusOf — derived pass status for the Manage chip", () => {
     expect(statusOf({ data: { semantics: {} } })).toBe("On Time");
     expect(statusOf({ state: {} })).toBe("On Time");
     expect(statusOf({ data: { semantics: { transitStatus: "" } } })).toBe("On Time");
+  });
+});
+
+describe("hasStatusOf — whether a status was ever pushed", () => {
+  it("is true only when a transitStatus semantic is present (either shape, {value} form too)", () => {
+    expect(hasStatusOf({ data: { semantics: { transitStatus: "Delayed" } } })).toBe(true);
+    expect(hasStatusOf({ state: { semantics: { transitStatus: { value: "Boarding" } } } })).toBe(true);
+    expect(hasStatusOf({ data: {} })).toBe(false);
+    expect(hasStatusOf({ data: { semantics: { transitStatus: "" } } })).toBe(false);
+    expect(hasStatusOf({ state: {} })).toBe(false);
   });
 });

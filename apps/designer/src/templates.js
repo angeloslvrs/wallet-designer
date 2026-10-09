@@ -32,20 +32,44 @@ export function fieldSamples(passJson) {
   return out;
 }
 
-/** Bindings the server guessed (anything not user-confirmed / field-declared). */
-export const guessCount = (bindings) =>
-  Object.values(bindings ?? {}).filter(b => b && b.confidence !== "high").length;
+/** camelCase / kebab / snake → lowercase tokens, plural s stripped ("departureGate" → ["departure","gate"]). */
+const tokens = (k) => String(k ?? "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).map(t => t.replace(/s$/, ""));
+/**
+ * Is a discovered binding safe enough to skip a human look? Date-proximity and
+ * seat-composite matches are always a guess; a value/name match whose field key
+ * shares a word (or a 4+ letter prefix) with the semantic ("departureGate" →
+ * "gate", "passengerName" → "passenger", "flightCode" → "flight") is treated as
+ * matched. Confirmed (manual) and field-declared (high) bindings never need one.
+ */
+export function needsReview(sem, b) {
+  if (!b) return false;
+  if (b.source === "manual" || b.confidence === "high") return false;
+  if (b.source === "date-proximity" || b.source === "seat-composite") return true;
+  const st = tokens(sem), kt = tokens(b.fieldKey);
+  const hit = kt.some(k => st.some(t => t === k || (k.length >= 4 && (t.startsWith(k) || k.startsWith(t)))));
+  return !hit;
+}
 
-const confidenceLabel = (b) => {
+/** Bindings that still need a human look (see needsReview). */
+export const guessCount = (bindings) =>
+  Object.entries(bindings ?? {}).filter(([sem, b]) => needsReview(sem, b)).length;
+
+const confidenceLabel = (sem, b) => {
   if (!b) return { cls: "un", text: "new" };
   if (b.source === "manual") return { cls: "hi", text: "confirmed" };
   if (b.confidence === "high") return { cls: "hi", text: "declared" };
+  if (!needsReview(sem, b)) return { cls: "hi", text: "matched" };
   const how = { "value-match": "value match", "date-proximity": "±120 s", "seat-composite": "composite", "name-match": "name match" }[b.source] ?? b.source;
-  return { cls: "lo", text: `guess · ${how}` };
+  return { cls: "lo", text: `check · ${how}` };
 };
 
+const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 const fmtSample = (v) => {
   if (v === undefined || v === null || v === "") return "—";
+  if (typeof v === "string" && ISO_RE.test(v)) {
+    const d = new Date(v);
+    if (!isNaN(d)) return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
   const s = typeof v === "object" ? JSON.stringify(v) : String(v);
   return s.length > 40 ? `${s.slice(0, 39)}…` : s;
 };
@@ -107,7 +131,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
         <div class="tpl-name">${esc(t.organizationName || t.id)}</div>
         <div class="tpl-sub">${esc(t.id)} · ${(t.fieldKeys ?? []).length} fields${n ? ` · ${n} issued` : ""}</div>
       </div>
-      <div class="tpl-chips"><span class="kind-chip">Pass Designer</span>${guesses ? `<button type="button" class="kind-chip kind-chip--warn" data-act="bindings" data-id="${esc(t.id)}">${guesses} binding${guesses === 1 ? "" : "s"} to confirm</button>` : ""}</div>
+      <div class="tpl-chips"><span class="kind-chip">Pass Designer</span>${guesses ? `<span class="kind-chip kind-chip--warn">${guesses} binding${guesses === 1 ? "" : "s"} to check</span>` : ""}</div>
       <div class="tpl-acts">
         <button type="button" class="btn-link" data-act="bindings" data-id="${esc(t.id)}">Bindings</button>
         <button type="button" class="btn-link danger" data-act="tpl-del" data-id="${esc(t.id)}">Delete</button>
@@ -134,8 +158,8 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       </div>
       <div class="tpl-chips"><span class="kind-chip kind-chip--studio">Studio design</span></div>
       <div class="tpl-acts">
-        <span class="tpl-note" title="The rebuilt Issue flow will issue straight from studio designs">Issue from the design editor for now</span>
-        <button type="button" class="btn btn-primary btn-sm" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
+        <button type="button" class="btn-link" data-act="edit-design" data-id="${esc(t.id)}">Edit design</button>
+        <button type="button" class="btn btn-primary btn-sm" disabled title="Issuing straight from a studio design arrives with the new Issue flow; until then, open the design and use Build">Issue →</button>
       </div>
     </article>`;
   }
@@ -150,7 +174,7 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
           <div class="tpl-head-acts">
             <input type="file" accept=".zip" id="tpl-file" hidden />
             <button type="button" class="btn" data-act="upload">Upload .pkpasstemplate</button>
-            <button type="button" class="btn btn-primary" data-act="new-design">New design</button>
+            <button type="button" class="btn" data-act="new-design">New design</button>
           </div>
         </div>
         <p class="tpl-flash" id="tpl-flash">${esc(flash)}</p>
@@ -183,23 +207,23 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       `<option value="${esc(k)}" ${k === sel ? "selected" : ""}>${esc(k || "— unbound")}</option>`).join("");
     const rows = Object.keys(draft).sort().map(sem => {
       const b = t.bindings?.[sem];
-      const conf = b && b.fieldKey === draft[sem] ? confidenceLabel(b) : { cls: "hi", text: "edited" };
-      return `<tr data-sem-row="${esc(sem)}">
-        <td><code>${esc(sem)}</code></td>
-        <td><select class="bind-sel ${conf.cls === "lo" ? "is-guess" : ""}" data-bind-sem="${esc(sem)}">${fieldOpts(draft[sem])}</select></td>
+      const conf = b && b.fieldKey === draft[sem] ? confidenceLabel(sem, b) : { cls: "hi", text: "edited" };
+      return `<tr data-sem-row="${esc(sem)}" data-field="${esc(draft[sem])}">
+        <td><code id="sem-${esc(sem)}">${esc(sem)}</code></td>
+        <td><select class="bind-sel ${conf.cls === "lo" ? "is-guess" : ""}" data-bind-sem="${esc(sem)}" aria-labelledby="sem-${esc(sem)}" aria-label="Template field for ${esc(sem)}">${fieldOpts(draft[sem])}</select></td>
         <td><span class="conf conf--${conf.cls}">${esc(conf.text)}</span></td>
         <td class="bind-sample">${esc(fmtSample(samples[draft[sem]]))}</td>
       </tr>`;
     }).join("");
     const unbound = SEMANTIC_KEYS.filter(k => !draft[k]);
-    const guesses = Object.keys(draft).filter(sem => { const b = t.bindings?.[sem]; return b && b.fieldKey === draft[sem] && b.confidence !== "high"; }).length;
+    const guesses = Object.keys(draft).filter(sem => { const b = t.bindings?.[sem]; return b && b.fieldKey === draft[sem] && needsReview(sem, b); }).length;
     const hasBaseIcon = (t.assets ?? []).includes("icon.png");
     root.innerHTML = `
       <div class="view tpl-view">
         <div class="view-head">
-          <div><button type="button" class="btn-link" data-act="back">‹ Templates</button>
+          <div><button type="button" class="btn btn-sm" data-act="back">‹ Templates</button>
             <h1>${esc(t.id)} · bindings</h1>
-            <p class="view-sub">${(t.fieldKeys ?? []).length} fields · ${Object.keys(draft).length} bound${guesses ? ` · <b class="warn-text">${guesses} guess${guesses === 1 ? "" : "es"} to confirm</b>` : ""}</p></div>
+            <p class="view-sub">${(t.fieldKeys ?? []).length} fields · ${Object.keys(draft).length} bound${guesses ? ` · <b class="warn-text">${guesses} to check</b>` : ` · <span class="ok-text">nothing to check</span>`}</p></div>
           <div class="tpl-head-acts">
             <button type="button" class="btn" data-act="back">Later</button>
             <button type="button" class="btn btn-primary" data-act="bind-save">Confirm bindings</button>
@@ -207,20 +231,20 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
         </div>
         <div class="bind-split">
           <div class="card bind-card">
-            <p class="bind-explain">Apple’s semantic tags are a fixed vocabulary; this template’s field keys are its own. Each binding says which visible field shows a semantic, so a status push updates both. Unbound tags still render on iOS 26 from semantics alone.</p>
+            <p class="bind-explain">Apple’s semantic tags are a fixed vocabulary; this template’s field keys are its own. Each binding says which visible field shows a semantic, so a status push updates both. Rows marked <b>check</b> were matched by timing or by splitting a value and deserve a look; the rest matched by name. Unbound tags still render on iOS 26 from semantics alone.</p>
             <table class="bind-table">
               <thead><tr><th>Apple semantic</th><th>Template field</th><th>Confidence</th><th>Sample</th></tr></thead>
               <tbody>${rows || `<tr><td colspan="4" class="empty">No bindings yet — add one below.</td></tr>`}</tbody>
             </table>
             <div class="bind-add">
-              <select data-add-sem><option value="">+ bind a semantic…</option>${unbound.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>
-              <select data-add-field>${fieldOpts("")}</select>
+              <select data-add-sem aria-label="Semantic to bind"><option value="">+ bind a semantic…</option>${unbound.map(k => `<option value="${esc(k)}">${esc(k)}</option>`).join("")}</select>
+              <select data-add-field aria-label="Template field">${fieldOpts("")}</select>
               <button type="button" class="btn btn-sm" data-act="bind-add">Add</button>
               <span class="tpl-status" id="bind-status"></span>
             </div>
           </div>
           <aside class="bind-side">
-            <div class="eyebrow">Preview · sample values</div>
+            <div class="eyebrow">Template as exported · hover a row to find its field</div>
             <div class="bind-thumb" data-thumb="bind"></div>
             <div class="eyebrow" style="margin-top:20px">Bundle</div>
             <div class="kv"><span>pass.json</span>${(t.fieldKeys ?? []).length} fields</div>
@@ -325,6 +349,16 @@ export function mountTemplates(root, { onIssue, onEditDesign, onNewDesign, bindi
       draft = { ...draft, [sem]: field };
       renderBindings();
     }
+  }, { signal });
+
+  // Hovering a bindings row lights the matching field on the thumbnail.
+  root.addEventListener("mouseover", (e) => {
+    const row = e.target.closest?.("[data-sem-row]");
+    const thumb = root.querySelector('[data-thumb="bind"]');
+    if (!thumb) return;
+    for (const f of thumb.querySelectorAll(".wallet-field--clickable.is-hi")) f.classList.remove("is-hi");
+    if (!row?.dataset.field) return;
+    for (const f of thumb.querySelectorAll(`[data-fieldkey="${CSS.escape(row.dataset.field)}"]`)) f.classList.add("is-hi");
   }, { signal });
 
   root.addEventListener("change", (e) => {

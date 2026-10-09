@@ -7,6 +7,8 @@ import { mountFlights } from "../apps/designer/src/flights.js";
 // severe pass status, each passenger shows its own, and both update
 // optimistically after a push. Status is chosen with a row of keys that write
 // into the hidden transitStatus input (same data-f contract as every field).
+// A pass whose status was never pushed (statusSet: false) shows "Not pushed",
+// never a fabricated "On Time".
 const flush = () => new Promise(r => setTimeout(r, 0));
 
 let root, pushed;
@@ -14,7 +16,8 @@ beforeEach(() => {
   pushed = [];
   const listResp = [
     { serial: "RP247@2026-06-20-001", groupId: "RP247@2026-06-20", passenger: "A. SOLIVERES", seat: "14A", status: "Delayed", lastModified: "Sat, 20 Jun 2026 00:00:00 GMT", deviceCount: 1, template: "cebpac" },
-    { serial: "RP247@2026-06-20-002", groupId: "RP247@2026-06-20", passenger: "M. CHEN", seat: "14B", status: "On Time", lastModified: "Sat, 20 Jun 2026 00:00:00 GMT", deviceCount: 0, template: "cebpac" }
+    { serial: "RP247@2026-06-20-002", groupId: "RP247@2026-06-20", passenger: "M. CHEN", seat: "14B", status: "On Time", lastModified: "Sat, 20 Jun 2026 00:00:00 GMT", deviceCount: 0, template: "cebpac" },
+    { serial: "XX1@2026-06-21-001", groupId: "XX1@2026-06-21", passenger: "N. NEW", seat: "1A", status: "On Time", statusSet: false, lastModified: "Sun, 21 Jun 2026 00:00:00 GMT", deviceCount: 0, template: "cebpac" }
   ];
   globalThis.fetch = async (url, opts) => {
     const u = String(url);
@@ -42,11 +45,23 @@ describe("Flights — status pills + single vocabulary", () => {
     expect(root.querySelector('[data-chip-pass="RP247@2026-06-20-002"]').textContent.trim()).toBe("On Time");
   });
 
+  it("shows Not pushed for a pass that never had a status, instead of On Time", async () => {
+    mountFlights(root, {});
+    await flush();
+    expect(root.querySelector('[data-chip-trip="XX1@2026-06-21"]').textContent.trim()).toBe("Not pushed");
+    expect(root.querySelector('[data-chip-trip="XX1@2026-06-21"]').className).toContain("st-pill--draft");
+  });
+
   it("offers the full vocabulary as status keys (single vocabulary)", async () => {
     mountFlights(root, {});
     await flush();
     const keys = [...root.querySelectorAll('.fl-editor[data-scope="grp"] [data-status-key]')].map(b => b.dataset.statusKey);
-    expect(keys).toEqual(["", "On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]);
+    expect(keys).toEqual(["On Time", "Boarding", "Delayed", "Cancelled", "Diverted"]);
+    // Pressing a key toggles it; pressing it again means "no change".
+    const panel = root.querySelector('.fl-panel');
+    const k = panel.querySelector('[data-status-key="Delayed"]');
+    k.click(); expect(k.getAttribute("aria-pressed")).toBe("true"); expect(panel.querySelector('input[data-f="transitStatus"]').value).toBe("Delayed");
+    k.click(); expect(k.getAttribute("aria-pressed")).toBe("false"); expect(panel.querySelector('input[data-f="transitStatus"]').value).toBe("");
   });
 
   it("updates the pills optimistically after a flight-wide status push", async () => {

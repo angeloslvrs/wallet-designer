@@ -60,7 +60,7 @@ describe("Flights — per-pass inline status editor", () => {
     const gate = editor.querySelector('input[data-f="departureGate"]');
     expect(gate.placeholder).toBe("B9");
     expect(gate.value).toBe("");
-    expect(editor.querySelector(".fl-f-current")?.textContent).toContain("Jun 14");
+    expect(editor.querySelector(".fl-field--currentBoardingDate .fl-f-current")?.textContent).toContain("Jun 14");
     row.querySelector('button[data-act="pass-update"]').click();
     await flush();
     expect(pushedTo).toHaveLength(0);

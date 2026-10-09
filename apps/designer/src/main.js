@@ -12,7 +12,9 @@ async function showProfile() {
   const badge = document.getElementById("profile-badge");
   try {
     const r = await fetch("/api/profile").then(r => r.json());
-    badge.textContent = r.profile === "prod" ? "prod cert" : "dev cert";
+    // Say what the operator cares about: do pushes go out? (dev logs instead)
+    badge.textContent = r.profile === "prod" ? "prod · APNs live" : "dev · pushes logged";
+    badge.title = r.profile === "prod" ? "Real Pass Type ID cert: passes install and pushes reach phones" : "Self-signed dev cert: passes build but won't install on iOS; pushes are logged, not sent";
     badge.classList.remove("is-err");
   } catch {
     badge.textContent = "API offline";
@@ -124,6 +126,8 @@ function wireViewTabs(initialView = "flights") {
   tabs.addEventListener("click", e => { const b = e.target.closest("[data-view]"); if (b) show(b.dataset.view); });
   addEventListener("resize", moveThumb);
   document.fonts?.ready.then(moveThumb);
+  // #view in the URL deep-links a view — on load and when the hash changes.
+  addEventListener("hashchange", () => { const v = location.hash.slice(1); if (panes[v] && v !== activeView) show(v); });
   const fromHash = location.hash.slice(1);
   show(panes[fromHash] ? fromHash : initialView);
 }
