@@ -76,7 +76,8 @@ reachable from private IPs/LAN only, or with admin Basic Auth
 | `POST /api/templates/:id` | Upload a zipped `.pkpasstemplate` (raw body) → `templates/<id>.pkpasstemplate/`; (re-)discovers its `semanticKey → fieldKey` bindings |
 | `GET /api/templates` | Installed templates (`kind: "designer"`) + the field keys and discovered bindings each declares, a thumbnail-safe `preview` pass.json and `logo` data URL |
 | `GET /api/studio-templates` | Saved Studio designs from `designs/` as `kind: "studio"` shelf entries: a built `preview` pass.json plus the same merge surface as bundles (`fieldKeys`, `fields`, `bindings` discovered from the design's sample values, `semantics`) |
-| `GET /api/designs` · `GET/PUT/DELETE /api/designs/:name` | Saved Studio designs (FormState JSON in `designs/`, gitignored user data). PUT is 201 on create, 200 on overwrite; names are file-stem slugs |
+| `GET /api/designs` · `GET/PUT/DELETE /api/designs/:name` | Saved Studio designs (FormState JSON in `designs/`, gitignored user data). PUT is 201 on create, 200 on overwrite; names are file-stem slugs. DELETE also drops the design's confirmed bindings |
+| `PUT/DELETE /api/designs/:name/bindings` | Confirm a design's `{semanticKey: fieldKey}` map (stored as `studio:<name>`, survives the design's sample values being cleared) / reset it to live discovery |
 | `GET /api/fixtures` · `GET /api/fixtures/:name` | **Read-only** CI regression fixtures (`fixtures/`), for `?fixture=<name>` deep links into the Design view |
 | `PUT /api/templates/:id/bindings` | Replace a template's `semanticKey → fieldKey` map with user-confirmed bindings (edited on the Templates → Bindings screen) |
 | `DELETE /api/templates/:id` | Remove a bundle — **409 while any stored pass references it** (installed passes rebuild from their template on every fetch) |

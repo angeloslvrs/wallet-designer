@@ -1,6 +1,6 @@
 # Template hierarchy — Airline › Route › Flight
 
-**Status:** direction agreed 2026-10-09 (design discussion in session); not yet planned or implemented.
+**Status:** direction agreed 2026-10-09. Phase 1 done (plan `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`); phases 2–5 not started.
 
 ## Why
 

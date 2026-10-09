@@ -512,3 +512,31 @@ value-discovered). Not planned or implemented yet.
 2026-08-27 per the `fixtures/` originals — the canonical PAL look), `TAC-MNL` (return route),
 `MNL-TAC` + `PAL` (older duplicates), `BR262-001` (EVA Air). File mtimes in `designs/` are all
 the copy time; use `fixtures/` mtimes for history.
+
+## 2026-10-09 session (cont.) — template hierarchy phase 1 shipped (branch `feat/template-hierarchy`)
+
+Plan `docs/superpowers/plans/2026-10-09-template-hierarchy-phase1-bindings-emit.md`, Tasks 1–10 done:
+- **Emit layer** (`packages/pass-builder/field-render.js`, browser-safe; `FIELD_ZONES`/`styleKey`
+  moved to dependency-free `field-zones.js`, re-exported by `template.js`): label tokens
+  `{semanticKey}` / `{semanticKey:upper}` and `timeFormat: "24h"` (ISO stored, `HH:mm` emitted
+  from the string's own offset) resolved last in `formStateToPassJson` (`resolveFields: false` =
+  raw binding surface) and in `toPassView`. Schema: `timeFormat` enum on field items.
+  Discovery/descriptors treat `timeFormat` fields as dates.
+- **Persisted Studio bindings**: `PUT/DELETE /api/designs/:name/bindings` → `studio:<name>` in
+  `template_bindings` (dropped with the design). `/api/studio-templates` uses the confirmed map
+  (filtered to fields the design still has) else live discovery (not persisted), ships the
+  unresolved surface + `bindingsSaved`. Status updates on a pass with `designName` overlay the
+  confirmed map on discovery; a binding to a missing field is now reported in `skipped`.
+- **UI**: Bindings on Studio cards (guess chip until confirmed; Reset to automatic); Design →
+  Fields: Phone format · 24-hour toggle on date rows + label-token hint.
+- Browser-verified on the dev server: token label + 16:05 on the shelf thumbnail; confirmed
+  bindings survive blanking the design's values; toggle flips preview 16:05 ↔ 4:05 PM.
+  503 tests green; `npm run check`, `build:designer` green.
+
+Not done / next: phase 2 (routes store). Pre-existing, unrelated: the Design date picker's UTC
+offset input logs "Pattern attribute value Z|[+-]… is not a valid regular expression" (the `-`
+in the class needs escaping under the `v` flag) — in `inputs.js`.
+
+**Deploy notes:** no DB migration (same `template_bindings` table). rsync `packages/pass-schema/`,
+`packages/pass-builder/` (new `field-render.js`, `field-zones.js`), `apps/server/`, rebuilt
+`apps/designer/dist/`; `pm2 restart boardingpass`.
