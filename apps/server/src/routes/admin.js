@@ -254,15 +254,19 @@ adminRouter.post("/passes", asyncHandler(async (req, res) => {
 
 // Display readouts for the passes list. FormState rows migrate on the fly so a
 // pre-Phase-3 row (old shape) and a new-shape row both resolve to semantics.
+// Template passes read the stored semantics first (polarity rule: the Issue
+// workspace sends passengerName/seats as semantics; field keys are the template's
+// own vocabulary), falling back to the legacy `passenger`/`seat` keys of passes
+// issued before semantics were always sent.
+const nameOf = (pn) => pn && typeof pn === "object" ? [pn.givenName, pn.familyName].filter(Boolean).join(" ") || undefined : undefined;
+const seatOfSem = (seats) => { const s = Array.isArray(seats) ? seats[0] : undefined; return s ? (`${s.seatRow ?? ""}${s.seatNumber ?? ""}` || undefined) : undefined; };
 const passengerOf = (rec) => {
-  if (rec.data) return fieldDataValue(rec.data.passenger);
-  const pn = migrateFormState(rec.state)?.semantics?.passengerName;
-  return pn ? [pn.givenName, pn.familyName].filter(Boolean).join(" ") : undefined;
+  if (rec.data) return nameOf(rec.data.semantics?.passengerName) ?? fieldDataValue(rec.data.passenger);
+  return nameOf(migrateFormState(rec.state)?.semantics?.passengerName);
 };
 const seatOf = (rec) => {
-  if (rec.data) return fieldDataValue(rec.data.seat);
-  const s = migrateFormState(rec.state)?.semantics?.seats?.[0];
-  return s ? (`${s.seatRow ?? ""}${s.seatNumber ?? ""}` || undefined) : undefined;
+  if (rec.data) return seatOfSem(rec.data.semantics?.seats) ?? fieldDataValue(rec.data.seat);
+  return seatOfSem(migrateFormState(rec.state)?.semantics?.seats);
 };
 // Current trip status for the Manage chip: the pushed transitStatus semantic
 // (both shapes store it in semantics; may be a {value} patch), else "On Time".
