@@ -10,8 +10,9 @@
 // updates ("Issue 1 · update 1"). Every mount aborts the previous one.
 
 import { kindAttrs } from "@wpd/pass-builder/field-kinds.js";
+import { SEMANTIC_CATALOG } from "@wpd/pass-builder/semantics.js";
 import { parseBCBP, bcbpToSemantics } from "@wpd/pass-builder/bcbp.js";
-import { renderTypedInput, withZoneOffset } from "../inputs.js";
+import { renderTypedInput, withZoneOffset, zoneOffset } from "../inputs.js";
 import { toPassView } from "../preview/wallet/model.js";
 import { renderFront } from "../preview/wallet/card.js";
 import { renderBack } from "../preview/wallet/back.js";
@@ -125,6 +126,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       const input = renderTypedInput({
         type: slot.widget === "text" && slot.kind === "date" ? "date" : slot.widget,
         value, attrs: kindAttrs(slot.kind), label: slot.label, zone: () => zoneFor(sid),
+        enumOptions: SEMANTIC_CATALOG[slot.sem]?.enumOptions ?? [],
         onChange: (v) => {
           if (slot.kind === "iata" && typeof v === "string") {
             v = v.toUpperCase();
@@ -168,7 +170,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   // Changing an airport's zone re-anchors the times entered against it.
   function reanchorDates(tzSid) {
     const zone = shared[tzSid] || slotById(tzSid)?.fallback;
-    if (!zone || !/^[A-Za-z_]+\/[A-Za-z_\/+-]+$/.test(zone)) return false;
+    if (!zone || zoneOffset("2026-01-01T00:00", zone) === null) return false;   // not (yet) a real IANA zone
     let changed = false;
     for (const [dsid, z] of Object.entries(ZONE_OF)) {
       if (z !== tzSid || typeof shared[dsid] !== "string" || !shared[dsid]) continue;
@@ -360,29 +362,35 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
       root.querySelector(".iw-field.has-err input, .iw-field.has-err select")?.focus();
       return;
     }
-    issuing = true;
-    const btn = $("[data-primary]");
-    btn?.classList.add("is-busy");
+    // Snapshot every validated body up front: edits made while the POSTs are in
+    // flight must not change what gets issued (e.g. a serial retyped mid-batch
+    // could overwrite another passenger's pass). The workspace is locked too.
     const groupId = effectiveTripId();
-    results = [];
-    for (let i = 0; i < pax.length; i++) {
-      if (btn) btn.textContent = `Issuing ${i + 1} of ${pax.length}…`;
-      const p = pax[i];
+    const batch = pax.map(p => {
       const args = { groupId, serial: p.serial, slots, values: valuesFor(p), barcodeMessage: p.barcodeMessage, expirationDate: expiry };
       const body = kind === "studio" ? buildStudioIssueBody({ ...args, design, designName: tpl.id }) : buildTemplateIssueBody({ ...args, template: tpl.id });
+      const name = p.values["sem:passengerName"];
+      return { p, body, serial: p.serial, name: name ? [name.familyName, name.givenName].filter(Boolean).join(" / ").toUpperCase() : "Unnamed passenger" };
+    });
+    issuing = true;
+    root.querySelector(".iw")?.setAttribute("inert", "");
+    const btn = $("[data-primary]");
+    btn?.classList.add("is-busy");
+    results = [];
+    for (let i = 0; i < batch.length; i++) {
+      if (btn) btn.textContent = `Issuing ${i + 1} of ${batch.length}…`;
+      const { p, body, serial, name } = batch[i];
       let r, j;
       try {
         r = await fetch("/api/passes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
         j = await r.json().catch(() => ({}));
       } catch { if (signal.aborted) return; r = null; j = { error: "API offline" }; }
       if (signal.aborted) return;
-      const name = p.values["sem:passengerName"];
       results.push({
         pax: p, ok: Boolean(r?.ok), error: j.error ?? (r ? `HTTP ${r.status}` : "API offline"),
-        serial: j.serialNumber ?? p.serial, groupId: j.groupId ?? groupId, created: j.created !== false,
-        name: name ? [name.familyName, name.givenName].filter(Boolean).join(" / ").toUpperCase() : "Unnamed passenger"
+        serial: j.serialNumber ?? serial, groupId: j.groupId ?? groupId, created: j.created !== false, name
       });
-      if (r?.ok) existing.add(j.serialNumber ?? p.serial);
+      if (r?.ok) existing.add(j.serialNumber ?? serial);
     }
     issuing = false;
     step = "issued";
@@ -428,7 +436,7 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
   // ---- events -----------------------------------------------------------------
   root.addEventListener("click", async (e) => {
     const t = e.target.closest("[data-act]");
-    if (!t || !root.contains(t)) return;
+    if (!t || !root.contains(t) || issuing) return;
     const act = t.dataset.act;
     if (act === "back") return back();
     if (act === "templates") return showTemplates?.();
@@ -494,12 +502,18 @@ export function mountIssue(root, { template: id, kind = "designer", onBack, open
     if (!note) return;
     const rep = serials();
     note.className = "iw-note";
-    if (rep.duplicates.has(sel)) { note.textContent = "Another passenger in this batch has this serial — each pass needs its own."; note.classList.add("is-err"); }
+    const reveal = submitted || pax[sel]?.touched.has("serial");
+    if (rep.duplicates.has(sel) && reveal) { note.textContent = "Another passenger in this batch has this serial — each pass needs its own."; note.classList.add("is-err"); }
     else if (rep.updates.has(sel)) { note.textContent = "Already issued — issuing updates that pass on every device that has it."; note.classList.add("is-warn"); }
     else note.textContent = "";
   }
 
   root.addEventListener("focusout", (e) => {
+    if (e.target.matches?.("[data-serial]") && pax[sel]) {
+      pax[sel].touched.add("serial");
+      refreshSerialNote(); refreshPaxList();
+      return;
+    }
     const ph = e.target.closest?.("[data-slot-input]");
     if (!ph || ph.contains(e.relatedTarget)) return;
     const sid = ph.dataset.slotInput, scope = ph.dataset.scope;

@@ -62,7 +62,7 @@ reachable from private IPs/LAN only, or with admin Basic Auth
 | Route | What it does |
 |---|---|
 | `POST /api/build` | FormState → registered live pass + signed `.pkpass` download |
-| `POST /api/passes` | Issue a live pass. Body: full FormState, **or** `{template, serialNumber, data, groupId}` for the template path |
+| `POST /api/passes` | Issue a live pass. Body: full FormState (optional envelope `designName` = the saved Studio design it came from; optional `meta.groupId` pins the trip id), **or** `{template, serialNumber, data, groupId}` for the template path |
 | `GET /api/passes` · `GET /api/passes/:serial` | Issued passes, registrations, device counts |
 | `GET /api/passes/:serial/pkpass` | Re-download the signed pass (rebuilt from stored state) |
 | `POST /api/passes/:serial/status` | Update status by **semantic key** (legacy verbs gate/boarding/depart/arrive/transitInfo accepted as aliases) + APNs-push that pass's devices. Semantics with no bound visible field still update and are reported in `skippedFields` |
@@ -70,7 +70,7 @@ reachable from private IPs/LAN only, or with admin Basic Auth
 | `DELETE /api/passes/:serial` · `/api/groups/:groupId` | Remove passes + registrations |
 | `POST /api/templates/:id` | Upload a zipped `.pkpasstemplate` (raw body) → `templates/<id>.pkpasstemplate/`; (re-)discovers its `semanticKey → fieldKey` bindings |
 | `GET /api/templates` | Installed templates (`kind: "designer"`) + the field keys and discovered bindings each declares, a thumbnail-safe `preview` pass.json and `logo` data URL |
-| `GET /api/studio-templates` | Saved Studio designs from `designs/` as `kind: "studio"` shelf entries with a built `preview` pass.json |
+| `GET /api/studio-templates` | Saved Studio designs from `designs/` as `kind: "studio"` shelf entries: a built `preview` pass.json plus the same merge surface as bundles (`fieldKeys`, `fields`, `bindings` discovered from the design's sample values, `semantics`) |
 | `GET /api/designs` · `GET/PUT/DELETE /api/designs/:name` | Saved Studio designs (FormState JSON in `designs/`, gitignored user data). PUT is 201 on create, 200 on overwrite; names are file-stem slugs |
 | `GET /api/fixtures` · `GET /api/fixtures/:name` | **Read-only** CI regression fixtures (`fixtures/`), for `?fixture=<name>` deep links into the Design view |
 | `PUT /api/templates/:id/bindings` | Replace a template's `semanticKey → fieldKey` map with user-confirmed bindings (edited on the Templates → Bindings screen) |

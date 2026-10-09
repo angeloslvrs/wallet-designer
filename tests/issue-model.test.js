@@ -212,6 +212,29 @@ describe("studio design body", () => {
   });
 });
 
+describe("baked sample values", () => {
+  it("every baked semantic gets a slot, so a sample passenger value is cleared per passenger", async () => {
+    const { passJson } = await loadTemplate("templates/cebpac.pkpasstemplate");
+    const b = discoverBindings(passJson);
+    const ceb = { fields: templateFieldDescriptors(passJson, b), bindings: b, semantics: passJson.semantics, preview: passJson };
+    const base = templateSlots(ceb);
+    expect(base.some(s => s.id === "sem:boardingGroup")).toBe(true);
+    expect(base.some(s => s.id === "sem:eventType")).toBe(false);
+    const slots = issueSlots(base, defaultIndividual(base));
+    const sem = passengerSemantics(slots, { "sem:passengerName": { givenName: "A", familyName: "B" } });
+    expect(sem.boardingGroup).toBeNull();
+    expect(applyTemplateData(passJson, { semantics: sem }).semantics.boardingGroup).toBeUndefined();
+  });
+
+  it("studio bodies rewrite bound iOS 26 additional-info rows too", () => {
+    const d = structuredClone(design);
+    d.iOS26 = { ...(d.iOS26 ?? {}), additionalInfoFields: [{ key: "booking", label: "BOOKING", value: "GHK2X9" }] };
+    const slots = [{ id: "sem:confirmationNumber", sem: "confirmationNumber", fieldKeys: ["booking"], widget: "text", kind: "text" }];
+    const body = buildStudioIssueBody({ design: d, groupId: "G", serial: "S", slots, values: { "sem:confirmationNumber": "REAL42" } });
+    expect(body.iOS26.additionalInfoFields[0].value).toBe("REAL42");
+  });
+});
+
 describe("preview + roster", () => {
   it("previews one passenger without the template's sample person", () => {
     const slots = templateSlots(devSample);

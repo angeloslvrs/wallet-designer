@@ -133,6 +133,8 @@ const FLIGHT_CORE = [
   "departureAirportTimeZone", "destinationAirportTimeZone"
 ];
 const REQUIRED = new Set(REQUIRED_SEMANTICS.map(canonicalSemantic));
+// Baked keys not worth a slot: derived at emit time or structural.
+const SKIP_BAKED = new Set(["wifiAccess", "duration", "eventType", "silenceRequested"]);
 const RECOMMENDED = new Set(DOC_REQUIRED_SEMANTICS.map(canonicalSemantic).filter(k => !REQUIRED.has(k)));
 
 const LABELS = {
@@ -150,6 +152,7 @@ const LABELS = {
 /** The input widget a semantic renders with (inputs.js renderTypedInput types). */
 export function semanticWidget(sem) {
   if (/TimeZone$/.test(sem)) return "timezone";
+  if (sem === "passengerCapabilities") return "capabilities";
   return SEMANTIC_CATALOG[sem]?.type ?? "text";
 }
 
@@ -195,6 +198,14 @@ export function templateSlots(tpl) {
   for (const sem of PASSENGER_CORE) push(semSlot(sem));
   for (const sem of Object.keys(boundTo)) if (SEMANTIC_CATALOG[sem]) push(semSlot(sem));
   for (const sem of REQUIRED) if (SEMANTIC_CATALOG[sem]) push(semSlot(sem));
+  // Every other value the template bakes in gets a slot too — so a sample
+  // passenger value (boarding group, fare class…) can be cleared per passenger,
+  // and the operator sees what ships. Day-of-travel status is the Flights
+  // board's job, not issuing's.
+  for (const key of Object.keys(baked)) {
+    const sem = canonicalSemantic(key);
+    if (SEMANTIC_CATALOG[sem] && SEMANTIC_CATALOG[sem].group !== "status" && !SKIP_BAKED.has(sem)) push(semSlot(sem));
+  }
   const fc = out.find(x => x.sem === "flightCode");
   if (fc) fc.deriveFrom = { airlineCode: out.find(x => x.sem === "airlineCode")?.fallback, flightNumber: out.find(x => x.sem === "flightNumber")?.fallback };
   for (const f of fields) {
@@ -450,9 +461,10 @@ export function buildStudioIssueBody({ design, designName, groupId, serial, slot
   for (const k of VOLATILE_SEMANTICS) delete base[k];
   state.semantics = dropNulls({ ...base, ...passengerSemantics(slots, values) });
   const fieldValues = passengerFieldValues(slots, values);
-  for (const zone of Object.keys(state.displayFields ?? {})) {
-    state.displayFields[zone] = (state.displayFields[zone] ?? []).map(f => (f.key in fieldValues ? { ...f, value: fieldValues[f.key] } : f));
-  }
+  const rewrite = (list) => (list ?? []).map(f => (f.key in fieldValues ? { ...f, value: fieldValues[f.key] } : f));
+  for (const zone of Object.keys(state.displayFields ?? {})) state.displayFields[zone] = rewrite(state.displayFields[zone]);
+  // iOS 26 additional-info rows are fields too (bindings see them).
+  if (state.iOS26?.additionalInfoFields) state.iOS26 = { ...state.iOS26, additionalInfoFields: rewrite(state.iOS26.additionalInfoFields) };
   const meta = { ...state.meta, serialNumber: s, groupId: (groupId ?? "").trim() };
   delete meta.authenticationToken;   // the server owns tokens (stable per serial)
   const exp = (expirationDate ?? "").trim();

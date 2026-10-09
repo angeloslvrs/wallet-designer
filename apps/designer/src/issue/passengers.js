@@ -96,7 +96,8 @@ function rightPane(ctx) {
   const fields = ctx.slots.filter(s => ctx.individual.has(s.id)).sort(byOrder)
     .map(s => fieldHtml(s, "pax", { values, touched: p.touched, submitted: ctx.submitted, error: slotError(s, values) })).join("");
   const rep = ctx.serials;
-  const serialNote = rep.duplicates.has(ctx.sel) ? ["is-err", "Another passenger in this batch has this serial — each pass needs its own."]
+  const reveal = ctx.submitted || p.touched.has("serial");
+  const serialNote = rep.duplicates.has(ctx.sel) && reveal ? ["is-err", "Another passenger in this batch has this serial — each pass needs its own."]
     : rep.updates.has(ctx.sel) ? ["is-warn", "Already issued — issuing updates that pass on every device that has it."]
       : rep.missing.has(ctx.sel) && ctx.submitted ? ["is-err", "Needs a serial — set the flight’s trip id or type one."] : ["", ""];
   const warn = p.warn.length ? `<p class="iw-note is-warn">This boarding pass is for ${esc(p.warn.join(", "))} — check it belongs on this flight.</p>` : "";

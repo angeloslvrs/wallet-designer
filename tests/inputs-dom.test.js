@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { localUtcOffset, renderTypedInput } from "../apps/designer/src/inputs.js";
+import { localUtcOffset, renderTypedInput, zoneOffset } from "../apps/designer/src/inputs.js";
 
 function mount(opts) {
   let last;
@@ -69,5 +69,32 @@ describe("renderTypedInput", () => {
     const inp = el.querySelector("input");
     inp.value = "NRT"; inp.dispatchEvent(new Event("input", { bubbles: true }));
     expect(get()).toBe("NRT");
+  });
+});
+
+describe("airport-zone offsets", () => {
+  it("computes a zone's offset at a wall-clock time, DST included; unknown zones are null", () => {
+    expect(zoneOffset("2026-11-02T07:30", "America/Los_Angeles")).toBe("-08:00");
+    expect(zoneOffset("2026-07-02T07:30", "America/Los_Angeles")).toBe("-07:00");
+    expect(zoneOffset("2026-07-02T07:30", "UTC")).toBe("+00:00");
+    expect(zoneOffset("2026-07-02T07:30", "Not/AZone")).toBeNull();
+  });
+
+  it("an auto offset re-mounted from a value keeps tracking the date (not frozen as typed)", () => {
+    let v;
+    const w = renderTypedInput({ type: "date", value: "2026-11-02T08:00:00-08:00", zone: "America/Los_Angeles", onChange: (x) => { v = x; } });
+    const date = w.querySelector('input[type="date"]');
+    date.value = "2026-07-02";
+    date.dispatchEvent(new Event("input"));
+    expect(v).toBe("2026-07-02T08:00:00-07:00");
+  });
+
+  it("a hand-typed offset is kept", () => {
+    let v;
+    const w = renderTypedInput({ type: "date", value: "2026-11-02T08:00:00+05:30", zone: "America/Los_Angeles", onChange: (x) => { v = x; } });
+    const date = w.querySelector('input[type="date"]');
+    date.value = "2026-07-02";
+    date.dispatchEvent(new Event("input"));
+    expect(v).toBe("2026-07-02T08:00:00+05:30");
   });
 });

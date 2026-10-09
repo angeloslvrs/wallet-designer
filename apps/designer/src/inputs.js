@@ -161,10 +161,14 @@ export function renderTypedInput({ type, value, onChange, enumOptions = [], attr
       const currentLocal = () => (dateInp.value && timeInp.value ? `${dateInp.value}T${timeInp.value}` : "");
       // Until the user sets the offset, keep it filled with the EDITED date's
       // local offset, so it tracks DST for whatever date they type.
-      let offsetTouched = Boolean(offset);
+      // An offset equal to what we'd compute (the zone's, else the browser's)
+      // is automatic, not the operator's: it keeps tracking date/DST changes
+      // after a re-mount instead of freezing.
+      const autoOffset = (l) => zoneOffset(l, typeof zone === "function" ? zone() : zone) ?? offsetForLocal(l);
+      let offsetTouched = Boolean(offset) && Boolean(local) && offset !== autoOffset(local);
       const sync = () => {
         const local = currentLocal();
-        if (!offsetTouched && local) off.value = zoneOffset(local, typeof zone === "function" ? zone() : zone) ?? offsetForLocal(local);
+        if (!offsetTouched && local) off.value = autoOffset(local);
         fire(joinIso(local, off.value.trim()));
       };
       dateInp.addEventListener("input", sync);

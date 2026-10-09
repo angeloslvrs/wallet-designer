@@ -113,6 +113,33 @@ describe("Passengers step", () => {
     expect(root.querySelector("[data-serial-note]").textContent).toMatch(/each pass needs its own/);
   });
 
+  it("holds a duplicate-serial error until blur, and snapshots bodies so edits mid-batch can't change what's issued", async () => {
+    mountIssue(root, { template: "dev-sample" });
+    await settle();
+    fillFlight();
+    click('[data-act="to-passengers"]');
+    root.querySelector("#iw-paste").value = `${bcbp("SOLIVERES/ANGELO", "014A", "0042")}\n${bcbp("SOLIVERES/MARIA", "014B", "0043")}`;
+    click('[data-act="paste-add"]');
+    click('[data-act="pax"][data-i="1"]');
+    const serial = root.querySelector("#iw-serial");
+    type(serial, "RP248@2026-11-02-002");
+    // fresh duplicate (passenger 1 has -002): no error until blur
+    expect(root.querySelector("[data-serial-note]").textContent).toBe("");
+    serial.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    expect(root.querySelector("[data-serial-note]").textContent).toMatch(/each pass needs its own/);
+    type(root.querySelector("#iw-serial"), "MINE-2");
+    // a slow server: edits during the batch are ignored
+    const realFetch = globalThis.fetch;
+    let release;
+    globalThis.fetch = (url, opts = {}) => (opts.method === "POST" ? new Promise(r => { release = () => r(realFetch(url, opts)); }) : realFetch(url, opts));
+    click('[data-act="issue"]');
+    await settle();
+    expect(root.querySelector(".iw").hasAttribute("inert")).toBe(true);
+    type(root.querySelector("#iw-serial"), "RP248@2026-11-02-002");   // mid-batch edit: must not leak in
+    release(); await settle(); release(); await settle();
+    expect(posts.map(p => p.serialNumber)).toEqual(["RP248@2026-11-02-002", "MINE-2"]);
+  });
+
   it("issues template bodies and lands on Issued with QR, badge, Copy all links first and Open flight", async () => {
     const opened = [];
     mountIssue(root, { template: "dev-sample", openFlight: (g) => opened.push(g) });
