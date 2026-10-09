@@ -75,7 +75,7 @@ Motion (all CSS, all under 450 ms, `prefers-reduced-motion` disables): screen en
 1. **Template shelf** — `GET /api/templates` gains `kind: "designer"` on every bundle; a new `GET /api/library` (or the same route with `?all=1`) also returns studio templates: `{ id, kind: "studio", name, fieldKeys, preview: FormState summary, issued: n }` derived from `/api/fixtures`. Issue counts come from `GET /api/passes` grouped by `template` (designer) or `designName` (studio; new optional field stored on FormState passes at issue time).
 2. **Issue from a studio template** — the Issue workspace, when the selected template is `studio`, loads the FormState, applies the flight step's values into `semantics`/fields, and posts one `POST /api/passes` (FormState body) per passenger. No new server route; `designName` is recorded on the stored pass so the shelf can count it.
 3. **Flights board** — `GET /api/passes` already returns `groupId, passenger, seat, status, deviceCount, current{departureGate,currentBoardingDate,currentDepartureDate,...}, template`. The board derives per-flight rows client-side (status = most severe across passes; departs/boards from `current`; destination from a new `route` field). Add `route: { from, to, fromCity?, toCity? }` to the list response (from semantics, both shapes). No schema change.
-4. **Design → Save template** = `PUT /api/fixtures/:name` (unchanged), labelled "template".
+4. **Design → Save template** = `PUT /api/designs/:name` (saved designs moved to gitignored `designs/`; `/api/fixtures` is now read-only CI fixtures), labelled "template".
 5. Everything in `AGENTS.md`'s security model is untouched: guard, no CORS, stable auth tokens, server-forced identity.
 
 ### Phases
@@ -85,8 +85,8 @@ Each phase ships green (`npm test`, `npm run check`, SPA build) and is deployabl
 1. **Tokens + shell + Flights board** — new `styles.css` tokens (dark/light), masthead with segmented nav, theme toggle, `flights.js` (board + panel) reusing `ops.js`, `route` in `GET /api/passes`. Manage becomes the Flights view; old `manage.js` deleted. *(done 2026-10-09)*
 2. **Templates shelf + Bindings** — `templates.js` view, bindings screen (extracted from `issue.js`). *(done 2026-10-09: shipped as `kind`/`preview`/`logo` on `GET /api/templates` plus `GET /api/studio-templates`, not a single `/api/library`.)*
 3. **Issue workspace** — `issue/` split into `flight.js`, `passengers.js`, `issued.js`; three-pane canvas; studio-template issuing; old `issue.js` deleted. *(done 2026-10-09: semantics-first `issue/model.js`; saved designs moved to `designs/` with `/api/designs`, studio cards gained Delete; `designName` stored in `passes.design_name`.)*
-4. **Design workspace** — `form.js`/`semantics-editor.js` re-homed into the canvas layout (left tabs), Save template.
-5. **Device log page + polish** — reduced-motion, keyboard nav, mobile collapse (board → cards; canvas → stacked), empty states, remove dead CSS.
+4. **Design workspace** — `form.js`/`semantics-editor.js` re-homed into the canvas layout (left tabs), Save template. *(done 2026-10-09: `design.js`; Build .pkpass removed — Issue passes → saves then opens Issue.)*
+5. **Device log page + polish** — reduced-motion, keyboard nav, mobile collapse (board → cards; canvas → stacked), empty states, remove dead CSS. *(partial 2026-10-09: dead CSS + `--wpd-*` tokens removed, tablist arrow keys, sticky canvas, stacked mobile workspaces; open items in HANDOFF.)*
 
 ### Invariants (do not break)
 

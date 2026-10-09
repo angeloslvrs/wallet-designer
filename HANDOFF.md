@@ -305,6 +305,8 @@ Fable orchestrating + reviewing; **no Fable-subagent escalations were needed**
 
 ## Start here (next session)
 
+> **UI overhaul in progress on branch `ui-overhaul`** — read the 2026-10-09 entries at the bottom first; they supersede the roadmap below for SPA work.
+
 1. Skim the ground-truth files above; confirm `main` is clean and `npx vitest run` is green.
 2. Pick from the open roadmap (nothing in progress):
    - **Device verification (recommended):** real iOS 26 — (a) **push reliability** from the
@@ -476,6 +478,12 @@ headers. Deliberately NOT done: a confirm before issuing (the decided pattern is
 pass"/time zones on Flight; typed date pickers in Design → Fields; slimmer Design right pane;
 "apply to all passengers"; a help line for Share vs Vary. Detector overlay can't inject
 through the CSP (expected).
+
+**Deploy notes (when merged):** rsync `packages/pass-schema/` (new optional `meta.groupId`) and
+`packages/pass-builder/` + `apps/server/` as usual, plus a rebuilt `apps/designer/dist/`.
+`passes.design_name` is added by an automatic `ALTER TABLE` on boot. `designs/` is created on
+the first Save template; nothing migrates into it (studio designs saved before lived in the
+box's `fixtures/`, if any — copy them over by hand if wanted).
 
 Dev: `.claude/launch.json` gained `designer-dev-alt` (API :4330, Vite :4331) for when another
 session holds :4318. Test passes/designs created while verifying were deleted; the store is
