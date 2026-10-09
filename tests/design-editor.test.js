@@ -112,3 +112,16 @@ describe("Design editor — 24-hour time fields and label tokens", () => {
     expect(df.auxiliary[0]).toEqual({ key: "boarding", label: "BOARDING", value: iso, timeFormat: "24h" });
   });
 });
+
+describe("Design editor — optional fields", () => {
+  it("a row's Optional toggle sets and clears optional", () => {
+    setPath("displayFields", { header: [], primary: [], secondary: [], auxiliary: [], back: [{ key: "note", label: "NOTE", value: "" }] });
+    renderForm(root, { section: "fields" });
+    const btn = root.querySelector('.wpd-df-opt');
+    expect(btn.getAttribute("aria-pressed")).toBe("false");
+    btn.click();
+    expect(state.displayFields.back[0].optional).toBe(true);
+    root.querySelector('.wpd-df-opt').click();
+    expect(state.displayFields.back[0].optional).toBeUndefined();
+  });
+});

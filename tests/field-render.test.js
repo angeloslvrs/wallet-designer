@@ -77,3 +77,22 @@ describe("resolvePassFields", () => {
     expect(resolvePassFields({ semantics: {} })).toEqual({ semantics: {} });
   });
 });
+
+describe("optional fields", () => {
+  it("an optional field with a blank value is left off the pass; the attr never ships", () => {
+    const out = resolvePassFields(pass([
+      { key: "note", label: "NOTE", value: "", optional: true },
+      { key: "note2", label: "NOTE", value: "  ", optional: true },
+      { key: "term", label: "TERMINAL", value: "3", optional: true },
+      { key: "gate", label: "GATE", value: "" }
+    ]));
+    expect(out.boardingPass.primaryFields).toEqual([{ key: "term", label: "TERMINAL", value: "3" }, { key: "gate", label: "GATE", value: "" }]);
+  });
+  it("a 24h optional field with no date is dropped; with a date it renders", () => {
+    const out = resolvePassFields(pass([
+      { key: "a", label: "A", value: "", timeFormat: "24h", optional: true },
+      { key: "b", label: "B", value: "2026-10-12T07:40:00+08:00", timeFormat: "24h", optional: true }
+    ]));
+    expect(out.boardingPass.primaryFields).toEqual([{ key: "b", label: "B", value: "07:40" }]);
+  });
+});

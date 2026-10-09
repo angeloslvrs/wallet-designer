@@ -151,3 +151,14 @@ describe("Studio field extensions (label tokens, timeFormat)", async () => {
     expect(validate(s).ok).toBe(false);
   });
 });
+
+describe("optional fields in the schema", async () => {
+  const { validate } = await import("../packages/pass-builder/validate.js");
+  it("accepts optional: true on display and additional-info fields", () => {
+    const s = structuredClone(base);
+    s.displayFields.back = [{ key: "note", label: "NOTE", value: "", optional: true }];
+    s.iOS26 = { ...s.iOS26, additionalInfoFields: [{ key: "x", label: "X", value: "", optional: true }] };
+    expect(validate(s).ok).toBe(true);
+    expect(formStateToPassJson(s).boardingPass.backFields).toEqual([]);
+  });
+});

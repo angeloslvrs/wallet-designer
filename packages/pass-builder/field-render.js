@@ -1,9 +1,11 @@
-// Studio field extensions → plain Apple fields. A Studio design may carry two
+// Studio field extensions → plain Apple fields. A Studio design may carry three
 // things Wallet doesn't understand, and neither may reach an emitted pass.json:
 //  - label tokens: "{departureCityName:upper}" fills a label from the pass's
 //    own semantics, so one airline layout serves every route;
 //  - timeFormat "24h": the field stores an ISO date (so Issue, bindings and
-//    status updates keep treating it as a date) and is rendered "HH:mm".
+//    status updates keep treating it as a date) and is rendered "HH:mm";
+//  - optional: true: the field is left off the pass while its value is blank
+//    (an airline's "Terminal note" that only some routes fill).
 // Runs at the end of formStateToPassJson and in the wallet preview. Browser-safe
 // imports only — the designer bundle ships this file.
 
@@ -51,7 +53,7 @@ export function resolvePassFields(passJson) {
   for (const zone of FIELD_ZONES) {
     const list = out[style][zone];
     if (!Array.isArray(list)) continue;
-    out[style][zone] = list.map(f => {
+    out[style][zone] = list.flatMap(f => {
       if (!f || typeof f !== "object") return f;
       let next = f;
       if (typeof f.label === "string" && f.label.includes("{")) {
@@ -62,7 +64,12 @@ export function resolvePassFields(passJson) {
         const { timeFormat, dateStyle, timeStyle, ...rest } = next;
         next = timeFormat === "24h" ? { ...rest, value: time24(rest.value) } : rest;
       }
-      return next;
+      if (f.optional !== undefined) {
+        const { optional, ...rest } = next;
+        if (optional === true && (rest.value === undefined || rest.value === null || String(rest.value).trim() === "")) return [];
+        next = rest;
+      }
+      return [next];
     });
   }
   return out;

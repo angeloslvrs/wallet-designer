@@ -9,6 +9,7 @@ export { schema };
  * @property {string} [dateStyle]
  * @property {string} [timeStyle]
  * @property {"24h"} [timeFormat]  value stays ISO; rendered "HH:mm" at emit
+ * @property {boolean} [optional]  left off the pass while the value is blank
  * (label may carry {semanticKey} / {semanticKey:upper} tokens, resolved at emit)
  * @property {string} [changeMessage]
  */

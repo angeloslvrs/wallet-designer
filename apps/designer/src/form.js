@@ -301,6 +301,14 @@ function fieldsCard() {
     focusTarget.dataset.fieldkey = f.key ?? "";
     key.addEventListener("input", () => { update("key", key.value); focusTarget.dataset.fieldkey = key.value; });
     label.addEventListener("input", () => update("label", label.value));
+    // Optional: left off the pass while blank (e.g. a note only some routes fill).
+    const opt = h("button", { type: "button", class: "wpd-df-opt" + (f.optional ? " is-active" : ""), text: "opt", title: "Optional: hide this field on the pass while it’s blank", "aria-label": `${where} optional — hide while blank`, "aria-pressed": String(Boolean(f.optional)) });
+    opt.addEventListener("click", () => {
+      const next = structuredClone(state.displayFields ?? {});
+      if (next[section][i].optional) delete next[section][i].optional; else next[section][i].optional = true;
+      setPath("displayFields", next);
+      rerender();
+    });
     const rm = h("button", { type: "button", class: "wpd-df-rm", title: "remove field", "aria-label": `Remove ${where}`, text: "×" });
     rm.addEventListener("click", () => {
       const next = structuredClone(state.displayFields ?? {});
@@ -311,8 +319,8 @@ function fieldsCard() {
     // A date row wraps: key · label · remove on top, the picker full-width below,
     // then how the time shows: the phone's own format, or always 24-hour.
     const row = isDateField(f)
-      ? h("div", { class: "wpd-df-row is-date" }, key, label, rm, value, timeFormatToggle(section, i, f, where))
-      : h("div", { class: "wpd-df-row" }, key, label, value, rm);
+      ? h("div", { class: "wpd-df-row is-date" }, key, label, opt, rm, value, timeFormatToggle(section, i, f, where))
+      : h("div", { class: "wpd-df-row" }, key, label, value, opt, rm);
     row.dataset.k = f.key ?? "";
     return row;
   }
